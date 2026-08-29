@@ -776,18 +776,6 @@ body[data-theme="dark"] {
 }
 .bn-select:focus { border-color: var(--clay); }
 
-.bn-demo-notice {
-  display: none; background: rgba(212,160,23,0.10);
-  border: 1px solid rgba(212,160,23,0.30); border-radius: var(--r);
-  padding: 10px 14px; margin-bottom: 14px; font-size: 12px; color: var(--text-2);
-  align-items: center; gap: 8px;
-}
-.bn-demo-notice.visible { display: flex; }
-.bn-demo-notice code {
-  background: var(--bg2); border: 1px solid var(--border);
-  border-radius: 4px; padding: 1px 6px; font-size: 11px; color: var(--clay);
-}
-
 /* ══════════════════════════════════════════════════════════
    SKELETONS
 ══════════════════════════════════════════════════════════ */

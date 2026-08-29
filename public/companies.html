@@ -172,20 +172,16 @@
   padding: 0 18px 120px;
 }
 
-/* ── Demo notice ── */
-.co-demo-notice {
-  display: none;
-  align-items: center;
-  gap: 8px;
-  padding: 10px 14px;
-  background: rgba(212,160,23,0.08);
-  border: 1px solid rgba(212,160,23,0.22);
-  border-radius: var(--r);
-  font-size: 12px;
-  color: var(--sand-dark);
-  margin-bottom: 14px;
+/* ── Error state ── */
+.co-empty-sub { font-size: 13px; color: var(--text-3); font-weight: 500; margin-top: 6px; opacity: 0.85; }
+.co-retry-btn {
+  margin-top: 16px; padding: 10px 22px; border: none; border-radius: 12px; cursor: pointer;
+  font-family: 'Cairo', sans-serif; font-size: 14px; font-weight: 700; color: #fff;
+  background: var(--clay, #1B3A6B); transition: filter 0.18s, transform 0.18s;
 }
-.co-demo-notice.visible { display: flex; }
+.co-retry-btn:hover  { filter: brightness(1.12); transform: translateY(-1px); }
+.co-retry-btn:active { transform: translateY(0); }
+.co-retry-btn[disabled] { opacity: 0.6; cursor: progress; transform: none; }
 
 /* ── Empty state ── */
 .co-empty {
@@ -272,10 +268,6 @@
 
 <!-- Main -->
 <div class="co-main">
-  <div class="co-demo-notice" id="demoNotice">
-    <span>⚠️</span>
-    <span>وضع تجريبي — السيرفر غير متاح، البيانات محلية مؤقتاً</span>
-  </div>
   <div class="bn-grid" id="companiesGrid">
     <div class="co-skeleton"></div>
     <div class="co-skeleton"></div>
@@ -296,7 +288,8 @@
 'use strict';
 
 const API_URL = '';
-let DEMO_MODE = false;
+/* true عندما يفشل تحميل الشركات — تُعرض حالة خطأ صادقة، لا بيانات بديلة. */
+let LOAD_ERROR = false;
 
 const LOGO_COLORS = [
   ['#1a2a3a','#4a90d9'], ['#1a2a1e','#3fb950'], ['#2a1a1e','#d45a5a'],
@@ -304,14 +297,7 @@ const LOGO_COLORS = [
   ['#2a1f14','#e8834a'], ['#1e2828','#4acfa0'],
 ];
 
-const FALLBACK_DATA = [
-  { id:'s1', name:'شركة النخيل للمقاولات',      spec:'مقاولات عامة',    city:'بغداد',  year:2008, size:'كبيرة',   rating:4.9, projects:47, verified:true,  phone:'+964770111222', email:'info@nakheel.iq',  desc:'رائدة في إنشاء المجمعات السكنية والتجارية في بغداد منذ 2008.' },
-  { id:'s2', name:'مجموعة الرافدين الهندسية',   spec:'تصميم معماري',    city:'البصرة', year:2012, size:'متوسطة', rating:4.7, projects:31, verified:true,  phone:'+964780222333', email:'',                 desc:'تصميم وإشراف هندسي للمشاريع الحكومية والخاصة.' },
-  { id:'s3', name:'شركة الفرات للبنية التحتية', spec:'بنية تحتية',      city:'الموصل', year:2015, size:'كبيرة',  rating:4.6, projects:22, verified:true,  phone:'+964750333444', email:'info@furat.iq',    desc:'تخصص في مشاريع الطرق والجسور وشبكات الصرف الصحي.' },
-  { id:'s4', name:'مؤسسة الجزيرة للتشطيبات',   spec:'تشطيبات داخلية', city:'أربيل',  year:2018, size:'صغيرة', rating:4.8, projects:58, verified:false, phone:'+964770444555', email:'hello@jazira.com', desc:'تشطيبات فاخرة وديكور داخلي للمباني السكنية والتجارية.' },
-  { id:'s5', name:'شركة دجلة للكهرباء',         spec:'كهرباء وميكانيك', city:'بغداد',  year:2010, size:'متوسطة',rating:4.5, projects:39, verified:true,  phone:'+964790555666', email:'tech@dijla.iq',    desc:'حلول كهربائية وميكانيكية متكاملة للمشاريع الكبرى.' },
-  { id:'s6', name:'بيت الهندسة للإدارة',        spec:'إدارة مشاريع',   city:'البصرة', year:2016, size:'صغيرة', rating:4.7, projects:15, verified:false, phone:'+964780666777', email:'',                 desc:'إدارة وإشراف متكامل على المشاريع الإنشائية.' },
-];
+
 
 /* ═══════════════════════════════
    STATE
@@ -400,17 +386,23 @@ async function loadCompanies() {
     if (!res.ok) throw new Error(`HTTP ${res.status}`);
     const data = await res.json();
     companies = data.map(normalizeCompany);
-    DEMO_MODE = false;
-    document.getElementById('demoNotice').classList.remove('visible');
+    LOAD_ERROR = false;
   } catch(err) {
-    console.warn('[Bunyan] demo mode:', err.message);
-    companies = [...FALLBACK_DATA];
-    DEMO_MODE = true;
-    document.getElementById('demoNotice').classList.add('visible');
+    /* لا بيانات بديلة — قائمة فارغة وحالة خطأ صريحة. */
+    console.warn('[Bunyan] فشل تحميل الشركات:', err.message);
+    companies = [];
+    LOAD_ERROR = true;
   }
   filtered = [...companies];
   renderCards();
   updateHeroCount();
+}
+
+/* إعادة محاولة تحميل الشركات والإحصاءات بعد فشل الاتصال. */
+async function retryLoad(btn) {
+  if (btn) { btn.disabled = true; btn.textContent = 'جارٍ المحاولة...'; }
+  await loadCompanies();
+  loadLiveStats();
 }
 
 /* ═══════════════════════════════
@@ -425,6 +417,18 @@ function showSkeletons() {
 function renderCards() {
   const grid    = document.getElementById('companiesGrid');
   const visible = filtered.filter(c => c.status !== 'rejected');
+
+  if (LOAD_ERROR) {
+    document.getElementById('resultCount').textContent = '—';
+    grid.innerHTML = `<div class="co-empty">
+      <div class="co-empty-icon">📡</div>
+      <div class="co-empty-text">تعذّر الاتصال بالخادم</div>
+      <div class="co-empty-sub">لم نتمكن من تحميل قائمة الشركات. تحقّق من اتصالك ثم أعد المحاولة.</div>
+      <button class="co-retry-btn" onclick="retryLoad(this)">إعادة المحاولة</button>
+    </div>`;
+    return;
+  }
+
   document.getElementById('resultCount').textContent = visible.length + ' شركة';
 
   if (!visible.length) {
@@ -473,9 +477,8 @@ function renderCards() {
 function updateHeroCount() {
   const el = document.getElementById('heroCount');
   if (!el) return;
-  /* لا تُشتق الإحصاءة من البيانات المعروضة — في الوضع التجريبي تكون
-     FALLBACK_DATA فيظهر رقم مختلَق. المصدر الوحيد هو /stats. */
-  if (DEMO_MODE) { el.textContent = '—'; return; }
+  /* لا تُشتق الإحصاءة من البيانات المعروضة. المصدر الوحيد هو /stats. */
+  if (LOAD_ERROR) { el.textContent = '—'; return; }
   const approved = companies.filter(c => c.status === 'approved' || c.verified).length;
   el.textContent = approved + ' شركة موثّقة في العراق';
 }
