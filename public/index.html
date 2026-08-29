@@ -343,7 +343,11 @@ body { min-height:100vh; }
 
   /* ── 4. GENERAL LAYOUT ── */
   .bn-hero { padding: 32px 16px 72px !important; }
-  .bn-main { padding: 0 12px 100px !important; }
+  /* اضبط --page-px نفسه لا الحشو مباشرةً: الشريط الأفقي
+     (.bn-hscroll) يسحب بهامش سالب مقداره --page-px، فتثبيت
+     الحشو على رقم مخالف كان يجعله أعرض من الشاشة بـ٦ بكسل
+     ويخلق تمريراً أفقياً يمنعه DESIGN.md §٦. */
+  .bn-main { --page-px: 12px; padding: 0 var(--page-px) 100px !important; }
 
 }
 

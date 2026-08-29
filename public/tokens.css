@@ -148,6 +148,23 @@
 .bn-num { font-family: var(--bn-mono); font-variant-numeric: tabular-nums; }
 
 
+/* ── طبقة الخلفية ──────────────────────────────────────────────
+   الزجاج بلا شيء خلفه سطح رمادي باهت (§٣). هذه الطبقة تدرّجان
+   شعاعيان خفيفان فوق --bn-bg تمنحان الشفافية ما تكسره.
+   الاستعمال: <div class="bn-backdrop" aria-hidden="true"></div>
+   أول الجسم. خلف كل شيء، ولا تلتقط أي نقرة. */
+.bn-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: -1;
+  pointer-events: none;
+  background:
+    radial-gradient(ellipse 70% 55% at 88% -8%,  var(--bn-ac-bg) 0%, transparent 62%),
+    radial-gradient(ellipse 60% 50% at 6% 104%, var(--bn-glass-tint) 0%, transparent 60%),
+    var(--bn-bg);
+}
+
+
 /* ── الزجاج ────────────────────────────────────────────────────
    ⚠️ للأسطح الثابتة فقط: الشريط العلوي، القائمة الجانبية،
    لوحة الدخول، النوافذ المنبثقة.
