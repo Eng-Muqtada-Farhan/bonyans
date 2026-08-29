@@ -2913,4 +2913,4 @@ def system_status(request: Request):
 
 # ── Static files (MUST be last) ──────────────────────────────────────────────
 from fastapi.staticfiles import StaticFiles
-app.mount('/', StaticFiles(directory='.', html=True), name='static')
+app.mount('/', StaticFiles(directory='public', html=True), name='static')
