@@ -51,8 +51,7 @@ nano .env   # أضف جميع المتغيرات
 
 ### 3. تشغيل Migrations
 ```bash
-python _migrate_phase8.py
-python _migrate_phase9.py
+alembic upgrade head
 ```
 
 ### 4. تشغيل السيرفر (Production)
@@ -146,8 +145,8 @@ git pull origin main
 # 3. تثبيت المكتبات الجديدة
 pip install -r requirements.txt
 
-# 4. تشغيل migrations إذا وجدت
-python _migrate_phaseN.py
+# 4. تشغيل migrations
+alembic upgrade head
 
 # 5. إعادة تشغيل السيرفر
 sudo systemctl restart bunyan
