@@ -1,0 +1,295 @@
+/* ═══════════════════════════════════════════════════════════════
+   بُنيان — نظام الرموز | Design Tokens
+   ───────────────────────────────────────────────────────────────
+   الاتجاه المعتمد: الزجاج الهادئ · لون واحد (برونز عتيق)
+   معتمد: ٢٩ آب ٢٠٢٦ — لا تُغيَّر القيم هنا بلا موافقة صريحة
+
+   السابقة bn- مقصودة: تسمح بالتعايش مع bunyan.css القديم
+   أثناء الهجرة صفحةً صفحة. لا تحذف القديم قبل هجرة كل الصفحات.
+   ═══════════════════════════════════════════════════════════════ */
+
+/* ── الوضع النهاري (الافتراضي) ────────────────────────────── */
+:root {
+  /* الأرضيات */
+  --bn-bg:          #F4F2ED;
+  --bn-bg-sunk:     #EDEAE3;
+  --bn-surface:     #FBFAF8;
+
+  /* الزجاج */
+  --bn-glass:       rgba(255,255,255,.62);
+  --bn-glass-line:  rgba(255,255,255,.85);
+  --bn-glass-tint:  rgba(255,255,255,.42);
+  --bn-blur:        blur(22px) saturate(150%);
+  --bn-blur-sm:     blur(12px) saturate(140%);
+
+  /* النص */
+  --bn-ink:         #1D1A15;
+  --bn-ink-2:       #6C655A;
+  --bn-ink-3:       #9A9285;
+
+  /* الحدود */
+  --bn-line:        #E0DCD3;
+  --bn-line-soft:   #EBE8E1;
+
+  /* ── اللون الواحد: برونز عتيق ── */
+  --bn-ac:          #96703C;
+  --bn-ac-2:        #B08D57;
+  --bn-ac-lite:     #C9A96A;
+  --bn-ac-bg:       rgba(150,112,60,.09);
+  --bn-ac-line:     rgba(150,112,60,.24);
+  --bn-ac-on:       #FFFFFF;   /* النص فوق البرونز */
+
+  /* الحالات — إشارات وظيفية لا ألوان علامة.
+     معتمدة  = برونز ممتلئ · قيد المراجعة = محايد مفرَّغ
+     الأحمر وحده استثناء: الخطأ لا يجوز أن يكون برونزياً. */
+  --bn-err:         #A34E3F;
+  --bn-err-bg:      rgba(163,78,63,.10);
+  --bn-err-line:    rgba(163,78,63,.26);
+
+  /* الظلال */
+  --bn-sh-1: 0 1px 2px rgba(29,26,21,.04);
+  --bn-sh-2: 0 2px 8px rgba(29,26,21,.05), 0 18px 40px -22px rgba(29,26,21,.22);
+  --bn-sh-3: 0 4px 14px rgba(29,26,21,.07), 0 30px 70px -30px rgba(29,26,21,.34);
+  --bn-sh-ac: 0 8px 22px -10px var(--bn-ac);
+
+  /* ── الخط ── */
+  --bn-font:  Tajawal, "Segoe UI", system-ui, sans-serif;
+  --bn-mono:  "IBM Plex Mono", ui-monospace, monospace;
+
+  --bn-t-display: 700 clamp(30px,5vw,42px)/1.16 var(--bn-font);
+  --bn-t-h1:      700 30px/1.24 var(--bn-font);
+  --bn-t-h2:      500 22px/1.34 var(--bn-font);
+  --bn-t-h3:      500 17px/1.45 var(--bn-font);
+  --bn-t-body:    300 15px/1.75 var(--bn-font);
+  --bn-t-sm:      300 13px/1.7  var(--bn-font);
+  --bn-t-cap:     400 11.5px/1.6 var(--bn-font);
+  --bn-t-lbl:     400 12px/1.5  var(--bn-font);
+
+  /* ── المسافات — أساس 4 ── */
+  --bn-s1: 4px;   --bn-s2: 8px;   --bn-s3: 12px;  --bn-s4: 16px;
+  --bn-s5: 20px;  --bn-s6: 24px;  --bn-s8: 32px;  --bn-s10: 40px;
+  --bn-s14: 56px; --bn-s18: 72px;
+
+  /* ── الانحناءات ── */
+  --bn-r-sm:  8px;
+  --bn-r:     11px;
+  --bn-r-lg:  14px;
+  --bn-r-xl:  18px;
+  --bn-r-pill: 999px;
+
+  /* ── الحركة ── */
+  --bn-ease: cubic-bezier(.4,0,.2,1);
+  --bn-fast: .18s var(--bn-ease);
+  --bn-mid:  .3s  var(--bn-ease);
+  --bn-slow: .45s var(--bn-ease);
+}
+
+/* ── الوضع الليلي — النظام ────────────────────────────────── */
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --bn-bg:          #15120E;
+    --bn-bg-sunk:     #1D1915;
+    --bn-surface:     #221D18;
+
+    --bn-glass:       rgba(42,36,29,.58);
+    --bn-glass-line:  rgba(255,255,255,.09);
+    --bn-glass-tint:  rgba(255,255,255,.05);
+
+    --bn-ink:         #F0ECE4;
+    --bn-ink-2:       #B0A796;
+    --bn-ink-3:       #7D7566;
+
+    --bn-line:        #332C24;
+    --bn-line-soft:   #2A241E;
+
+    --bn-ac:          #C9A96A;
+    --bn-ac-2:        #B08D57;
+    --bn-ac-lite:     #DCC48F;
+    --bn-ac-bg:       rgba(201,169,106,.11);
+    --bn-ac-line:     rgba(201,169,106,.26);
+    --bn-ac-on:       #15120E;
+
+    --bn-err:         #D97F6C;
+    --bn-err-bg:      rgba(217,127,108,.12);
+    --bn-err-line:    rgba(217,127,108,.28);
+
+    --bn-sh-1: 0 1px 2px rgba(0,0,0,.3);
+    --bn-sh-2: 0 2px 8px rgba(0,0,0,.35), 0 18px 40px -22px rgba(0,0,0,.7);
+    --bn-sh-3: 0 4px 14px rgba(0,0,0,.4), 0 30px 70px -30px rgba(0,0,0,.85);
+  }
+}
+
+/* ── الوضع الليلي — اختيار صريح ───────────────────────────── */
+:root[data-theme="dark"] {
+  --bn-bg:#15120E; --bn-bg-sunk:#1D1915; --bn-surface:#221D18;
+  --bn-glass:rgba(42,36,29,.58); --bn-glass-line:rgba(255,255,255,.09); --bn-glass-tint:rgba(255,255,255,.05);
+  --bn-ink:#F0ECE4; --bn-ink-2:#B0A796; --bn-ink-3:#7D7566;
+  --bn-line:#332C24; --bn-line-soft:#2A241E;
+  --bn-ac:#C9A96A; --bn-ac-2:#B08D57; --bn-ac-lite:#DCC48F;
+  --bn-ac-bg:rgba(201,169,106,.11); --bn-ac-line:rgba(201,169,106,.26); --bn-ac-on:#15120E;
+  --bn-err:#D97F6C; --bn-err-bg:rgba(217,127,108,.12); --bn-err-line:rgba(217,127,108,.28);
+  --bn-sh-1:0 1px 2px rgba(0,0,0,.3);
+  --bn-sh-2:0 2px 8px rgba(0,0,0,.35), 0 18px 40px -22px rgba(0,0,0,.7);
+  --bn-sh-3:0 4px 14px rgba(0,0,0,.4), 0 30px 70px -30px rgba(0,0,0,.85);
+}
+
+
+/* ═══════════════════════════════════════════════════════════════
+   الأساسيات
+   ═══════════════════════════════════════════════════════════════ */
+
+.bn-body {
+  background: var(--bn-bg);
+  color: var(--bn-ink);
+  font: var(--bn-t-body);
+  -webkit-font-smoothing: antialiased;
+}
+
+.bn-num { font-family: var(--bn-mono); font-variant-numeric: tabular-nums; }
+
+
+/* ── الزجاج ────────────────────────────────────────────────────
+   ⚠️ للأسطح الثابتة فقط: الشريط العلوي، القائمة الجانبية،
+   لوحة الدخول، النوافذ المنبثقة.
+   لا تستخدمه في عناصر قائمة طويلة — backdrop-filter يعيد الرسم
+   في كل إطار، وعشرون بطاقة زجاجية تقتل التمرير على أندرويد المتوسط.
+   للبطاقات في القوائم استخدم .bn-solid بدلاً منه. */
+.bn-glass {
+  background: var(--bn-glass);
+  border: 1px solid var(--bn-glass-line);
+  -webkit-backdrop-filter: var(--bn-blur);
+  backdrop-filter: var(--bn-blur);
+}
+.bn-glass-sm {
+  background: var(--bn-glass);
+  border: 1px solid var(--bn-glass-line);
+  -webkit-backdrop-filter: var(--bn-blur-sm);
+  backdrop-filter: var(--bn-blur-sm);
+}
+/* بديل صلب يشبه الزجاج بصرياً بلا كلفته */
+.bn-solid {
+  background: var(--bn-glass-tint);
+  border: 1px solid var(--bn-line-soft);
+}
+
+@media (prefers-reduced-transparency: reduce) {
+  .bn-glass, .bn-glass-sm {
+    background: var(--bn-surface);
+    -webkit-backdrop-filter: none;
+    backdrop-filter: none;
+  }
+}
+
+
+/* ── الأزرار ─────────────────────────────────────────────────── */
+.bn-btn {
+  display: inline-flex; align-items: center; justify-content: center; gap: var(--bn-s2);
+  border: 0; padding: 13px var(--bn-s5); border-radius: var(--bn-r);
+  font: 500 14px/1 var(--bn-font); cursor: pointer;
+  color: var(--bn-ac-on);
+  background: linear-gradient(150deg, var(--bn-ac-2), var(--bn-ac));
+  box-shadow: var(--bn-sh-ac);
+  transition: filter var(--bn-fast), box-shadow var(--bn-mid), transform var(--bn-fast);
+}
+.bn-btn:hover  { filter: brightness(1.07); }
+.bn-btn:active { transform: translateY(1px); }
+.bn-btn:focus-visible { outline: 2px solid var(--bn-ac); outline-offset: 3px; }
+.bn-btn[disabled] { opacity: .5; cursor: not-allowed; box-shadow: none; }
+
+.bn-btn-ghost {
+  background: transparent; color: var(--bn-ink-2);
+  border: 1px solid var(--bn-line); box-shadow: none;
+}
+.bn-btn-ghost:hover { border-color: var(--bn-ac-line); color: var(--bn-ac); filter: none; }
+
+.bn-btn-quiet {
+  background: var(--bn-ac-bg); color: var(--bn-ac);
+  border: 1px solid var(--bn-ac-line); box-shadow: none;
+}
+
+.bn-btn-danger { background: var(--bn-err); box-shadow: none; color: #FFF; }
+
+.bn-btn-sm { padding: 8px var(--bn-s4); font-size: 12.5px; border-radius: var(--bn-r-sm); }
+.bn-btn-block { width: 100%; }
+
+
+/* ── الحقول ──────────────────────────────────────────────────── */
+.bn-field { margin-bottom: var(--bn-s3); }
+.bn-field label { display: block; font: var(--bn-t-lbl); color: var(--bn-ink-2); margin-bottom: 6px; }
+
+.bn-input {
+  display: flex; align-items: center; gap: var(--bn-s2);
+  background: var(--bn-glass-tint); border: 1px solid var(--bn-line);
+  border-radius: var(--bn-r); padding: 0 13px;
+  transition: border-color var(--bn-mid), box-shadow var(--bn-mid), background var(--bn-mid);
+}
+.bn-input:focus-within {
+  border-color: var(--bn-ac-line); background: var(--bn-surface);
+  box-shadow: 0 0 0 4px var(--bn-ac-bg);
+}
+.bn-input input, .bn-input textarea, .bn-input select {
+  flex: 1; background: 0; border: 0; outline: 0;
+  color: var(--bn-ink); font: 400 13.5px/1.6 var(--bn-font); padding: 12px 0;
+}
+.bn-input input::placeholder { color: var(--bn-ink-3); opacity: .7; }
+.bn-input svg { width: 16px; height: 16px; stroke: var(--bn-ink-3); fill: none; stroke-width: 1.5; flex: none; }
+
+.bn-input.is-error { border-color: var(--bn-err-line); background: var(--bn-err-bg); }
+.bn-error { font: var(--bn-t-cap); color: var(--bn-err); margin: 5px 0 0; }
+.bn-hint  { font: var(--bn-t-cap); color: var(--bn-ink-3); margin: 5px 0 0; }
+
+
+/* ── البطاقات ────────────────────────────────────────────────── */
+.bn-card {
+  border-radius: var(--bn-r-lg); overflow: hidden;
+  box-shadow: var(--bn-sh-1);
+  transition: transform var(--bn-mid), box-shadow var(--bn-mid);
+}
+.bn-card-hover:hover { transform: translateY(-2px); box-shadow: var(--bn-sh-2); }
+
+
+/* ── بطاقات الهوية — تمييز بالشكل لا باللون ──────────────────
+   شركة        = برونز ممتلئ
+   صاحب مشروع  = برونز مفرَّغ
+   مدير        = أسود معكوس
+   ولكلٍّ أيقونة ونص صريح — التمييز لا يعتمد على اللون وحده. */
+.bn-id {
+  display: inline-flex; align-items: center; gap: 6px;
+  font: 500 11.5px/1 var(--bn-font);
+  padding: 6px 12px; border-radius: var(--bn-r-pill);
+}
+.bn-id svg { width: 13px; height: 13px; stroke: currentColor; fill: none; stroke-width: 1.6; }
+
+.bn-id-company { background: var(--bn-ac); color: var(--bn-ac-on); }
+.bn-id-client  { background: var(--bn-ac-bg); color: var(--bn-ac); border: 1px solid var(--bn-ac-line); }
+.bn-id-admin   { background: var(--bn-ink); color: var(--bn-bg); }
+
+
+/* ── شارات الحالة ────────────────────────────────────────────── */
+.bn-badge {
+  display: inline-flex; align-items: center; gap: 5px;
+  font: 500 10.5px/1 var(--bn-font); padding: 4px 10px; border-radius: var(--bn-r-pill);
+}
+.bn-badge-verified { background: var(--bn-ac); color: var(--bn-ac-on); }
+.bn-badge-pending  { background: transparent; color: var(--bn-ink-2); border: 1px solid var(--bn-line); }
+.bn-badge-rejected { background: var(--bn-err-bg); color: var(--bn-err); border: 1px solid var(--bn-err-line); }
+
+
+/* ── الوصولية ────────────────────────────────────────────────── */
+:where(a, button, input, select, textarea, [tabindex]):focus-visible {
+  outline: 2px solid var(--bn-ac);
+  outline-offset: 2px;
+  border-radius: var(--bn-r-sm);
+}
+
+.bn-sr {
+  position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px;
+  overflow: hidden; clip: rect(0,0,0,0); white-space: nowrap; border: 0;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    animation-duration: .01ms !important; animation-iteration-count: 1 !important;
+    transition-duration: .01ms !important; scroll-behavior: auto !important;
+  }
+}
