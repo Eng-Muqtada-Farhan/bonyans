@@ -50,15 +50,47 @@ if not all([IMAGEKIT_PRIVATE_KEY, IMAGEKIT_URL_ENDPOINT]):
 imagekit = ImageKit(private_key=IMAGEKIT_PRIVATE_KEY)
 
 # ── App ───────────────────────────────────────────────────────────────────────
-app = FastAPI()
+ENVIRONMENT = os.getenv("ENVIRONMENT", "development")
+IS_PROD = ENVIRONMENT == "production"
+
+# في الإنتاج تُطفأ صفحات التوثيق — كانت تكشف الـ81 نقطة نهاية بلا مصادقة.
+app = FastAPI(
+    title="بُنيان API",
+    docs_url=None if IS_PROD else "/docs",
+    redoc_url=None if IS_PROD else "/redoc",
+    openapi_url=None if IS_PROD else "/openapi.json",
+)
+
+# نطاقات صريحة من متغير البيئة. allow_origins=["*"] مع allow_credentials=True
+# تركيبة غير صالحة تقنياً وترفضها المتصفحات، وخطرة في الإنتاج.
+_origins = [o.strip() for o in os.getenv("CORS_ORIGINS", "").split(",") if o.strip()]
+if not _origins:
+    if IS_PROD:
+        raise RuntimeError("CORS_ORIGINS must be set in production.")
+    _origins = ["http://localhost:8000", "http://127.0.0.1:8000"]
 
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],
+    allow_origins=_origins,
     allow_credentials=True,
-    allow_methods=["*"],
-    allow_headers=["*"],
+    allow_methods=["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
+    allow_headers=["Authorization", "Content-Type"],
 )
+
+
+# ── ترويسات الأمان (المهمة 1.2) ───────────────────────────────────────────────
+# ملاحظة: بلا CSP صارمة الآن — الواجهة تعتمد inline scripts بكثرة وستنكسر.
+# تُؤجَّل إلى المرحلة 3 بعد قياس الأثر.
+@app.middleware("http")
+async def security_headers(request: Request, call_next):
+    response = await call_next(request)
+    response.headers["X-Content-Type-Options"] = "nosniff"
+    response.headers["X-Frame-Options"] = "DENY"
+    response.headers["Referrer-Policy"] = "strict-origin-when-cross-origin"
+    response.headers["Permissions-Policy"] = "geolocation=(), microphone=(), camera=()"
+    if IS_PROD:
+        response.headers["Strict-Transport-Security"] = "max-age=31536000; includeSubDomains"
+    return response
 
 
 # ── Auth helpers ──────────────────────────────────────────────────────────────
