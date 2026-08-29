@@ -768,7 +768,8 @@ async function loadCompanies() {
   filtered = [...companies];
   renderCards();
   renderFeatured();
-  animateCounter(document.getElementById('countStat'), companies.length, 700);
+  /* إحصاءات البطل مصدرها /stats وحده — لا تُشتق من البيانات المعروضة،
+     وإلا عرضت رقماً مختلَقاً من FALLBACK_DATA عند فشل الـ API. */
 }
 
 /* ════════════════════════════════════════
@@ -1070,7 +1071,6 @@ async function submitCompany() {
     companies.unshift(newCompany);
     filtered = [...companies];
     renderCards(); renderFeatured();
-    animateCounter(document.getElementById('countStat'), companies.length, 500);
     showToast('تم الحفظ مؤقتاً (وضع تجريبي)');
     closeRegModal(); resetRegForm();
     btn.disabled = false;

@@ -471,9 +471,13 @@ function renderCards() {
 }
 
 function updateHeroCount() {
-  const approved = companies.filter(c => c.status === 'approved' || c.verified).length;
   const el = document.getElementById('heroCount');
-  if (el) el.textContent = approved + ' شركة موثّقة في العراق';
+  if (!el) return;
+  /* لا تُشتق الإحصاءة من البيانات المعروضة — في الوضع التجريبي تكون
+     FALLBACK_DATA فيظهر رقم مختلَق. المصدر الوحيد هو /stats. */
+  if (DEMO_MODE) { el.textContent = '—'; return; }
+  const approved = companies.filter(c => c.status === 'approved' || c.verified).length;
+  el.textContent = approved + ' شركة موثّقة في العراق';
 }
 
 /* ═══════════════════════════════
