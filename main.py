@@ -96,7 +96,7 @@ async def security_headers(request: Request, call_next):
 
 # ── Auth helpers ──────────────────────────────────────────────────────────────
 def create_access_token(subject: str) -> str:
-    expire = datetime.utcnow() + timedelta(hours=24)
+    expire = datetime.now(timezone.utc) + timedelta(hours=24)
     return jwt.encode({"sub": subject, "exp": expire}, JWT_SECRET, algorithm=ALGORITHM)
 
 
@@ -680,7 +680,7 @@ class ProjectRequestCreate(BaseModel):
 # ── JWT helpers ───────────────────────────────────────────────────────────────
 
 def create_company_token(company_id: int) -> str:
-    expire = datetime.utcnow() + timedelta(days=30)
+    expire = datetime.now(timezone.utc) + timedelta(days=30)
     return jwt.encode(
         {"sub": f"company:{company_id}", "type": "company", "company_id": company_id, "exp": expire},
         JWT_SECRET,
@@ -689,7 +689,7 @@ def create_company_token(company_id: int) -> str:
 
 
 def create_user_token(user_id: int) -> str:
-    expire = datetime.utcnow() + timedelta(days=30)
+    expire = datetime.now(timezone.utc) + timedelta(days=30)
     return jwt.encode(
         {"sub": f"user:{user_id}", "type": "user", "user_id": user_id, "exp": expire},
         JWT_SECRET,
@@ -1257,6 +1257,13 @@ def track_wa_click(company_id: int, request: Request):
     ip_raw  = get_client_ip(request)
     ip_hash = hashlib.sha256(ip_raw.encode()).hexdigest()[:16]
     with SessionLocal() as db:
+        # بدون هذا التحقق يفشل الإدراج بـ ForeignKeyViolation فيُعيد 500
+        # بدل 404 — كان الخطأ محفوظاً في srv_err.txt.
+        exists = db.execute(
+            text("SELECT 1 FROM companies WHERE id = :cid"), {"cid": company_id}
+        ).first()
+        if not exists:
+            raise HTTPException(status_code=404, detail="الشركة غير موجودة")
         db.execute(text("""
             INSERT INTO whatsapp_clicks (company_id, ip_hash)
             VALUES (:cid, :ip)
@@ -1986,7 +1993,7 @@ def update_bid(bid_id: int, payload: ProjectBidUpdate, request: Request):
     updates = {k: v for k, v in payload.model_dump().items() if v is not None}
     if not updates:
         raise HTTPException(status_code=400, detail="No fields to update")
-    updates["updated_at"] = datetime.utcnow()
+    updates["updated_at"] = datetime.now(timezone.utc)
     updates["id"] = bid_id
     set_clause = ", ".join(f"{k}=:{k}" for k in updates if k != "id")
 
@@ -2273,7 +2280,7 @@ async def admin_approve_subscription(req_id: int, request: Request):
     if plan["monthly_price"] > 0:
         is_founder = (get_founder_count() < 50)
 
-    now     = datetime.utcnow()
+    now     = datetime.now(timezone.utc)
     expires = now + timedelta(days=30 * months)
 
     with SessionLocal() as db:
@@ -2339,7 +2346,7 @@ async def admin_reject_subscription(req_id: int, request: Request):
             UPDATE subscription_requests
             SET status='rejected', notes=:notes, processed_at=:now, processed_by='admin'
             WHERE id=:id
-        """), {"notes": notes, "now": datetime.utcnow(), "id": req_id})
+        """), {"notes": notes, "now": datetime.now(timezone.utc), "id": req_id})
         db.commit()
 
     return {"request_id": req_id, "status": "rejected", "notes": notes}
@@ -2370,7 +2377,7 @@ def admin_set_company_subscription(company_id: int, payload: AdminSubscriptionSe
     if not is_founder and plan["monthly_price"] > 0:
         is_founder = (get_founder_count() < 50)
 
-    now     = datetime.utcnow()
+    now     = datetime.now(timezone.utc)
     expires = now + timedelta(days=30 * payload.months)
 
     with SessionLocal() as db:
