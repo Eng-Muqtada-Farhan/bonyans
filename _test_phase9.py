@@ -3,6 +3,9 @@ Phase 9 — Security & Production Readiness Tests
 Tests: rate limiting, spam protection, permission hardening, audit log, health, system-status
 """
 import requests, uuid, sys, time
+import os
+from dotenv import load_dotenv; load_dotenv()
+ADMIN_PW = os.environ.get('ADMIN_PASSWORD', '')
 
 API = 'http://127.0.0.1:8000'
 results = []
@@ -24,7 +27,7 @@ def section(title):
 # ── SETUP ──────────────────────────────────────────────────
 section("SETUP")
 
-r = requests.post(f'{API}/login', json={'username': 'admin', 'password': '26'})
+r = requests.post(f'{API}/login', json={'username': 'admin', 'password': ADMIN_PW})
 ok('Admin login works', r.status_code == 200, str(r.status_code))
 ADMIN = r.json().get('token', '')
 
@@ -250,7 +253,7 @@ r = requests.get(f'{API}/subscription/plans')
 ok('GET /subscription/plans still works', r.status_code == 200)
 
 # Valid login (admin) still works even after rate limit tests (new IP bucket in test)
-r = requests.post(f'{API}/login', json={'username': 'admin', 'password': '26'})
+r = requests.post(f'{API}/login', json={'username': 'admin', 'password': ADMIN_PW})
 # This may be rate-limited since we used the same loopback IP — it's ok if it returns 429
 ok('Admin login works or rate-limited (200 or 429)', r.status_code in (200, 429), str(r.status_code))
 

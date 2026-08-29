@@ -1,9 +1,12 @@
 import requests, base64
+import os
+from dotenv import load_dotenv; load_dotenv()
+ADMIN_PW = os.environ.get('ADMIN_PASSWORD', '')
 
 API = 'http://127.0.0.1:8000'
 
 # Login
-r = requests.post(f'{API}/login', json={'username': 'admin', 'password': '26'})
+r = requests.post(f'{API}/login', json={'username': 'admin', 'password': ADMIN_PW})
 token = r.json().get('token', '')
 headers = {'Authorization': token, 'Content-Type': 'application/json'}
 

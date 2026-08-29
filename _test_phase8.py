@@ -3,6 +3,9 @@ Phase 8 — Communication & Reputation System Tests
 Parts: A=Messaging, B=Notifications, C=Reviews, D=Activity
 """
 import requests, uuid, sys
+import os
+from dotenv import load_dotenv; load_dotenv()
+ADMIN_PW = os.environ.get('ADMIN_PASSWORD', '')
 
 API = 'http://127.0.0.1:8000'
 results = []
@@ -25,7 +28,7 @@ def section(title):
 section("SETUP")
 
 # Admin login
-r = requests.post(f'{API}/login', json={'username': 'admin', 'password': '26'})
+r = requests.post(f'{API}/login', json={'username': 'admin', 'password': ADMIN_PW})
 ok('Admin login', r.status_code == 200)
 ADMIN = r.json().get('token', '')
 

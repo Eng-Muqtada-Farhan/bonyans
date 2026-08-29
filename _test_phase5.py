@@ -1,6 +1,9 @@
 """Phase 5 comprehensive tests — Steps 2,4,5,6,7,8,9"""
 import requests
 import base64
+import os
+from dotenv import load_dotenv; load_dotenv()
+ADMIN_PW = os.environ.get('ADMIN_PASSWORD', '')
 
 API = 'http://127.0.0.1:8000'
 results = []
@@ -25,7 +28,7 @@ TEST_EMAIL = f'test_claim_{target_id}@bunyan.test'
 TEST_PASS  = 'SecurePass123!'
 
 # ── Admin still works ─────────────────────────────────────────────────────────
-r = requests.post(f'{API}/login', json={'username': 'admin', 'password': '26'})
+r = requests.post(f'{API}/login', json={'username': 'admin', 'password': ADMIN_PW})
 ok('POST /login (admin)', r.status_code == 200)
 admin_token = r.json().get('token', '')
 

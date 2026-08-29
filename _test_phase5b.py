@@ -1,5 +1,8 @@
 """Phase 5B comprehensive tests"""
 import requests, time, uuid
+import os
+from dotenv import load_dotenv; load_dotenv()
+ADMIN_PW = os.environ.get('ADMIN_PASSWORD', '')
 
 API = 'http://127.0.0.1:8000'
 results = []
@@ -25,7 +28,7 @@ ok('GET /companies (backward compat)', r.status_code == 200, f'{len(r.json())} c
 r = requests.get(f'{API}/admin/companies')
 ok('GET /admin/companies (backward compat)', r.status_code == 200)
 
-r = requests.post(f'{API}/login', json={'username':'admin','password':'26'})
+r = requests.post(f'{API}/login', json={'username':'admin','password':ADMIN_PW})
 ok('POST /login (admin)', r.status_code == 200)
 admin_token = r.json().get('token','')
 ok('Admin token received', bool(admin_token))

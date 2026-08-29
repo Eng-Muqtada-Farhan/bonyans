@@ -3,6 +3,9 @@ Phase 10 — Final UI, Performance & Launch Tests
 Tests: new routes, SEO files, PWA files, nav assets, backward compat with all previous phases
 """
 import requests, os, sys
+import os
+from dotenv import load_dotenv; load_dotenv()
+ADMIN_PW = os.environ.get('ADMIN_PASSWORD', '')
 
 API = 'http://127.0.0.1:8000'
 BASE = 'D:/Q/MD'
@@ -22,7 +25,7 @@ def section(title):
 
 # ── ADMIN TOKEN ─────────────────────────────────────────────
 section("SETUP")
-r = requests.post(f'{API}/login', json={'username': 'admin', 'password': '26'})
+r = requests.post(f'{API}/login', json={'username': 'admin', 'password': ADMIN_PW})
 # May be rate-limited from prior test runs — both 200 and 429 are acceptable here
 ok('Admin login reachable', r.status_code in (200, 401, 429), str(r.status_code))
 ADMIN = r.json().get('token', '') if r.status_code == 200 else ''

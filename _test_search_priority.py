@@ -1,5 +1,8 @@
 """Test: GET /companies returns companies sorted by subscription priority."""
 import requests, uuid
+import os
+from dotenv import load_dotenv; load_dotenv()
+ADMIN_PW = os.environ.get('ADMIN_PASSWORD', '')
 
 API = 'http://127.0.0.1:8000'
 results = []
@@ -15,7 +18,7 @@ print("="*60)
 uid  = str(uuid.uuid4())[:8]
 PASS = 'SecurePass7!'
 
-r = requests.post(f'{API}/login', json={'username':'admin','password':'26'})
+r = requests.post(f'{API}/login', json={'username':'admin','password':ADMIN_PW})
 ADMIN = r.json().get('token','')
 ok('Admin login', r.status_code == 200)
 

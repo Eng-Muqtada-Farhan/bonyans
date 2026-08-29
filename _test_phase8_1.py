@@ -3,6 +3,9 @@ Phase 8.1 — Public UX Integration Tests
 Tests: conversations from profile, reviews, reply visibility, avg rating, notification badge data
 """
 import requests, uuid, sys
+import os
+from dotenv import load_dotenv; load_dotenv()
+ADMIN_PW = os.environ.get('ADMIN_PASSWORD', '')
 
 API = 'http://127.0.0.1:8000'
 results = []
@@ -24,7 +27,7 @@ def section(title):
 # ── SETUP ──────────────────────────────────────────────────
 section("SETUP")
 
-r = requests.post(f'{API}/login', json={'username': 'admin', 'password': '26'})
+r = requests.post(f'{API}/login', json={'username': 'admin', 'password': ADMIN_PW})
 ok('Admin login', r.status_code == 200)
 ADMIN = r.json().get('token', '')
 

@@ -4,6 +4,9 @@ from dotenv import load_dotenv
 load_dotenv()
 from sqlalchemy import create_engine, text
 import os
+import os
+from dotenv import load_dotenv; load_dotenv()
+ADMIN_PW = os.environ.get('ADMIN_PASSWORD', '')
 
 API    = 'http://127.0.0.1:8000'
 engine = create_engine(os.getenv("DATABASE_URL"), pool_pre_ping=True)
@@ -28,7 +31,7 @@ print("="*60)
 uid = str(uuid.uuid4())[:8]
 
 # ── 0. Admin token ─────────────────────────────────────────────
-r = requests.post(f'{API}/login', json={'username':'admin','password':'26'})
+r = requests.post(f'{API}/login', json={'username':'admin','password':ADMIN_PW})
 ok('Admin login', r.status_code == 200)
 ADMIN = r.json().get('token','')
 

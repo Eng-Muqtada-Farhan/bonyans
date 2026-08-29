@@ -1,4 +1,7 @@
 import requests, base64
+import os
+from dotenv import load_dotenv; load_dotenv()
+ADMIN_PW = os.environ.get('ADMIN_PASSWORD', '')
 
 API = 'http://127.0.0.1:8000'
 results = []
@@ -9,7 +12,7 @@ def ok(name, passed, detail=''):
     results.append(f'[{sym}] {name}{suffix}')
 
 # 1. Login
-r = requests.post(f'{API}/login', json={'username': 'admin', 'password': '26'})
+r = requests.post(f'{API}/login', json={'username': 'admin', 'password': ADMIN_PW})
 ok('Login', r.status_code == 200, r.status_code)
 token = r.json().get('token', '') if r.ok else ''
 ok('JWT token returned', bool(token), (token[:40] + '...') if token else 'NONE')

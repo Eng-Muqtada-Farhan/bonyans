@@ -1,4 +1,7 @@
 import requests
+import os
+from dotenv import load_dotenv; load_dotenv()
+ADMIN_PW = os.environ.get('ADMIN_PASSWORD', '')
 
 API = 'http://127.0.0.1:8000'
 tests = []
@@ -8,7 +11,7 @@ def ok(name, passed, detail=''):
     tests.append(f"{sym} {name}" + (f": {detail}" if detail else ""))
 
 # POST /login
-r = requests.post(f'{API}/login', json={'username': 'admin', 'password': '26'})
+r = requests.post(f'{API}/login', json={'username': 'admin', 'password': ADMIN_PW})
 ok('POST /login', r.status_code == 200)
 token = r.json().get('token', '') if r.ok else ''
 
