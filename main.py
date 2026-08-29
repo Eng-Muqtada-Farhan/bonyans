@@ -120,11 +120,7 @@ def require_admin(request: Request) -> None:
 # PHASE 9 — SECURITY HELPERS
 # ══════════════════════════════════════════════════════════════════════════════
 
-import time as _time
-import threading as _threading
-
-_rate_store: dict = {}
-_rate_lock = _threading.Lock()
+import random as _random
 
 
 def get_client_ip(request: Request) -> str:
@@ -136,18 +132,56 @@ def get_client_ip(request: Request) -> str:
     return "unknown"
 
 
+# عبارة ذرّية واحدة: تُدرج أو تزيد العدّاد، وتصفّره إذا انتهت النافذة.
+# ON CONFLICT يقفل الصف فلا يوجد سباق بين العمّال.
+_RATE_LIMIT_SQL = text("""
+    INSERT INTO rate_limits (key, hits, window_start)
+    VALUES (:key, 1, now())
+    ON CONFLICT (key) DO UPDATE SET
+        hits = CASE
+            WHEN rate_limits.window_start < now() - make_interval(secs => :window)
+            THEN 1
+            ELSE rate_limits.hits + 1
+        END,
+        window_start = CASE
+            WHEN rate_limits.window_start < now() - make_interval(secs => :window)
+            THEN now()
+            ELSE rate_limits.window_start
+        END
+    RETURNING hits
+""")
+
+
+def _cleanup_rate_limits(db) -> None:
+    """حذف النوافذ المنتهية — يعمل عشوائياً بنسبة 1% تجنّباً لجدولة منفصلة."""
+    db.execute(text(
+        "DELETE FROM rate_limits WHERE window_start < now() - interval '1 hour'"
+    ))
+
+
 def check_rate_limit(key: str, max_calls: int, window_seconds: int) -> bool:
-    """Return True if allowed, False if rate limit exceeded."""
-    now = _time.time()
-    with _rate_lock:
-        calls = _rate_store.get(key, [])
-        calls = [t for t in calls if now - t < window_seconds]
-        if len(calls) >= max_calls:
-            _rate_store[key] = calls
-            return False
-        calls.append(now)
-        _rate_store[key] = calls
-        return True
+    """
+    True إذا كان الطلب مسموحاً، False إذا تجاوز الحد.
+
+    العدّاد في جدول PostgreSQL لا في ذاكرة العملية، فيصمد أمام
+    تعدّد العمّال وإعادة التشغيل.
+
+    عند تعذّر الوصول لقاعدة البيانات نمنع الطلب (fail-closed): كل
+    نقطة تستدعي هذه الدالة تحتاج القاعدة بعدها مباشرةً على أي حال،
+    والسماح عند العطل يفتح باب التخمين على كلمات المرور.
+    """
+    try:
+        with SessionLocal() as db:
+            hits = db.execute(
+                _RATE_LIMIT_SQL, {"key": key, "window": window_seconds}
+            ).scalar()
+            if _random.random() < 0.01:
+                _cleanup_rate_limits(db)
+            db.commit()
+        return hits is not None and hits <= max_calls
+    except Exception as e:
+        print(f"[rate_limit] تعذّر التحقق من الحد — رُفض الطلب: {e}")
+        return False
 
 
 def write_audit_log(db, actor_type: str, actor_id: str, action: str,
