@@ -4,6 +4,7 @@ import os
 from datetime import datetime, timedelta, timezone
 from math import ceil
 from typing import Literal, Optional
+from urllib.parse import quote
 
 from dotenv import load_dotenv
 from jose import JWTError, jwt
@@ -13,6 +14,7 @@ from sqlalchemy.orm import sessionmaker
 from sqlalchemy.exc import IntegrityError
 from fastapi import FastAPI, HTTPException, Request, UploadFile, File
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import RedirectResponse
 from pydantic import BaseModel
 from imagekitio import ImageKit
 
@@ -92,6 +94,81 @@ async def security_headers(request: Request, call_next):
     if IS_PROD:
         response.headers["Strict-Transport-Security"] = "max-age=31536000; includeSubDomains"
     return response
+
+
+# ══════════════════════════════════════════════════════════════════════════════
+# حارس الأسطح المسوَّرة — على الخادم (DESIGN.md §٤ قاعدة ٣)
+# ══════════════════════════════════════════════════════════════════════════════
+# «الحارس في الواجهة وحده يتجاوزه سطر في المتصفح.» هذا الحارس يمنع
+# تقديم صفحات /app و /admin و /me أصلاً لمن لا يملك جلسة الدور.
+#
+# الرمز يصل في كعكة bn_sess لأن طلب التنقّل في المتصفح لا يحمل
+# ترويسة Authorization. الكعكة ليست بديلاً عن حماية البيانات —
+# تلك تبقى في require_company / require_user / require_admin على كل
+# نقطة نهاية — بل تمنع الوصول إلى الصفحة نفسها.
+
+SESSION_COOKIE = "bn_sess"
+
+_SURFACE_ROLE = {
+    "/app":   "company",
+    "/me":    "user",
+    "/admin": "admin",
+}
+_ROLE_HOME = {
+    "company": "/app/index.html",
+    "user":    "/me/index.html",
+    "admin":   "/admin/index.html",
+}
+_ROLE_LOGIN = {"company": "company", "user": "client"}
+
+
+def role_from_token(token: str) -> Optional[str]:
+    """الدور من رمز موقّع، أو None إن كان غائباً أو تالفاً أو منتهياً."""
+    if not token:
+        return None
+    try:
+        payload = jwt.decode(token, JWT_SECRET, algorithms=[ALGORITHM])
+    except JWTError:
+        return None
+    if payload.get("sub") == ADMIN_USERNAME:
+        return "admin"
+    t = payload.get("type")
+    return t if t in ("company", "user") else None
+
+
+def _is_page_request(request: Request) -> bool:
+    """
+    هل هذا تنقّل متصفّح إلى صفحة؟
+
+    الحارس يخصّ الصفحات وحدها. نقاط الـ API تحت /admin تصادق
+    بترويسة Authorization لا بالكعكة، وتحميها require_admin —
+    وتحويلها إلى صفحة دخول يكسرها ويعيد 302 بدل 401.
+    """
+    dest = request.headers.get("sec-fetch-dest")
+    if dest:
+        return dest == "document"
+    # متصفّحات لا ترسل sec-fetch-dest: اعتمد على Accept
+    return "text/html" in request.headers.get("accept", "")
+
+
+@app.middleware("http")
+async def surface_guard(request: Request, call_next):
+    path = request.url.path
+    if not _is_page_request(request):
+        return await call_next(request)
+    for prefix, need in _SURFACE_ROLE.items():
+        if path == prefix or path.startswith(prefix + "/"):
+            role = role_from_token(request.cookies.get(SESSION_COOKIE, ""))
+            if role == need:
+                break
+            if role in _ROLE_HOME:
+                # دخل سطحاً ليس له — يُعاد إلى سطحه هو لا إلى الرئيسية
+                return RedirectResponse(_ROLE_HOME[role], status_code=302)
+            dest = "/login.html"
+            if need in _ROLE_LOGIN:
+                dest += f"?role={_ROLE_LOGIN[need]}&next={quote(path, safe='/')}"
+            return RedirectResponse(dest, status_code=302)
+    return await call_next(request)
 
 
 # ── Auth helpers ──────────────────────────────────────────────────────────────

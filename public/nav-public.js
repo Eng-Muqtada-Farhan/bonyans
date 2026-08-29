@@ -107,12 +107,12 @@
 
   /* ── البناء ────────────────────────────────────────────────── */
   var PAGE = (location.pathname.split('/').pop() || 'index.html').toLowerCase();
-  function cur(f) { return PAGE === f ? ' aria-current="page"' : ''; }
+  function cur(f) { return PAGE === f.split('/').pop() ? ' aria-current="page"' : ''; }
 
   var LINKS = [
-    { href: 'index.html',     label: 'الرئيسية', icon: I.home },
-    { href: 'companies.html', label: 'الشركات',  icon: I.building },
-    { href: 'projects.html',  label: 'المشاريع', icon: I.folder }
+    { href: '/index.html',     label: 'الرئيسية', icon: I.home },
+    { href: '/companies.html', label: 'الشركات',  icon: I.building },
+    { href: '/projects.html',  label: 'المشاريع', icon: I.folder }
   ];
 
   function build() {
@@ -125,15 +125,15 @@
 
     // زائر ← دعوة للدخول · صاحب مشروع ← بطاقة هوية مفرَّغة
     var right = st.role === 'client'
-      ? '<a class="bnv-acct" href="me/index.html">' +
+      ? '<a class="bnv-acct" href="/me/index.html">' +
           '<span class="bn-id bn-id-client">' + svg(I.user, 13) + 'صاحب مشروع</span>' +
         '</a>' +
         '<button class="bnv-icon" type="button" data-bnv-out aria-label="خروج">' + svg(I.logout) + '</button>'
-      : '<a class="bnv-cta" href="login.html">' + svg(I.user, 15) + '<span>دخول</span></a>';
+      : '<a class="bnv-cta" href="/login.html">' + svg(I.user, 15) + '<span>دخول</span></a>';
 
     var bar =
       '<nav class="bnv bn-glass" aria-label="التنقّل الرئيسي">' +
-        '<a class="bnv-logo" href="index.html">بُ<b>نيان</b></a>' +
+        '<a class="bnv-logo" href="/index.html">بُ<b>نيان</b></a>' +
         '<div class="bnv-links">' + links + '</div>' +
         '<div class="bnv-right">' +
           '<button class="bnv-icon" type="button" data-bnv-theme aria-label="تبديل السمة"></button>' +
@@ -142,10 +142,10 @@
       '</nav>';
 
     var tabs = [
-      { href: 'index.html',     label: 'الرئيسية', icon: I.home },
-      { href: 'companies.html', label: 'الشركات',  icon: I.building },
-      { href: 'projects.html',  label: 'المشاريع', icon: I.folder },
-      { href: 'me/messages.html', label: 'الرسائل', icon: I.chat },
+      { href: '/index.html',     label: 'الرئيسية', icon: I.home },
+      { href: '/companies.html', label: 'الشركات',  icon: I.building },
+      { href: '/projects.html',  label: 'المشاريع', icon: I.folder },
+      { href: '/me/messages.html', label: 'الرسائل', icon: I.chat },
       { href: st.role === 'client' ? 'me/index.html' : 'login.html', label: 'حسابي', icon: I.user }
     ].map(function (t) {
       return '<a class="bnv-tab" href="' + t.href + '"' + cur(t.href) + '>' +
@@ -176,7 +176,9 @@
       ['project_user_token', 'project_user_id', 'project_user_name'].forEach(function (k) {
         try { localStorage.removeItem(k); } catch (e) {}
       });
-      location.href = 'index.html';
+      /* امسح كعكة جلسة الخادم أيضاً وإلا بقي الحارس يسمح بالمرور */
+      document.cookie = 'bn_sess=; path=/; max-age=0; SameSite=Lax';
+      location.href = '/index.html';
     });
   }
 

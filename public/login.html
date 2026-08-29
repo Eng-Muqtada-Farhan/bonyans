@@ -1,0 +1,360 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>الدخول — بُنيان</title>
+<meta name="description" content="سجّل دخولك إلى بُنيان — لوحة الشركة أو حساب صاحب المشروع.">
+<meta name="theme-color" content="#96703C">
+<link rel="stylesheet" href="tokens.css">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" data-bn-font
+      href="https://fonts.googleapis.com/css2?family=Tajawal:wght@300;400;500;700&display=swap">
+<script>
+  (function(){ var t=localStorage.getItem('bn-theme')||'light';
+    document.documentElement.setAttribute('data-theme',t); })();
+</script>
+<style>
+/* ══ صفحة الدخول — أول تطبيق كامل للنظام ══
+   كل لون من رمز. لا قيمة خام. */
+body{
+  margin:0; min-height:100dvh; background:var(--bn-bg); color:var(--bn-ink);
+  font:var(--bn-t-body); font-family:var(--bn-font);
+  display:grid; place-items:center; padding:var(--bn-s6) var(--bn-s4);
+  -webkit-font-smoothing:antialiased;
+}
+
+.lg-top{position:fixed; inset-block-start:var(--bn-s4); inset-inline:var(--bn-s5);
+  display:flex; align-items:center; justify-content:space-between; z-index:2}
+.lg-logo{display:inline-flex; align-items:center; text-decoration:none;
+  color:var(--bn-ink); font:700 20px/1 var(--bn-font)}
+.lg-logo b{color:var(--bn-ac)}
+.lg-icon{width:44px; height:44px; display:inline-flex; align-items:center;
+  justify-content:center; border:0; background:0; color:var(--bn-ink-2);
+  cursor:pointer; border-radius:var(--bn-r-sm); transition:color var(--bn-fast),background var(--bn-fast)}
+.lg-icon:hover{color:var(--bn-ac); background:var(--bn-ac-bg)}
+
+/* اللوحة — السطح الزجاجي الوحيد في الشاشة */
+.lg-panel{
+  width:100%; max-width:430px; border-radius:var(--bn-r-xl);
+  padding:var(--bn-s8) var(--bn-s6); box-shadow:var(--bn-sh-3);
+}
+
+.lg-head{text-align:center; margin-block-end:var(--bn-s6)}
+.lg-h1{font:var(--bn-t-h1); margin:0 0 var(--bn-s2); letter-spacing:-.01em}
+.lg-sub{font:var(--bn-t-sm); color:var(--bn-ink-2); margin:0; max-width:34ch;
+  margin-inline:auto; line-height:1.7}
+
+/* ── الخطوة ١: اختيار الدور ── */
+.lg-roles{display:grid; gap:var(--bn-s3)}
+.lg-role{
+  display:flex; align-items:center; gap:var(--bn-s4); width:100%;
+  min-height:44px; padding:var(--bn-s4); text-align:start;
+  background:var(--bn-glass-tint); border:1px solid var(--bn-line);
+  border-radius:var(--bn-r-lg); cursor:pointer; color:var(--bn-ink);
+  font-family:var(--bn-font);
+  transition:border-color var(--bn-fast), background var(--bn-fast), transform var(--bn-fast);
+}
+.lg-role:hover{border-color:var(--bn-ac-line); background:var(--bn-surface); transform:translateY(-1px)}
+.lg-role-ic{width:42px; height:42px; border-radius:var(--bn-r); flex:none;
+  display:grid; place-items:center}
+/* شركة = برونز ممتلئ · صاحب مشروع = برونز مفرَّغ (§٥) */
+.lg-role-company .lg-role-ic{background:var(--bn-ac); color:var(--bn-ac-on)}
+.lg-role-client  .lg-role-ic{background:var(--bn-ac-bg); color:var(--bn-ac);
+  border:1px solid var(--bn-ac-line)}
+.lg-role-ic svg{width:20px; height:20px; stroke:currentColor; fill:none; stroke-width:1.6}
+.lg-role-t{font:500 15px/1.4 var(--bn-font); margin:0 0 3px}
+.lg-role-d{font:var(--bn-t-cap); color:var(--bn-ink-3); margin:0; line-height:1.55}
+.lg-role-go{margin-inline-start:auto; color:var(--bn-ink-3); flex:none}
+.lg-role-go svg{width:17px; height:17px; stroke:currentColor; fill:none; stroke-width:1.7}
+
+/* ── الخطوة ٢: النموذج ── */
+.lg-form{display:none}
+.lg-form.is-on{display:block}
+.lg-roles.is-off{display:none}
+
+.lg-back{display:inline-flex; align-items:center; gap:6px; min-height:44px;
+  background:0; border:0; padding:0; cursor:pointer; color:var(--bn-ink-2);
+  font:var(--bn-t-sm); font-family:var(--bn-font); margin-block-end:var(--bn-s2)}
+.lg-back:hover{color:var(--bn-ac)}
+.lg-back svg{width:15px; height:15px; stroke:currentColor; fill:none; stroke-width:1.7}
+
+.lg-badge{display:flex; justify-content:center; margin-block-end:var(--bn-s5)}
+
+.lg-msg{display:none; font:var(--bn-t-sm); border-radius:var(--bn-r);
+  padding:11px var(--bn-s4); margin-block-end:var(--bn-s4); line-height:1.6}
+.lg-msg.is-on{display:block}
+.lg-msg-err{background:var(--bn-err-bg); color:var(--bn-err);
+  border:1px solid var(--bn-err-line)}
+.lg-msg-ok{background:var(--bn-ac-bg); color:var(--bn-ac);
+  border:1px solid var(--bn-ac-line)}
+
+.lg-actions{margin-block-start:var(--bn-s5)}
+.lg-foot{text-align:center; margin-block-start:var(--bn-s5);
+  font:var(--bn-t-sm); color:var(--bn-ink-3)}
+.lg-foot a{color:var(--bn-ac); text-decoration:none; font-weight:500}
+.lg-foot a:hover{text-decoration:underline}
+
+@media(max-width:420px){
+  .lg-panel{padding:var(--bn-s6) var(--bn-s5); border-radius:var(--bn-r-lg)}
+  .lg-h1{font-size:25px}
+  .lg-top{inset-inline:var(--bn-s4)}
+}
+</style>
+</head>
+<body>
+
+<div class="bn-backdrop" aria-hidden="true"></div>
+
+<div class="lg-top">
+  <a class="lg-logo" href="/index.html">بُ<b>نيان</b></a>
+  <button class="lg-icon" type="button" id="themeBtn" aria-label="تبديل السمة"></button>
+</div>
+
+<main class="lg-panel bn-glass">
+
+  <div class="lg-head">
+    <h1 class="lg-h1" id="lgTitle">مرحباً بعودتك</h1>
+    <p class="lg-sub" id="lgSub">اختر نوع حسابك للمتابعة — لكل حساب لوحته الخاصة.</p>
+  </div>
+
+  <!-- الخطوة ١ — اختيار الدور قبل النموذج -->
+  <div class="lg-roles" id="lgRoles">
+    <button class="lg-role lg-role-company" type="button" data-role="company">
+      <span class="lg-role-ic" aria-hidden="true">
+        <svg viewBox="0 0 24 24" stroke-linecap="round" stroke-linejoin="round">
+          <rect x="4" y="3" width="16" height="18" rx="1.5"/>
+          <path d="M9 8h2M13 8h2M9 12h2M13 12h2M9 16h2M13 16h2"/>
+        </svg>
+      </span>
+      <span>
+        <p class="lg-role-t">شركة مقاولات</p>
+        <p class="lg-role-d">لديك شركة مسجّلة وتريد إدارة ملفها وعروضها</p>
+      </span>
+      <span class="lg-role-go" aria-hidden="true">
+        <svg viewBox="0 0 24 24" stroke-linecap="round" stroke-linejoin="round"><path d="M15 6l-6 6 6 6"/></svg>
+      </span>
+    </button>
+
+    <button class="lg-role lg-role-client" type="button" data-role="client">
+      <span class="lg-role-ic" aria-hidden="true">
+        <svg viewBox="0 0 24 24" stroke-linecap="round" stroke-linejoin="round">
+          <circle cx="12" cy="8" r="3.5"/><path d="M4.5 20a7.5 7.5 0 0 1 15 0"/>
+        </svg>
+      </span>
+      <span>
+        <p class="lg-role-t">صاحب مشروع</p>
+        <p class="lg-role-d">تريد طرح مشروعك واستقبال عروض من الشركات</p>
+      </span>
+      <span class="lg-role-go" aria-hidden="true">
+        <svg viewBox="0 0 24 24" stroke-linecap="round" stroke-linejoin="round"><path d="M15 6l-6 6 6 6"/></svg>
+      </span>
+    </button>
+  </div>
+
+  <!-- الخطوة ٢ — النموذج -->
+  <form class="lg-form" id="lgForm" novalidate>
+    <button class="lg-back" type="button" id="lgBack">
+      <svg viewBox="0 0 24 24" stroke-linecap="round" stroke-linejoin="round"><path d="M9 6l6 6-6 6"/></svg>
+      تغيير نوع الحساب
+    </button>
+
+    <div class="lg-badge"><span class="bn-id" id="lgBadge"></span></div>
+
+    <div class="lg-msg" id="lgMsg" role="alert" aria-live="polite"></div>
+
+    <div class="bn-field">
+      <label for="lgEmail">البريد الإلكتروني</label>
+      <div class="bn-input" id="lgEmailWrap">
+        <svg viewBox="0 0 24 24" stroke-linecap="round" stroke-linejoin="round">
+          <rect x="3" y="5" width="18" height="14" rx="2"/><path d="M3.5 6.5 12 13l8.5-6.5"/>
+        </svg>
+        <input id="lgEmail" type="email" inputmode="email" autocomplete="email"
+               dir="ltr" placeholder="you@example.com" required>
+      </div>
+    </div>
+
+    <div class="bn-field">
+      <label for="lgPass">كلمة المرور</label>
+      <div class="bn-input" id="lgPassWrap">
+        <svg viewBox="0 0 24 24" stroke-linecap="round" stroke-linejoin="round">
+          <rect x="4" y="10.5" width="16" height="10" rx="2"/>
+          <path d="M8 10.5V7.8a4 4 0 0 1 8 0v2.7"/>
+        </svg>
+        <input id="lgPass" type="password" autocomplete="current-password"
+               placeholder="••••••••" required>
+      </div>
+    </div>
+
+    <div class="lg-actions">
+      <button class="bn-btn bn-btn-block" type="submit" id="lgSubmit">دخول</button>
+    </div>
+
+    <p class="lg-foot" id="lgFoot"></p>
+  </form>
+
+</main>
+
+<script>
+(function () {
+  'use strict';
+
+  /* ── نصوص كل دور: العنوان والوصف والزر والوجهة ── */
+  var ROLES = {
+    company: {
+      title:  'دخول الشركات',
+      sub:    'أدر ملف شركتك، واستقبل عروض المشاريع، وتابع تقييماتك.',
+      badge:  'شركة مقاولات',
+      badgeCls: 'bn-id bn-id-company',
+      icon:   '<rect x="4" y="3" width="16" height="18" rx="1.5"/><path d="M9 8h2M13 8h2M9 12h2M13 12h2M9 16h2M13 16h2"/>',
+      submit: 'دخول إلى لوحة الشركة',
+      endpoint: '/company/login',
+      dest:   '/app/index.html',
+      foot:   'ليس لديك حساب شركة؟ <a href="/index.html#register">سجّل شركتك</a>'
+    },
+    client: {
+      title:  'دخول أصحاب المشاريع',
+      sub:    'اطرح مشروعك، وقارن العروض، وتواصل مع الشركات مباشرة.',
+      badge:  'صاحب مشروع',
+      badgeCls: 'bn-id bn-id-client',
+      icon:   '<circle cx="12" cy="8" r="3.5"/><path d="M4.5 20a7.5 7.5 0 0 1 15 0"/>',
+      submit: 'دخول إلى حسابي',
+      endpoint: '/auth/login',
+      dest:   '/me/index.html',
+      foot:   'ليس لديك حساب؟ <a href="/projects.html">اطرح مشروعك وأنشئ حساباً</a>'
+    }
+  };
+
+  var $ = function (id) { return document.getElementById(id); };
+  var role = null;
+
+  /* ── السمة ── */
+  var SUN  = '<circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M2 12h2M20 12h2M4.9 4.9l1.4 1.4M17.7 17.7l1.4 1.4M19.1 4.9l-1.4 1.4M6.3 17.7l-1.4 1.4"/>';
+  var MOON = '<path d="M20 13.5A8.5 8.5 0 1 1 10.5 4a6.7 6.7 0 0 0 9.5 9.5z"/>';
+  function svg(d, s) {
+    return '<svg viewBox="0 0 24 24" width="' + (s || 18) + '" height="' + (s || 18) +
+           '" fill="none" stroke="currentColor" stroke-width="1.6" ' +
+           'stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">' + d + '</svg>';
+  }
+  function paintTheme() {
+    var dark = document.documentElement.getAttribute('data-theme') === 'dark';
+    $('themeBtn').innerHTML = svg(dark ? SUN : MOON);
+  }
+  $('themeBtn').addEventListener('click', function () {
+    var next = document.documentElement.getAttribute('data-theme') === 'dark' ? 'light' : 'dark';
+    document.documentElement.setAttribute('data-theme', next);
+    try { localStorage.setItem('bn-theme', next); } catch (e) {}
+    paintTheme();
+  });
+  paintTheme();
+
+  /* ── الرسائل ── */
+  function msg(text, kind) {
+    var m = $('lgMsg');
+    m.className = 'lg-msg is-on ' + (kind === 'ok' ? 'lg-msg-ok' : 'lg-msg-err');
+    m.textContent = text;
+  }
+  function clearMsg() { $('lgMsg').className = 'lg-msg'; $('lgMsg').textContent = ''; }
+
+  /* ── اختيار الدور: الجانب يتبدّل كاملاً ── */
+  function pick(r) {
+    role = r;
+    var c = ROLES[r];
+    $('lgTitle').textContent = c.title;
+    $('lgSub').textContent   = c.sub;
+    $('lgBadge').className   = c.badgeCls;
+    $('lgBadge').innerHTML   = svg(c.icon, 13) + c.badge;
+    $('lgSubmit').textContent = c.submit;
+    $('lgFoot').innerHTML     = c.foot;
+    $('lgRoles').classList.add('is-off');
+    $('lgForm').classList.add('is-on');
+    clearMsg();
+    try { history.replaceState(null, '', '?role=' + r); } catch (e) {}
+    $('lgEmail').focus();
+  }
+
+  function reset() {
+    role = null;
+    $('lgTitle').textContent = 'مرحباً بعودتك';
+    $('lgSub').textContent   = 'اختر نوع حسابك للمتابعة — لكل حساب لوحته الخاصة.';
+    $('lgRoles').classList.remove('is-off');
+    $('lgForm').classList.remove('is-on');
+    clearMsg();
+    try { history.replaceState(null, '', location.pathname); } catch (e) {}
+  }
+
+  Array.prototype.forEach.call(document.querySelectorAll('[data-role]'), function (b) {
+    b.addEventListener('click', function () { pick(b.dataset.role); });
+  });
+  $('lgBack').addEventListener('click', reset);
+
+  /* ── الإرسال ── */
+  $('lgForm').addEventListener('submit', async function (e) {
+    e.preventDefault();
+    if (!role) return;
+    var c     = ROLES[role];
+    var email = $('lgEmail').value.trim();
+    var pass  = $('lgPass').value;
+
+    $('lgEmailWrap').classList.toggle('is-error', !email);
+    $('lgPassWrap').classList.toggle('is-error', !pass);
+    if (!email || !pass) { msg('أدخل البريد وكلمة المرور.'); return; }
+
+    var btn = $('lgSubmit');
+    btn.disabled = true;
+    btn.textContent = 'جارٍ التحقّق...';
+    clearMsg();
+
+    try {
+      var res = await fetch(c.endpoint, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email: email, password: pass })
+      });
+
+      if (res.status === 401) { msg('البريد أو كلمة المرور غير صحيحة.'); return; }
+      if (res.status === 403) { msg('هذا الحساب موقوف. تواصل مع الدعم.'); return; }
+      if (res.status === 429) { msg('محاولات كثيرة. حاول بعد ١٠ دقائق.'); return; }
+      if (res.status === 503) { msg('الخدمة غير متاحة مؤقتاً. حاول بعد قليل.'); return; }
+      if (!res.ok)            { msg('تعذّر الدخول (رمز ' + res.status + '). حاول مرة أخرى.'); return; }
+
+      var d = await res.json();
+      if (!d.token) { msg('استجابة غير متوقّعة من الخادم.'); return; }
+
+      /* تخزين الجلسة بمفاتيح كل دور — يقرؤها الحارس والقوائم */
+      if (role === 'company') {
+        localStorage.setItem('COMPANY_TOKEN', d.token);
+        if (d.company_id) localStorage.setItem('company_id', String(d.company_id));
+      } else {
+        localStorage.setItem('project_user_token', d.token);
+        if (d.user_id) localStorage.setItem('project_user_id', String(d.user_id));
+      }
+
+      /* كعكة الجلسة — يقرؤها حارس الخادم، فطلب التنقّل في المتصفح
+         لا يحمل ترويسة Authorization. الحماية الحقيقية للبيانات
+         تبقى على نقاط النهاية؛ هذه تمنع تقديم الصفحة أصلاً. */
+      document.cookie = 'bn_sess=' + d.token +
+        '; path=/; max-age=' + (60 * 60 * 24 * 30) + '; SameSite=Lax' +
+        (location.protocol === 'https:' ? '; Secure' : '');
+
+      msg('تم الدخول — جارٍ التحويل...', 'ok');
+      /* التوجيه حسب الدور: لا يهبط أحد على الرئيسية بعد الدخول (§٤ قاعدة ٢) */
+      var next = new URLSearchParams(location.search).get('next');
+      location.replace(next && next.charAt(0) === '/' && next.indexOf('//') !== 0 ? next : c.dest);
+
+    } catch (err) {
+      msg('تعذّر الاتصال بالخادم. تحقّق من اتصالك ثم أعد المحاولة.');
+    } finally {
+      btn.disabled = false;
+      btn.textContent = c.submit;
+    }
+  });
+
+  /* دور مُمرَّر في الرابط — يستعمله الحارس عند التحويل */
+  var pre = new URLSearchParams(location.search).get('role');
+  if (pre && ROLES[pre]) pick(pre);
+})();
+</script>
+</body>
+</html>
