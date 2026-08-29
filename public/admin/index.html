@@ -1,0 +1,33 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>لوحة الإدارة — بُنيان</title>
+<link rel="stylesheet" href="../tokens.css">
+<script>
+  (function(){ var t=localStorage.getItem('bn-theme')||'light';
+    document.documentElement.setAttribute('data-theme',t); })();
+</script>
+<style>
+  body { margin:0; background:var(--bn-bg); color:var(--bn-ink); font:var(--bn-t-body); }
+  .ph { padding: var(--bn-s10) var(--bn-s6); max-width: 62ch; }
+  .ph h1 { font: var(--bn-t-h1); margin: 0 0 var(--bn-s3); }
+  .ph p  { color: var(--bn-ink-2); margin: 0 0 var(--bn-s3); }
+</style>
+</head>
+<body class="bn-body">
+
+<div id="bn-nav"></div>
+
+<main class="ph">
+  <h1>لوحة الإدارة</h1>
+  <p>صفحة مؤقتة — نقطة تركيب القائمة فقط. المحتوى يُبنى في الخطوة ٧
+     بتفكيك <code>admin.html</code>.</p>
+  <p>بطاقة الهوية هنا «أسود معكوس» — أوضح تمييز في النظام، لأن الخطأ
+     في سطح الإدارة هو الأغلى.</p>
+</main>
+
+<script src="nav-admin.js"></script>
+</body>
+</html>
