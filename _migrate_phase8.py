@@ -1,6 +1,6 @@
 """
 Phase 8 — Communication & Reputation Migration
-Creates: conversations, messages, notifications, reviews, review_replies, activity_log
+Creates: conversations, chat_messages, notifications, reviews, review_replies, activity_log
 All operations are idempotent.
 """
 from dotenv import load_dotenv
@@ -51,9 +51,9 @@ WHERE project_id IS NOT NULL
 """)
 
 # ── 2. MESSAGES ───────────────────────────────────────────────
-print("\n[2] Creating messages table...")
-step("CREATE messages", """
-CREATE TABLE IF NOT EXISTS messages (
+print("\n[2] Creating chat_messages table...")
+step("CREATE chat_messages", """
+CREATE TABLE IF NOT EXISTS chat_messages (
     id              SERIAL PRIMARY KEY,
     conversation_id INTEGER NOT NULL REFERENCES conversations(id) ON DELETE CASCADE,
     sender_type     TEXT NOT NULL,
@@ -63,11 +63,11 @@ CREATE TABLE IF NOT EXISTS messages (
     created_at      TIMESTAMP NOT NULL DEFAULT now()
 )
 """)
-step("INDEX messages.conversation_id", """
-CREATE INDEX IF NOT EXISTS idx_msg_conv ON messages(conversation_id)
+step("INDEX chat_messages.conversation_id", """
+CREATE INDEX IF NOT EXISTS idx_msg_conv ON chat_messages(conversation_id)
 """)
-step("INDEX messages.is_read", """
-CREATE INDEX IF NOT EXISTS idx_msg_read ON messages(is_read) WHERE is_read = false
+step("INDEX chat_messages.is_read", """
+CREATE INDEX IF NOT EXISTS idx_msg_read ON chat_messages(is_read) WHERE is_read = false
 """)
 
 # ── 3. NOTIFICATIONS ──────────────────────────────────────────
@@ -162,7 +162,7 @@ CREATE INDEX IF NOT EXISTS idx_activity_created ON activity_log(created_at DESC)
 
 # ── 7. VERIFY ─────────────────────────────────────────────────
 print("\n[7] Verification...")
-tables = ["conversations","messages","notifications","reviews","review_replies","activity_log"]
+tables = ["conversations","chat_messages","notifications","reviews","review_replies","activity_log"]
 with engine.connect() as c:
     for t in tables:
         cnt = c.execute(text(f"SELECT COUNT(*) FROM {t}")).scalar()
