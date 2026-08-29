@@ -167,9 +167,9 @@ def check_rate_limit(key: str, max_calls: int, window_seconds: int) -> bool:
     العدّاد في جدول PostgreSQL لا في ذاكرة العملية، فيصمد أمام
     تعدّد العمّال وإعادة التشغيل.
 
-    عند تعذّر الوصول لقاعدة البيانات نمنع الطلب (fail-closed): كل
-    نقطة تستدعي هذه الدالة تحتاج القاعدة بعدها مباشرةً على أي حال،
-    والسماح عند العطل يفتح باب التخمين على كلمات المرور.
+    عند تعذّر الوصول لقاعدة البيانات نمنع الطلب (fail-closed)، لكن
+    نرفع 503 لا 429: المستخدم لم يتجاوز أي حد، والخدمة هي المتعطّلة.
+    رسالة «حاول بعد 10 دقائق» ستكون مضلّلة هنا.
     """
     try:
         with SessionLocal() as db:
@@ -182,7 +182,10 @@ def check_rate_limit(key: str, max_calls: int, window_seconds: int) -> bool:
         return hits is not None and hits <= max_calls
     except Exception as e:
         print(f"[rate_limit] تعذّر التحقق من الحد — رُفض الطلب: {e}")
-        return False
+        raise HTTPException(
+            status_code=503,
+            detail="الخدمة غير متاحة مؤقتاً — تعذّر الوصول لقاعدة البيانات. حاول بعد قليل.",
+        )
 
 
 def write_audit_log(db, actor_type: str, actor_id: str, action: str,
