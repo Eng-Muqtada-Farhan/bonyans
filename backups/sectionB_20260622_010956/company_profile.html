@@ -1,0 +1,659 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>بُنيان — ملف الشركة</title>
+<meta name="description" content="ملف شركة المقاولات — بُنيان منصة المقاولات الذكية في العراق">
+<link rel="manifest" href="manifest.json">
+<meta name="theme-color" content="#c8a96e">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<link rel="apple-touch-icon" href="icons/icon-192.png">
+<link rel="stylesheet" href="bunyan.css?v=10b2">
+<script>
+  (function(){ var t=localStorage.getItem('bn-theme')||'light'; document.documentElement.setAttribute('data-theme',t); })();
+</script>
+<style>
+/* ── Chat drawer (page-specific) ── */
+#chatDrawer {
+  position: fixed; bottom: 0; right: 0; left: 0; z-index: 600;
+  max-width: 480px; margin: 0 auto;
+  background: rgba(255,255,255,0.82);
+  backdrop-filter: blur(24px); -webkit-backdrop-filter: blur(24px);
+  border: 1.5px solid rgba(255,255,255,0.85); border-bottom: none;
+  border-radius: 20px 20px 0 0;
+  box-shadow: 0 -8px 40px rgba(27,58,107,0.18);
+  display: none; flex-direction: column; height: 440px; transition: background 0.3s;
+}
+[data-theme="dark"] #chatDrawer { background: rgba(8,14,28,0.92); border-color: rgba(255,255,255,0.12); }
+#chatDrawer.open { display: flex; }
+.chat-header {
+  padding: 13px 16px; border-bottom: 1px solid var(--border);
+  display: flex; justify-content: space-between; align-items: center;
+}
+.chat-header-name { font-weight: 800; font-size: 14px; color: var(--text-1); }
+.chat-header-sub  { font-size: 11px; color: var(--text-3); margin-top: 1px; }
+.chat-close { background: none; border: none; color: var(--text-3); font-size: 18px; cursor: pointer; padding: 4px 8px; }
+.chat-close:hover { color: var(--text-1); }
+.chat-msgs {
+  flex: 1; overflow-y: auto; padding: 14px 16px;
+  display: flex; flex-direction: column; gap: 8px;
+}
+.chat-bubble { max-width: 72%; padding: 9px 13px; border-radius: 14px; font-size: 13px; line-height: 1.55; }
+.chat-bubble.me    { align-self: flex-end; background: var(--clay); color: #fff; border-bottom-right-radius: 4px; }
+.chat-bubble.other { align-self: flex-start; background: var(--surface); border: 1.5px solid var(--border); color: var(--text-1); border-bottom-left-radius: 4px; }
+.chat-bubble-time  { font-size: 10px; color: var(--text-3); margin-top: 3px; }
+.chat-input-row { padding: 10px 14px; border-top: 1px solid var(--border); display: flex; gap: 8px; }
+.chat-input {
+  flex: 1; padding: 10px 13px; background: var(--bg2);
+  border: 1.5px solid var(--border); border-radius: var(--r);
+  color: var(--text-1); font-family: Cairo,sans-serif; font-size: 13px; outline: none;
+  transition: border-color 0.2s; direction: rtl;
+}
+.chat-input:focus { border-color: var(--clay); }
+.btn-send {
+  padding: 10px 16px; background: var(--clay); color: #fff;
+  border: none; border-radius: var(--r); font-family: Cairo,sans-serif;
+  font-size: 13px; font-weight: 700; cursor: pointer; transition: all 0.2s;
+}
+.btn-send:hover { background: var(--clay-deep); }
+.chat-state-msg { text-align: center; padding: 20px; font-size: 13px; color: var(--text-3); }
+
+/* ── Login modal ── */
+.modal-overlay { display:none; position:fixed; inset:0; z-index:500; background:rgba(10,22,40,0.55); backdrop-filter:blur(4px); align-items:flex-end; justify-content:center; }
+.modal-overlay.open { display:flex; }
+.modal-box {
+  background: rgba(255,255,255,0.75); backdrop-filter:blur(24px); -webkit-backdrop-filter:blur(24px);
+  border:1.5px solid rgba(255,255,255,0.85); border-radius:24px 24px 0 0; border-bottom:none;
+  padding:20px 18px 36px; width:100%; max-width:480px;
+  animation:slideUp 0.3s ease;
+}
+[data-theme="dark"] .modal-box { background:rgba(8,14,28,0.90); border-color:rgba(255,255,255,0.12); }
+@keyframes slideUp { from{transform:translateY(100%)} to{transform:translateY(0)} }
+.modal-handle { width:36px; height:4px; background:var(--border2); border-radius:2px; margin:0 auto 16px; }
+.modal-close { float:left; background:none; border:none; color:var(--text-3); font-size:20px; cursor:pointer; }
+.modal-title { font-size:18px; font-weight:800; color:var(--text-1); margin-bottom:4px; }
+.modal-sub   { font-size:13px; color:var(--text-3); margin-bottom:18px; }
+.auth-tabs   { display:flex; gap:4px; background:var(--bg2); border-radius:var(--r); padding:4px; margin-bottom:16px; }
+.auth-tab    { flex:1; padding:8px; text-align:center; font-size:13px; font-weight:600; color:var(--text-3); cursor:pointer; border-radius:var(--r-sm); transition:all 0.2s; }
+.auth-tab.active { background:var(--clay); color:#fff; }
+.modal-input { width:100%; padding:11px 14px; background:var(--bg2); border:1.5px solid var(--border); border-radius:var(--r); color:var(--text-1); font-family:Cairo,sans-serif; font-size:13px; outline:none; margin-bottom:10px; direction:ltr; }
+.modal-input:focus { border-color:var(--clay); }
+.btn-modal-submit { width:100%; padding:13px; background:linear-gradient(135deg,var(--clay-deep),var(--clay)); color:#fff; border:none; border-radius:var(--r-pill); font-family:Cairo,sans-serif; font-size:15px; font-weight:800; cursor:pointer; margin-top:4px; transition:all 0.2s; }
+.btn-modal-submit:hover { transform:translateY(-1px); box-shadow:var(--shadow-clay); }
+.modal-err { font-size:13px; color:var(--red-light); margin-top:8px; min-height:18px; }
+
+/* ── Lightbox ── */
+#lightbox { display:none; position:fixed; inset:0; z-index:9999; background:rgba(0,0,0,0.92); align-items:center; justify-content:center; }
+#lightbox.open { display:flex; }
+#lightbox img { max-width:90vw; max-height:90vh; border-radius:10px; object-fit:contain; }
+#lightboxClose { position:absolute; top:20px; left:20px; background:rgba(255,255,255,0.12); border:none; color:white; border-radius:50%; width:42px; height:42px; font-size:20px; cursor:pointer; display:flex; align-items:center; justify-content:center; }
+
+/* ── Reviews form ── */
+.star-picker { display:flex; gap:8px; margin-bottom:12px; direction:rtl; }
+.star-btn { font-size:30px; color:var(--text-3); cursor:pointer; transition:transform 0.1s; background:none; border:none; padding:0; line-height:1; font-family:inherit; }
+.star-btn.active { color:var(--sand); transform:scale(1.1); }
+.form-group { margin-bottom:12px; }
+.form-group label { display:block; font-size:12px; color:var(--text-3); margin-bottom:5px; font-weight:700; }
+.form-input { width:100%; padding:10px 13px; background:var(--bg2); border:1.5px solid var(--border); border-radius:var(--r); color:var(--text-1); font-family:Cairo,sans-serif; font-size:13px; outline:none; direction:rtl; transition:border-color 0.2s; }
+.form-input:focus { border-color:var(--clay); }
+textarea.form-input { resize:vertical; min-height:70px; }
+.btn-submit-review { padding:11px 24px; background:var(--clay); color:#fff; border:none; border-radius:var(--r-pill); font-family:Cairo,sans-serif; font-size:14px; font-weight:800; cursor:pointer; transition:all 0.2s; }
+.btn-submit-review:hover { background:var(--clay-deep); transform:translateY(-1px); }
+.btn-submit-review:disabled { opacity:0.5; cursor:default; transform:none; }
+.review-msg { margin-top:8px; font-size:13px; padding:8px 12px; border-radius:var(--r); display:none; }
+.review-msg.ok  { display:block; color:var(--green); background:rgba(46,125,94,0.1); border:1px solid rgba(46,125,94,0.2); }
+.review-msg.err { display:block; color:var(--red-light); background:rgba(198,40,40,0.08); border:1px solid rgba(198,40,40,0.2); }
+
+/* ── Reviews avg ── */
+.reviews-avg-row { display:flex; align-items:center; gap:16px; padding:14px 0 16px; }
+.reviews-avg-big { font-size:42px; font-weight:900; color:var(--clay); line-height:1; }
+.reviews-count-text { font-size:13px; color:var(--text-3); }
+
+/* ── Not found ── */
+.not-found { min-height:60vh; display:flex; flex-direction:column; align-items:center; justify-content:center; text-align:center; padding:40px; }
+.not-found .icon { font-size:56px; margin-bottom:16px; opacity:0.5; }
+.not-found h2 { font-size:22px; color:var(--text-1); margin-bottom:8px; }
+.not-found p  { font-size:14px; color:var(--text-3); }
+
+/* ── Projects mini grid ── */
+.proj-grid { display:grid; grid-template-columns:repeat(auto-fill,minmax(260px,1fr)); gap:12px; }
+.proj-mini-card { background:var(--bg2); border:1.5px solid var(--border); border-radius:var(--r); overflow:hidden; }
+.proj-mini-img { width:100%; height:120px; object-fit:cover; display:block; background:var(--bg3); }
+.proj-mini-ph  { width:100%; height:120px; background:var(--bg3); display:flex; align-items:center; justify-content:center; font-size:32px; color:var(--text-3); }
+.proj-mini-body { padding:12px 14px; }
+.proj-mini-title { font-size:13px; font-weight:800; color:var(--text-1); margin-bottom:5px; }
+.proj-mini-meta  { font-size:11px; color:var(--text-3); display:flex; gap:10px; flex-wrap:wrap; }
+
+/* ── Loading ── */
+#page-loading { padding:100px 20px; text-align:center; color:var(--text-3); font-size:15px; }
+</style>
+</head>
+<body>
+
+<!-- nav injected by bunyan-nav.js -->
+<!-- hidden compat stubs -->
+<span id="user-greeting" style="display:none"><span id="user-display-name"></span></span>
+<button id="btn-login-top" style="display:none" onclick="openLoginModal()"></button>
+
+<!-- ══ MAIN PAGE AREA ══ -->
+<div id="page">
+  <div id="page-loading">
+    <div style="font-size:36px;margin-bottom:12px">🏗</div>
+    <div>جارٍ تحميل ملف الشركة...</div>
+  </div>
+</div>
+
+<!-- Lightbox -->
+<div id="lightbox" onclick="closeLightbox()">
+  <button id="lightboxClose" onclick="closeLightbox()">✕</button>
+  <img id="lightboxImg" src="" alt="">
+</div>
+
+<!-- Login Modal -->
+<div class="modal-overlay" id="loginOverlay" onclick="if(event.target===this)closeLoginModal()">
+  <div class="modal-box">
+    <div class="modal-handle"></div>
+    <button class="modal-close" onclick="closeLoginModal()">✕</button>
+    <div class="modal-title">تسجيل الدخول</div>
+    <div class="modal-sub">للتواصل مع الشركة يجب تسجيل الدخول أو إنشاء حساب</div>
+    <div class="auth-tabs">
+      <div class="auth-tab active" id="tab-login" onclick="switchTab('login')">دخول</div>
+      <div class="auth-tab"        id="tab-reg"   onclick="switchTab('reg')">حساب جديد</div>
+    </div>
+    <div id="login-form">
+      <input class="modal-input" id="li-email"    type="email"    placeholder="البريد الإلكتروني">
+      <input class="modal-input" id="li-password" type="password" placeholder="كلمة المرور">
+      <button class="btn-modal-submit" onclick="doLogin()">دخول</button>
+    </div>
+    <div id="reg-form" style="display:none">
+      <input class="modal-input" id="ri-name"     type="text"     placeholder="الاسم الكامل" dir="rtl">
+      <input class="modal-input" id="ri-email"    type="email"    placeholder="البريد الإلكتروني">
+      <input class="modal-input" id="ri-password" type="password" placeholder="كلمة المرور (8 أحرف على الأقل)">
+      <button class="btn-modal-submit" onclick="doRegister()">إنشاء حساب</button>
+    </div>
+    <div class="modal-err" id="auth-err"></div>
+  </div>
+</div>
+
+<!-- Chat Drawer -->
+<div id="chatDrawer">
+  <div class="chat-header">
+    <div>
+      <div class="chat-header-name" id="chatCompanyName">—</div>
+      <div class="chat-header-sub">محادثة مباشرة</div>
+    </div>
+    <button class="chat-close" onclick="closeChat()">✕</button>
+  </div>
+  <div class="chat-msgs" id="chatMsgs">
+    <div class="chat-state-msg">جارٍ تحميل المحادثة...</div>
+  </div>
+  <div class="chat-input-row">
+    <input class="chat-input" id="chatInput" type="text" placeholder="اكتب رسالتك..."
+           onkeydown="if(event.key==='Enter')sendChatMsg()">
+    <button class="btn-send" onclick="sendChatMsg()">إرسال</button>
+  </div>
+</div>
+
+<div id="bn-footer-mount"></div>
+
+<script>
+const API       = '';
+const params    = new URLSearchParams(location.search);
+const companyId = parseInt(params.get('id') || '0');
+
+let USER_TOKEN = localStorage.getItem('project_user_token') || '';
+let USER_ID    = parseInt(localStorage.getItem('project_user_id') || '0');
+let USER_NAME  = localStorage.getItem('project_user_name') || '';
+
+function esc(str) {
+  return String(str||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+}
+
+/* ── Backward compat stubs ── */
+function refreshTopbar() {
+  const g = document.getElementById('user-greeting');
+  const n = document.getElementById('user-display-name');
+  if (g && n) {
+    if (USER_TOKEN) { n.textContent = USER_NAME||'مستخدم'; g.style.display='inline'; }
+    else            { g.style.display='none'; }
+  }
+}
+
+/* ── Lightbox ── */
+function openLightbox(src) {
+  document.getElementById('lightboxImg').src = src;
+  document.getElementById('lightbox').classList.add('open');
+  document.body.style.overflow = 'hidden';
+}
+function closeLightbox() {
+  document.getElementById('lightbox').classList.remove('open');
+  document.body.style.overflow = '';
+}
+document.addEventListener('keydown', e => {
+  if (e.key === 'Escape') { closeLightbox(); closeLoginModal(); closeChat(); }
+});
+
+/* ═══════════════ LOGIN MODAL ═══════════════ */
+let _afterLoginFn = null;
+function openLoginModal(afterFn = null) {
+  _afterLoginFn = afterFn;
+  document.getElementById('loginOverlay').classList.add('open');
+  document.getElementById('auth-err').textContent = '';
+}
+function closeLoginModal() { document.getElementById('loginOverlay').classList.remove('open'); }
+function switchTab(tab) {
+  document.getElementById('tab-login').classList.toggle('active', tab==='login');
+  document.getElementById('tab-reg').classList.toggle('active', tab==='reg');
+  document.getElementById('login-form').style.display = tab==='login' ? 'block' : 'none';
+  document.getElementById('reg-form').style.display   = tab==='reg'   ? 'block' : 'none';
+  document.getElementById('auth-err').textContent = '';
+}
+async function doLogin() {
+  const email = document.getElementById('li-email').value.trim();
+  const pass  = document.getElementById('li-password').value;
+  const errEl = document.getElementById('auth-err');
+  if (!email || !pass) { errEl.textContent = 'يرجى ملء جميع الحقول'; return; }
+  errEl.textContent = '';
+  try {
+    const r = await fetch(`${API}/auth/login`, {
+      method:'POST', headers:{'Content-Type':'application/json'},
+      body: JSON.stringify({email, password: pass})
+    });
+    const d = await r.json();
+    if (!r.ok) { errEl.textContent = d.detail||'خطأ في تسجيل الدخول'; return; }
+    _setUser(d.token, d.user_id, d.display_name||email.split('@')[0]);
+    closeLoginModal();
+    if (_afterLoginFn) { _afterLoginFn(); _afterLoginFn = null; }
+  } catch { errEl.textContent = 'خطأ في الاتصال'; }
+}
+async function doRegister() {
+  const name  = document.getElementById('ri-name').value.trim();
+  const email = document.getElementById('ri-email').value.trim();
+  const pass  = document.getElementById('ri-password').value;
+  const errEl = document.getElementById('auth-err');
+  if (!name || !email || !pass) { errEl.textContent = 'يرجى ملء جميع الحقول'; return; }
+  if (pass.length < 8) { errEl.textContent = 'كلمة المرور 8 أحرف على الأقل'; return; }
+  errEl.textContent = '';
+  try {
+    const r = await fetch(`${API}/auth/register`, {
+      method:'POST', headers:{'Content-Type':'application/json'},
+      body: JSON.stringify({email, password: pass, display_name: name})
+    });
+    const d = await r.json();
+    if (!r.ok) { errEl.textContent = d.detail||'خطأ في إنشاء الحساب'; return; }
+    _setUser(d.token, d.user_id, name);
+    closeLoginModal();
+    if (_afterLoginFn) { _afterLoginFn(); _afterLoginFn = null; }
+  } catch { errEl.textContent = 'خطأ في الاتصال'; }
+}
+function _setUser(token, id, name) {
+  USER_TOKEN = token; USER_ID = id; USER_NAME = name;
+  localStorage.setItem('project_user_token', token);
+  localStorage.setItem('project_user_id', String(id));
+  localStorage.setItem('project_user_name', name);
+  refreshTopbar();
+}
+
+/* ═══════════════ CHAT ═══════════════ */
+let _convId = null, _chatCompanyName = '', _chatPollTimer = null;
+
+function openChatBtn() {
+  if (!USER_TOKEN) { openLoginModal(() => openChatBtn()); return; }
+  startOrOpenChat();
+}
+async function startOrOpenChat() {
+  const drawer = document.getElementById('chatDrawer');
+  document.getElementById('chatCompanyName').textContent = _chatCompanyName;
+  drawer.classList.add('open');
+  const msgsEl = document.getElementById('chatMsgs');
+  msgsEl.innerHTML = '<div class="chat-state-msg">جارٍ تحضير المحادثة...</div>';
+  try {
+    const r = await fetch(`${API}/conversations`, {
+      method:'POST', headers:{'Content-Type':'application/json','Authorization':USER_TOKEN},
+      body: JSON.stringify({company_id: companyId, message: ' '})
+    });
+    if (!r.ok) throw new Error(await r.text());
+    const d = await r.json();
+    _convId = d.conversation_id;
+    await loadChatMsgs();
+    _startChatPoll();
+  } catch(e) {
+    msgsEl.innerHTML = `<div class="chat-state-msg" style="color:var(--red-light)">خطأ: ${esc(e.message)}</div>`;
+  }
+}
+async function loadChatMsgs() {
+  if (!_convId) return;
+  const msgsEl = document.getElementById('chatMsgs');
+  try {
+    const r = await fetch(`${API}/conversations/${_convId}/messages`, { headers:{'Authorization':USER_TOKEN} });
+    if (!r.ok) return;
+    const msgs = await r.json();
+    const visible = msgs.filter(m => m.message && m.message.trim() !== ' ');
+    if (!visible.length) {
+      msgsEl.innerHTML = '<div class="chat-state-msg">ابدأ المحادثة بكتابة رسالتك أدناه</div>';
+    } else {
+      msgsEl.innerHTML = visible.map(m => {
+        const isMe = m.sender_type === 'client';
+        const time = new Date(m.created_at).toLocaleTimeString('ar-IQ',{hour:'2-digit',minute:'2-digit'});
+        return `<div>
+          <div class="chat-bubble ${isMe?'me':'other'}">${esc(m.message)}</div>
+          <div class="chat-bubble-time" style="text-align:${isMe?'left':'right'}">${time}</div>
+        </div>`;
+      }).join('');
+      msgsEl.scrollTop = msgsEl.scrollHeight;
+    }
+  } catch {}
+}
+async function sendChatMsg() {
+  const input = document.getElementById('chatInput');
+  const msg   = input.value.trim();
+  if (!msg || !_convId) return;
+  input.value = '';
+  try {
+    await fetch(`${API}/conversations/${_convId}/messages`, {
+      method:'POST', headers:{'Content-Type':'application/json','Authorization':USER_TOKEN},
+      body: JSON.stringify({message: msg})
+    });
+    await loadChatMsgs();
+  } catch { input.value = msg; }
+}
+function _startChatPoll() { _stopChatPoll(); _chatPollTimer = setInterval(loadChatMsgs, 5000); }
+function _stopChatPoll() { if (_chatPollTimer) { clearInterval(_chatPollTimer); _chatPollTimer = null; } }
+function closeChat() { document.getElementById('chatDrawer').classList.remove('open'); _stopChatPoll(); }
+
+/* ═══════════════ REVIEWS ═══════════════ */
+let _selectedRating = 0;
+
+function starsHtml(rating, size = 16) {
+  let h = '';
+  for (let i = 1; i <= 5; i++) {
+    h += `<span style="color:${i<=rating?'var(--sand)':'var(--text-3)'};font-size:${size}px">★</span>`;
+  }
+  return h;
+}
+
+async function loadReviews() {
+  const el = document.getElementById('reviewsBody');
+  const sumEl = document.getElementById('reviewsSummary');
+  if (!el) return;
+  try {
+    const r = await fetch(`${API}/company/${companyId}/reviews`);
+    const reviews = await r.json();
+
+    if (reviews.length) {
+      const avg = reviews.reduce((s,rv) => s+rv.rating, 0) / reviews.length;
+      const avgR = Math.round(avg * 10) / 10;
+      sumEl.innerHTML = `
+        <div class="reviews-avg-row">
+          <div class="reviews-avg-big">${avgR.toFixed(1)}</div>
+          <div>
+            <div>${starsHtml(Math.round(avg), 22)}</div>
+            <div class="reviews-count-text">${reviews.length} تقييم معتمد</div>
+          </div>
+        </div>`;
+      el.innerHTML = reviews.map(rv => {
+        const d = new Date(rv.created_at).toLocaleDateString('ar-IQ');
+        return `
+        <div class="bn-rev-item">
+          <div class="bn-rev-av">👤</div>
+          <div style="flex:1">
+            <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:3px">
+              <div class="bn-rev-name">${esc(rv.client_name)}</div>
+              <div style="display:flex;align-items:center;gap:8px">
+                <span>${starsHtml(rv.rating)}</span>
+                <span class="bn-rev-date">${d}</span>
+              </div>
+            </div>
+            ${rv.comment ? `<div class="bn-rev-text">${esc(rv.comment)}</div>` : ''}
+            ${rv.reply ? `
+              <div class="bn-rev-reply">
+                <div class="bn-rev-reply-label">رد الشركة</div>
+                ${esc(rv.reply)}
+              </div>` : ''}
+          </div>
+        </div>`;
+      }).join('');
+    } else {
+      sumEl.innerHTML = `<div style="color:var(--text-3);font-size:13px;padding:8px 0">لا توجد تقييمات معتمدة بعد</div>`;
+      el.innerHTML = '';
+    }
+  } catch { if (sumEl) sumEl.innerHTML = ''; }
+}
+
+function setRating(n) {
+  _selectedRating = n;
+  document.querySelectorAll('.star-btn').forEach((btn,i) => btn.classList.toggle('active', i < n));
+}
+
+async function submitReview() {
+  const clientName = document.getElementById('rv-name').value.trim();
+  const comment    = document.getElementById('rv-comment').value.trim();
+  const msgEl      = document.getElementById('rv-msg');
+  msgEl.className  = 'review-msg';
+  if (!clientName) { msgEl.textContent='يرجى إدخال اسمك'; msgEl.classList.add('err'); return; }
+  if (!_selectedRating) { msgEl.textContent='يرجى اختيار عدد النجوم'; msgEl.classList.add('err'); return; }
+  const btn = document.getElementById('btn-submit-review');
+  btn.disabled = true; btn.textContent = 'جارٍ الإرسال...';
+  try {
+    const r = await fetch(`${API}/reviews`, {
+      method:'POST', headers:{'Content-Type':'application/json'},
+      body: JSON.stringify({company_id: companyId, client_name: clientName, rating: _selectedRating, comment})
+    });
+    if (r.status === 409) { msgEl.textContent='سبق وأرسلت تقييماً لهذه الشركة'; msgEl.classList.add('err'); return; }
+    if (!r.ok) throw new Error();
+    msgEl.textContent = 'شكراً! سيظهر تقييمك بعد مراجعته من الإدارة ✓';
+    msgEl.classList.add('ok');
+    document.getElementById('rv-name').value = '';
+    document.getElementById('rv-comment').value = '';
+    setRating(0);
+  } catch { msgEl.textContent = 'خطأ في الإرسال، يرجى المحاولة مجدداً'; msgEl.classList.add('err'); }
+  finally { btn.disabled = false; btn.textContent = 'إرسال التقييم'; }
+}
+
+/* ═══════════════ PAGE RENDER ═══════════════ */
+function notFound(title, sub) {
+  return `<div class="not-found">
+    <div class="icon">🏗</div>
+    <h2>${title}</h2><p>${sub}</p>
+    <a href="index.html" style="color:var(--clay);margin-top:16px;display:inline-block;font-weight:700">← العودة للدليل</a>
+  </div>`;
+}
+
+const LOGO_COLORS = [
+  ['#1a2a3a','#4a90d9'],['#1a2a1e','#3fb950'],['#2a1a1e','#d45a5a'],
+  ['#2a2014','#e3b341'],['#1e1a2a','#a371f7'],['#14242a','#3bc9db'],
+];
+
+function planBadgeHtml(c) {
+  const plan = c.plan_key || c.subscription_plan || '';
+  if (plan === 'partner')  return '<span class="bn-plan-badge bn-plan-partner">💎شريك بنيان</span>';
+  if (plan === 'featured') return '<span class="bn-plan-badge bn-plan-featured">⭐بارز</span>';
+  if (plan === 'active' || c.verified) return '<span class="bn-plan-badge bn-plan-active">🥉نشط</span>';
+  return '';
+}
+
+function renderPage(c, projects, gallery) {
+  const initials = c.name.split(' ').slice(0,2).map(w=>w[0]).join('');
+  const [avBg, avFg] = LOGO_COLORS[c.id % LOGO_COLORS.length] || ['#1a2a3a','#4a90d9'];
+  _chatCompanyName = c.name;
+
+  /* Avatar */
+  const av = c.image_url
+    ? `<div class="bn-co-av"><img src="${esc(c.image_url)}" alt="${esc(c.name)}" onerror="this.parentElement.innerHTML='${initials}';this.parentElement.style.background='${avBg}';this.parentElement.style.color='${avFg}'"></div>`
+    : `<div class="bn-co-av" style="background:${avBg};color:${avFg}">${initials}</div>`;
+
+  /* Badge */
+  const planBadge = planBadgeHtml(c);
+  const vBadge    = c.verified ? '<span class="bn-vbadge" title="موثّق">✓</span>' : '';
+
+  /* KPI numbers */
+  const avgR  = c.review_avg != null ? Number(c.review_avg).toFixed(1) : (c.rating||0).toFixed(1);
+  const kpis  = [
+    { n: c.projects||0, l: 'مشروع' },
+    { n: avgR + '⭐', l: 'التقييم' },
+    { n: c.year||'—', l: 'التأسيس' },
+    { n: c.size||'—', l: 'الحجم' },
+  ];
+
+  /* Co-hero */
+  const hero = `
+  <div class="bn-co-hero">
+    <div style="max-width:960px;margin:0 auto;padding:0 18px">
+      <a class="bn-back-btn" href="index.html">← دليل الشركات</a>
+      <div class="bn-co-top">
+        ${av}
+        <div>
+          <div class="bn-co-name-lg">${esc(c.name)} ${vBadge} ${planBadge}</div>
+          <div style="display:flex;gap:6px;flex-wrap:wrap;margin-top:6px">
+            <span class="bn-co-spec-tag">${esc(c.spec)}</span>
+            <span class="bn-co-spec-tag">📍 ${esc(c.city)}</span>
+          </div>
+        </div>
+      </div>
+      <div class="bn-co-kpis">
+        ${kpis.map(k => `<div class="bn-kpi"><div class="bn-kpi-n">${k.n}</div><div class="bn-kpi-l">${k.l}</div></div>`).join('')}
+      </div>
+    </div>
+  </div>`;
+
+  /* Content area */
+  let content = `<div class="bn-co-content">`;
+
+  /* About */
+  if (c.desc) {
+    content += `<div class="bn-scard">
+      <h3>🏢 عن الشركة</h3>
+      <p style="font-size:14px;color:var(--text-2);line-height:1.8">${esc(c.desc)}</p>
+    </div>`;
+  }
+
+  /* Contact grid */
+  const contactItems = [];
+  if (c.phone) {
+    const num = c.phone.replace(/\D/g,'');
+    contactItems.push(`
+      <a class="bn-ci wa" href="https://wa.me/${num}" target="_blank" rel="noopener">
+        <div class="bn-ci-ico">💬</div>
+        <div><div class="bn-ci-sub">واتساب</div>${esc(c.phone)}</div>
+      </a>
+      <a class="bn-ci ph" href="tel:${esc(c.phone)}">
+        <div class="bn-ci-ico">📞</div>
+        <div><div class="bn-ci-sub">هاتف</div>${esc(c.phone)}</div>
+      </a>`);
+  }
+  if (c.email) {
+    contactItems.push(`
+      <a class="bn-ci em" href="mailto:${esc(c.email)}">
+        <div class="bn-ci-ico">✉️</div>
+        <div><div class="bn-ci-sub">البريد الإلكتروني</div>${esc(c.email)}</div>
+      </a>`);
+  }
+  if (c.website) {
+    contactItems.push(`
+      <a class="bn-ci" href="${esc(c.website)}" target="_blank" rel="noopener">
+        <div class="bn-ci-ico">🌐</div>
+        <div><div class="bn-ci-sub">الموقع</div>${esc(c.website)}</div>
+      </a>`);
+  }
+
+  if (contactItems.length) {
+    content += `<div class="bn-scard">
+      <h3>📞 التواصل
+        <button onclick="openChatBtn()" style="margin-right:auto;padding:8px 18px;background:var(--clay);color:#fff;border:none;border-radius:var(--r-pill);font-family:Cairo,sans-serif;font-size:13px;font-weight:700;cursor:pointer">📬 ارسل رسالة</button>
+      </h3>
+      <div class="bn-contact-grid">${contactItems.join('')}</div>
+    </div>`;
+  }
+
+  /* Gallery */
+  if (gallery && gallery.length) {
+    const imgs = gallery.map(img => `
+      <div class="bn-gi" onclick="openLightbox('${esc(img.image_url)}')">
+        <img src="${esc(img.image_url)}" alt="${esc(img.title||'')}" onerror="this.style.display='none'">
+      </div>`).join('');
+    content += `<div class="bn-scard">
+      <h3>🖼 معرض الصور <span style="font-size:13px;font-weight:500;color:var(--text-3)">(${gallery.length})</span></h3>
+      <div class="bn-gallery">${imgs}</div>
+    </div>`;
+  }
+
+  /* Projects */
+  if (projects && projects.length) {
+    const cards = projects.map(p => `
+      <div class="proj-mini-card">
+        ${p.image_url ? `<img class="proj-mini-img" src="${esc(p.image_url)}" alt="${esc(p.title)}" onerror="this.outerHTML='<div class=\\'proj-mini-ph\\'>🏗</div>'">` : `<div class="proj-mini-ph">🏗</div>`}
+        <div class="proj-mini-body">
+          <div class="proj-mini-title">${esc(p.title)}</div>
+          <div class="proj-mini-meta">
+            ${p.location?`<span>📍 ${esc(p.location)}</span>`:''}
+            ${p.completion_date?`<span>📅 ${esc(p.completion_date)}</span>`:''}
+          </div>
+          ${p.description ? `<div style="font-size:12px;color:var(--text-3);margin-top:6px;line-height:1.6">${esc(p.description)}</div>` : ''}
+        </div>
+      </div>`).join('');
+    content += `<div class="bn-scard">
+      <h3>🏗 المشاريع <span style="font-size:13px;font-weight:500;color:var(--text-3)">(${projects.length})</span></h3>
+      <div class="proj-grid">${cards}</div>
+    </div>`;
+  }
+
+  /* Reviews */
+  content += `<div class="bn-scard">
+    <h3>⭐ التقييمات</h3>
+    <div id="reviewsSummary"><div style="color:var(--text-3);font-size:13px">جارٍ تحميل التقييمات...</div></div>
+    <div id="reviewsBody"></div>
+  </div>`;
+
+  /* Review form */
+  content += `<div class="bn-scard">
+    <h3>✍️ أضف تقييمك</h3>
+    <div class="form-group">
+      <label>اسمك</label>
+      <input class="form-input" id="rv-name" type="text" placeholder="الاسم الكامل">
+    </div>
+    <div class="form-group">
+      <label>التقييم</label>
+      <div class="star-picker">
+        ${[1,2,3,4,5].map(n=>`<button class="star-btn" onclick="setRating(${n})">★</button>`).join('')}
+      </div>
+    </div>
+    <div class="form-group">
+      <label>التعليق (اختياري)</label>
+      <textarea class="form-input" id="rv-comment" placeholder="اكتب تجربتك مع الشركة..."></textarea>
+    </div>
+    <button class="btn-submit-review" id="btn-submit-review" onclick="submitReview()">إرسال التقييم</button>
+    <div class="review-msg" id="rv-msg"></div>
+  </div>`;
+
+  content += '</div>'; /* end bn-co-content */
+
+  return hero + content;
+}
+
+/* ═══════════════ PAGE LOAD ═══════════════ */
+async function load() {
+  const page = document.getElementById('page');
+  if (!companyId) {
+    page.innerHTML = notFound('رابط غير صحيح', 'لم يتم تحديد رقم الشركة في الرابط.'); return;
+  }
+  try {
+    const r = await fetch(`${API}/company/${companyId}`);
+    if (r.status === 404) { page.innerHTML = notFound('الشركة غير موجودة', 'هذه الشركة غير موجودة أو لم تحصل على الموافقة بعد.'); return; }
+    if (!r.ok) throw new Error(`HTTP ${r.status}`);
+    const { company: c, projects, gallery } = await r.json();
+    document.title = `بُنيان — ${c.name}`;
+    page.innerHTML = renderPage(c, projects, gallery);
+    loadReviews();
+  } catch {
+    page.innerHTML = notFound('خطأ في التحميل', 'تعذّر الاتصال بالسيرفر.');
+  }
+}
+
+refreshTopbar();
+load();
+if ('serviceWorker' in navigator) navigator.serviceWorker.register('/service-worker.js').catch(()=>{});
+</script>
+<script src="bunyan-nav.js"></script>
+</body>
+</html>

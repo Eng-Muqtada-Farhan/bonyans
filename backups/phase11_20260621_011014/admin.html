@@ -1,0 +1,365 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+<meta charset="UTF-8">
+<title>لوحة الأدمن</title>
+
+<style>
+body {
+    font-family: Arial;
+    background: #111;
+    color: white;
+    padding: 20px;
+
+}
+
+.card {
+    background: #1e1e1e;
+    padding: 15px;
+    margin-bottom: 10px;
+    border-radius: 10px;
+    overflow: hidden;
+}
+
+button {
+    margin: 5px;
+    padding: 6px 12px;
+    border: none;
+    border-radius: 6px;
+    cursor: pointer;
+}
+
+.approve { background: green; color: white; }
+.reject  { background: red;   color: white; }
+.pending { background: #444;  color: white; }
+.edit    { background: #1a6fb5; color: white; }
+
+.status {
+    margin-top: 5px;
+    font-size: 14px;
+}
+
+.company-thumb {
+    width: 52px;
+    height: 52px;
+    border-radius: 8px;
+    object-fit: cover;
+    border: 1px solid #444;
+    float: right;
+    margin-left: 10px;
+}
+
+.thumb-placeholder {
+    width: 52px;
+    height: 52px;
+    border-radius: 8px;
+    background: #333;
+    float: right;
+    margin-left: 10px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 20px;
+    color: #888;
+}
+
+/* ── Edit Modal ── */
+#editOverlay {
+    display: none;
+    position: fixed;
+    inset: 0;
+    background: rgba(0,0,0,0.75);
+    z-index: 999;
+    align-items: center;
+    justify-content: center;
+}
+#editOverlay.open { display: flex; }
+
+#editModal {
+    background: #1e1e1e;
+    border: 1px solid #333;
+    border-radius: 14px;
+    padding: 28px;
+    width: 440px;
+    max-width: 95vw;
+    max-height: 90vh;
+    overflow-y: auto;
+}
+
+#editModal h3 {
+    margin: 0 0 20px;
+    font-size: 18px;
+    color: #c8a96e;
+}
+
+.edit-field {
+    margin-bottom: 14px;
+}
+.edit-field label {
+    display: block;
+    font-size: 13px;
+    color: #aaa;
+    margin-bottom: 4px;
+}
+.edit-field input, .edit-field textarea {
+    width: 100%;
+    box-sizing: border-box;
+    background: #111;
+    border: 1px solid #444;
+    border-radius: 8px;
+    color: white;
+    padding: 8px 10px;
+    font-size: 14px;
+    font-family: Arial;
+}
+.edit-field textarea { resize: vertical; min-height: 70px; }
+
+#editImagePreview {
+    margin-top: 8px;
+    display: none;
+}
+#editImagePreview img {
+    width: 80px;
+    height: 80px;
+    object-fit: cover;
+    border-radius: 8px;
+    border: 1px solid #555;
+}
+
+.edit-actions {
+    display: flex;
+    gap: 10px;
+    margin-top: 20px;
+    justify-content: flex-end;
+}
+.btn-save   { background: #1a6fb5; color: white; padding: 8px 20px; border-radius: 8px; border: none; cursor: pointer; font-size: 14px; }
+.btn-cancel { background: #444;    color: white; padding: 8px 20px; border-radius: 8px; border: none; cursor: pointer; font-size: 14px; }
+.btn-save:disabled { opacity: 0.5; cursor: default; }
+
+#editMsg { font-size: 13px; margin-top: 10px; min-height: 18px; }
+.msg-ok  { color: #3fb950; }
+.msg-err { color: #f85149; }
+</style>
+
+</head>
+<body>
+
+<h2>لوحة إدارة الشركات</h2>
+
+<div id="loginBox">
+    <input id="user" placeholder="Username">
+    <input id="pass" type="password" placeholder="Password">
+    <button onclick="login()">دخول</button>
+</div>
+
+<div id="panel" style="display:none;">
+    <div id="list"></div>
+</div>
+
+<!-- Edit Modal -->
+<div id="editOverlay" onclick="if(event.target===this)closeEdit()">
+    <div id="editModal">
+        <h3>تعديل بيانات الشركة</h3>
+
+        <input type="hidden" id="editId">
+
+        <div class="edit-field">
+            <label>الاسم</label>
+            <input type="text" id="editName">
+        </div>
+        <div class="edit-field">
+            <label>المدينة</label>
+            <input type="text" id="editCity">
+        </div>
+        <div class="edit-field">
+            <label>الهاتف</label>
+            <input type="text" id="editPhone">
+        </div>
+        <div class="edit-field">
+            <label>البريد الإلكتروني</label>
+            <input type="email" id="editEmail">
+        </div>
+        <div class="edit-field">
+            <label>نبذة عن الشركة</label>
+            <textarea id="editDesc"></textarea>
+        </div>
+        <div class="edit-field">
+            <label>الصورة / الشعار (اختياري — اتركه فارغاً للإبقاء على الحالية)</label>
+            <input type="file" id="editImage" accept="image/jpeg,image/png,image/webp">
+            <div id="editImagePreview">
+                <img id="editImageThumb" src="" alt="preview">
+            </div>
+        </div>
+
+        <div id="editMsg"></div>
+
+        <div class="edit-actions">
+            <button class="btn-cancel" onclick="closeEdit()">إلغاء</button>
+            <button class="btn-save" id="editSaveBtn" onclick="saveEdit()">حفظ</button>
+        </div>
+    </div>
+</div>
+
+<script>
+const API_URL = "";
+let TOKEN = "";
+
+/* ── File preview inside edit modal ── */
+document.getElementById('editImage').addEventListener('change', () => {
+    const file = document.getElementById('editImage').files[0];
+    if (!file) return;
+    const preview = document.getElementById('editImagePreview');
+    const thumb   = document.getElementById('editImageThumb');
+    thumb.src = URL.createObjectURL(file);
+    preview.style.display = 'block';
+});
+
+async function loadCompanies() {
+    const res  = await fetch(`${API_URL}/admin/companies`);
+    const data = await res.json();
+    const list = document.getElementById("list");
+
+    list.innerHTML = data.map(c => `
+        <div class="card">
+            ${c.image_url
+                ? `<img class="company-thumb" src="${c.image_url}" alt="${c.name}" onerror="this.style.display='none'">`
+                : `<div class="thumb-placeholder">&#x1F3E2;</div>`
+            }
+            <h3>${c.name}</h3>
+            <p>${c.city} | ${c.spec}</p>
+            <p>${c.phone}</p>
+            ${c.image_url ? `<p style="font-size:11px;color:#666;word-break:break-all;">${c.image_url}</p>` : ''}
+
+            <div class="status">الحالة: <b>${c.status}</b></div>
+
+            <button class="approve" onclick="setStatus(${c.id},'approved')" ${c.status==='approved'?'disabled':''}>✔ موافقة</button>
+            <button class="reject"  onclick="setStatus(${c.id},'rejected')" ${c.status==='rejected'?'disabled':''}>❌ رفض</button>
+            <button class="pending" onclick="setStatus(${c.id},'pending')"  ${c.status==='pending' ?'disabled':''}>⏳ قيد المراجعة</button>
+            <button class="edit"    onclick='openEdit(${JSON.stringify(c)})'>✏️ تعديل</button>
+        </div>
+    `).join("");
+}
+
+async function setStatus(id, status) {
+    const res = await fetch(`${API_URL}/companies/${id}/status`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json", "Authorization": TOKEN },
+        body: JSON.stringify({ status }),
+    });
+    if (res.status === 401) { alert("غير مصرح. سجّل الدخول مجدداً."); logout(); return; }
+    loadCompanies();
+}
+
+/* ── Edit modal ── */
+function openEdit(c) {
+    document.getElementById('editId').value    = c.id;
+    document.getElementById('editName').value  = c.name  || '';
+    document.getElementById('editCity').value  = c.city  || '';
+    document.getElementById('editPhone').value = c.phone || '';
+    document.getElementById('editEmail').value = c.email || '';
+    document.getElementById('editDesc').value  = c.desc  || '';
+    document.getElementById('editImage').value = '';
+    document.getElementById('editImagePreview').style.display = 'none';
+    document.getElementById('editMsg').textContent = '';
+    document.getElementById('editMsg').className   = '';
+    document.getElementById('editSaveBtn').disabled = false;
+    document.getElementById('editOverlay').classList.add('open');
+}
+
+function closeEdit() {
+    document.getElementById('editOverlay').classList.remove('open');
+}
+
+async function saveEdit() {
+    const id  = document.getElementById('editId').value;
+    const btn = document.getElementById('editSaveBtn');
+    const msg = document.getElementById('editMsg');
+
+    btn.disabled = true;
+    msg.textContent = 'جارٍ الحفظ...';
+    msg.className   = '';
+
+    try {
+        /* 1 — رفع صورة جديدة إن وُجدت */
+        let image_url = undefined;
+        const imgFile = document.getElementById('editImage').files[0];
+        if (imgFile) {
+            const fd = new FormData();
+            fd.append('file', imgFile);
+            const upRes = await fetch(`${API_URL}/upload`, {
+                method: 'POST',
+                body: fd,
+                signal: AbortSignal.timeout(30000),
+            });
+            if (!upRes.ok) {
+                const err = await upRes.json().catch(() => ({}));
+                throw new Error(err.detail || `خطأ في رفع الصورة (${upRes.status})`);
+            }
+            const upData = await upRes.json();
+            image_url = upData.url || '';
+        }
+
+        /* 2 — تجميع الحقول المعدّلة */
+        const payload = {
+            name:  document.getElementById('editName').value.trim()  || undefined,
+            city:  document.getElementById('editCity').value.trim()  || undefined,
+            phone: document.getElementById('editPhone').value.trim() || undefined,
+            email: document.getElementById('editEmail').value.trim() || undefined,
+            desc:  document.getElementById('editDesc').value.trim()  || undefined,
+        };
+        if (image_url !== undefined) payload.image_url = image_url;
+
+        /* 3 — إرسال التعديل */
+        const res = await fetch(`${API_URL}/companies/${id}`, {
+            method: 'PUT',
+            headers: { 'Content-Type': 'application/json', 'Authorization': TOKEN },
+            body: JSON.stringify(payload),
+        });
+
+        if (res.status === 401) { alert("انتهت الجلسة. سجّل الدخول مجدداً."); logout(); return; }
+        if (!res.ok) {
+            const err = await res.json().catch(() => ({}));
+            throw new Error(err.detail || `خطأ (${res.status})`);
+        }
+
+        msg.textContent = '✔ تم الحفظ بنجاح';
+        msg.className   = 'msg-ok';
+        setTimeout(() => { closeEdit(); loadCompanies(); }, 800);
+
+    } catch (e) {
+        msg.textContent = '✘ ' + e.message;
+        msg.className   = 'msg-err';
+        btn.disabled = false;
+    }
+}
+
+function logout() {
+    TOKEN = "";
+    document.getElementById("loginBox").style.display = "block";
+    document.getElementById("panel").style.display    = "none";
+}
+
+async function login() {
+    const username = document.getElementById("user").value;
+    const password = document.getElementById("pass").value;
+
+    const res  = await fetch(`${API_URL}/login`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ username, password }),
+    });
+    const data = await res.json();
+
+    if (data.token) {
+        TOKEN = data.token;
+        document.getElementById("loginBox").style.display = "none";
+        document.getElementById("panel").style.display    = "block";
+        loadCompanies();
+    } else {
+        alert("خطأ في تسجيل الدخول");
+    }
+}
+</script>
+
+</body>
+</html>

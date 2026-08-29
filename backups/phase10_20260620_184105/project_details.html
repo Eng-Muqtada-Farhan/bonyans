@@ -1,0 +1,340 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>تفاصيل المشروع — بُنيان</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link href="https://fonts.googleapis.com/css2?family=Cairo:wght@300;400;600;700;900&display=swap" rel="stylesheet">
+  <style>
+    :root {
+      --gold: #c8a96e; --gold2: #e2c98a; --bg0: #07090f; --bg1: #0d1117;
+      --bg2: #131920; --bg3: #1a2030; --border: #1e2a3a;
+      --text: #e8eaf0; --muted: #6b7a99; --danger: #e74c3c; --green: #2ecc71;
+    }
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body { font-family: 'Cairo', sans-serif; background: var(--bg0); color: var(--text); min-height: 100vh; }
+
+    nav { background: rgba(7,9,15,0.95); border-bottom: 1px solid var(--border); padding: 0 2rem; display: flex; align-items: center; justify-content: space-between; height: 64px; position: sticky; top: 0; z-index: 100; backdrop-filter: blur(10px); }
+    .nav-logo { font-size: 1.5rem; font-weight: 900; color: var(--gold); text-decoration: none; letter-spacing: 2px; }
+    .nav-links { display: flex; gap: 1.5rem; align-items: center; }
+    .nav-links a { color: var(--muted); text-decoration: none; font-size: .9rem; transition: color .2s; }
+    .nav-links a:hover { color: var(--gold); }
+    .btn-nav { background: linear-gradient(135deg,var(--gold),var(--gold2)); color: #000; padding: .45rem 1.2rem; border-radius: 6px; font-weight: 700; font-size: .85rem; text-decoration: none; }
+
+    .container { max-width: 820px; margin: 0 auto; padding: 2rem 1.5rem; }
+
+    .back-link { display: inline-flex; align-items: center; gap: .4rem; color: var(--muted); text-decoration: none; font-size: .9rem; margin-bottom: 1.5rem; transition: color .2s; }
+    .back-link:hover { color: var(--gold); }
+
+    /* PROJECT CARD */
+    .project-card { background: var(--bg2); border: 1px solid var(--border); border-radius: 14px; padding: 1.8rem; margin-bottom: 1.5rem; }
+    .project-header { display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 1.2rem; gap: 1rem; }
+    .project-title { font-size: 1.4rem; font-weight: 900; color: var(--text); }
+    .badge { font-size: .75rem; padding: .3rem .8rem; border-radius: 20px; font-weight: 700; white-space: nowrap; }
+    .badge-published { background: rgba(46,204,113,.15); color: var(--green); }
+    .badge-contracted { background: rgba(200,169,110,.15); color: var(--gold); }
+    .badge-closed, .badge-cancelled { background: rgba(107,122,153,.15); color: var(--muted); }
+    .badge-pending { background: rgba(231,76,60,.15); color: var(--danger); }
+
+    .meta-row { display: flex; gap: 1.5rem; flex-wrap: wrap; margin-bottom: 1rem; }
+    .meta-item { display: flex; align-items: center; gap: .4rem; font-size: .9rem; color: var(--muted); }
+    .meta-item strong { color: var(--text); }
+
+    .budget-box { background: var(--bg3); border: 1px solid var(--border); border-radius: 10px; padding: 1rem 1.2rem; margin-bottom: 1rem; }
+    .budget-label { font-size: .8rem; color: var(--muted); margin-bottom: .3rem; }
+    .budget-value { font-size: 1.3rem; font-weight: 700; color: var(--gold); }
+
+    .desc-section { margin-bottom: 1.2rem; }
+    .desc-section h3 { font-size: .85rem; color: var(--muted); margin-bottom: .5rem; }
+    .desc-section p { font-size: .95rem; color: var(--text); line-height: 1.7; }
+
+    /* CONTACT */
+    .contact-box { background: var(--bg3); border: 1px solid var(--border); border-radius: 10px; padding: 1rem 1.2rem; }
+    .contact-box h3 { font-size: .85rem; color: var(--muted); margin-bottom: .8rem; }
+    .contact-item { display: flex; align-items: center; gap: .6rem; margin-bottom: .5rem; font-size: .9rem; }
+    .contact-item a { color: var(--gold); text-decoration: none; }
+    .contact-locked { text-align: center; padding: .8rem; color: var(--muted); font-size: .85rem; }
+    .btn-reveal { background: none; border: 1px solid var(--gold); color: var(--gold); padding: .45rem 1rem; border-radius: 6px; cursor: pointer; font-family: inherit; font-size: .85rem; margin-top: .4rem; transition: all .2s; }
+    .btn-reveal:hover { background: var(--gold); color: #000; }
+
+    /* SECTION HEADERS */
+    .section-title { font-size: 1.1rem; font-weight: 700; color: var(--text); margin-bottom: 1rem; display: flex; align-items: center; gap: .5rem; }
+
+    /* BID FORM */
+    .bid-form-card { background: var(--bg2); border: 1px solid var(--border); border-radius: 14px; padding: 1.5rem; margin-bottom: 1.5rem; }
+    .form-row { margin-bottom: 1rem; }
+    .form-row label { display: block; font-size: .85rem; color: var(--muted); margin-bottom: .35rem; }
+    .form-row input, .form-row textarea { width: 100%; background: var(--bg3); border: 1px solid var(--border); color: var(--text); padding: .6rem .9rem; border-radius: 8px; font-family: inherit; font-size: .9rem; }
+    .form-row input:focus, .form-row textarea:focus { outline: none; border-color: var(--gold); }
+    .form-row textarea { resize: vertical; min-height: 80px; }
+    .form-grid2 { display: grid; grid-template-columns: 1fr 1fr; gap: 1rem; }
+    .btn-bid { background: linear-gradient(135deg,var(--gold),var(--gold2)); color: #000; border: none; padding: .75rem 2rem; border-radius: 8px; font-family: inherit; font-size: .95rem; font-weight: 700; cursor: pointer; transition: opacity .2s; }
+    .btn-bid:hover { opacity: .85; }
+    .form-msg { padding: .6rem .9rem; border-radius: 8px; font-size: .85rem; margin-bottom: 1rem; display: none; }
+    .form-msg.err { background: rgba(231,76,60,.15); color: var(--danger); display: block; }
+    .form-msg.ok  { background: rgba(46,204,113,.15); color: var(--green); display: block; }
+
+    /* BIDS LIST */
+    .bids-card { background: var(--bg2); border: 1px solid var(--border); border-radius: 14px; padding: 1.5rem; margin-bottom: 1.5rem; }
+    .bid-item { background: var(--bg3); border: 1px solid var(--border); border-radius: 10px; padding: 1rem 1.2rem; margin-bottom: .8rem; display: flex; gap: 1rem; align-items: flex-start; }
+    .bid-item:last-child { margin-bottom: 0; }
+    .bid-company-img { width: 48px; height: 48px; border-radius: 50%; object-fit: cover; background: var(--bg2); border: 1px solid var(--border); flex-shrink: 0; }
+    .bid-info { flex: 1; }
+    .bid-company-name { font-weight: 700; color: var(--text); margin-bottom: .3rem; font-size: .95rem; }
+    .bid-price { font-size: 1.1rem; font-weight: 700; color: var(--gold); margin-bottom: .2rem; }
+    .bid-meta { font-size: .8rem; color: var(--muted); margin-bottom: .4rem; }
+    .bid-message { font-size: .85rem; color: var(--muted); line-height: 1.5; }
+    .bid-status { font-size: .72rem; padding: .2rem .6rem; border-radius: 12px; font-weight: 700; }
+    .bid-status-submitted { background: rgba(107,122,153,.15); color: var(--muted); }
+    .bid-status-accepted  { background: rgba(46,204,113,.15); color: var(--green); }
+    .bid-status-rejected  { background: rgba(231,76,60,.15); color: var(--danger); }
+    .bid-status-shortlisted { background: rgba(200,169,110,.15); color: var(--gold); }
+    .btn-select { background: linear-gradient(135deg,var(--green),#27ae60); color: #fff; border: none; padding: .4rem .9rem; border-radius: 6px; font-family: inherit; font-size: .8rem; font-weight: 700; cursor: pointer; margin-top: .4rem; transition: opacity .2s; }
+    .btn-select:hover { opacity: .85; }
+    .btn-withdraw { background: none; border: 1px solid var(--danger); color: var(--danger); padding: .35rem .8rem; border-radius: 6px; font-family: inherit; font-size: .8rem; cursor: pointer; margin-top: .4rem; }
+    .btn-withdraw:hover { background: var(--danger); color: #fff; }
+
+    .info-box { background: var(--bg2); border: 1px solid var(--border); border-radius: 10px; padding: 1.2rem; text-align: center; color: var(--muted); font-size: .9rem; margin-bottom: 1.5rem; }
+
+    .spinner { text-align: center; padding: 3rem; color: var(--muted); }
+  </style>
+</head>
+<body>
+
+<nav>
+  <a class="nav-logo" href="index.html">بُنيان</a>
+  <div class="nav-links">
+    <a href="index.html">الشركات</a>
+    <a href="projects.html">سوق المشاريع</a>
+    <a href="company_dashboard.html" class="btn-nav">لوحة الشركة</a>
+  </div>
+</nav>
+
+<div class="container">
+  <a class="back-link" href="projects.html">← العودة إلى سوق المشاريع</a>
+  <div id="content"><div class="spinner">جاري التحميل...</div></div>
+</div>
+
+<script>
+const API = '';
+const params   = new URLSearchParams(location.search);
+const projectId = params.get('id');
+
+const COMPANY_TOKEN = localStorage.getItem('company_token') || '';
+const USER_TOKEN    = localStorage.getItem('project_user_token') || '';
+const USER_ID       = parseInt(localStorage.getItem('project_user_id') || '0');
+
+function fmt(n) {
+  if (n == null) return '';
+  return Number(n).toLocaleString('ar-IQ') + ' د.ع';
+}
+function budgetText(min, max) {
+  if (min && max) return `${fmt(min)} — ${fmt(max)}`;
+  if (min) return `من ${fmt(min)}`;
+  if (max) return `حتى ${fmt(max)}`;
+  return 'السعر مفتوح';
+}
+function statusLabel(s) {
+  return {published:'مفتوح',contracted:'تم الاختيار',closed:'مغلق',cancelled:'ملغي',pending:'قيد المراجعة'}[s] || s;
+}
+function esc(s) { return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
+
+// Determine role
+let decodedToken = null;
+function parseJwt(t) {
+  try { return JSON.parse(atob(t.split('.')[1])); } catch { return null; }
+}
+
+const companyPayload = COMPANY_TOKEN ? parseJwt(COMPANY_TOKEN) : null;
+const userPayload    = USER_TOKEN    ? parseJwt(USER_TOKEN) : null;
+
+const isCompany  = companyPayload && (companyPayload.type === 'company' || companyPayload.type === 'user');
+const isOwner    = userPayload && userPayload.user_id == USER_ID;  // will verify server-side
+const authHeader = COMPANY_TOKEN || USER_TOKEN || '';
+
+let project = null;
+
+async function init() {
+  if (!projectId) {
+    document.getElementById('content').innerHTML = '<div class="info-box">رقم المشروع غير موجود</div>';
+    return;
+  }
+  try {
+    const r = await fetch(`${API}/projects/${projectId}`);
+    if (!r.ok) { document.getElementById('content').innerHTML = '<div class="info-box">المشروع غير موجود</div>'; return; }
+    project = await r.json();
+    render();
+  } catch(e) {
+    document.getElementById('content').innerHTML = '<div class="info-box">خطأ في تحميل المشروع</div>';
+  }
+}
+
+function render() {
+  const p = project;
+  const isMyProject = USER_ID && p.owner_user_id == USER_ID;
+  const canBid = isCompany && p.status === 'published' && !isMyProject;
+
+  document.title = `${p.title} — بُنيان`;
+
+  let html = `
+    <div class="project-card">
+      <div class="project-header">
+        <div class="project-title">${esc(p.title)}</div>
+        <span class="badge badge-${p.status}">${statusLabel(p.status)}</span>
+      </div>
+      <div class="meta-row">
+        <div class="meta-item">📍 <strong>${esc(p.city)}</strong></div>
+        <div class="meta-item">🔨 <strong>${esc(p.category)}</strong></div>
+        <div class="meta-item">💬 <strong>${p.bids_count} عرض</strong></div>
+        <div class="meta-item">📅 <strong>${new Date(p.created_at).toLocaleDateString('ar-IQ')}</strong></div>
+      </div>
+  `;
+
+  if (p.budget_min || p.budget_max) {
+    html += `<div class="budget-box"><div class="budget-label">الميزانية التقديرية</div><div class="budget-value">${budgetText(p.budget_min, p.budget_max)}</div></div>`;
+  }
+
+  if (p.description) {
+    html += `<div class="desc-section"><h3>وصف المشروع</h3><p>${esc(p.description)}</p></div>`;
+  }
+
+  // Contact info — show to anyone who is authenticated
+  html += `<div class="contact-box"><h3>معلومات التواصل</h3>`;
+  if (authHeader) {
+    html += `
+      <div class="contact-item">👤 ${esc(p.contact_name)}</div>
+      <div class="contact-item">📞 <a href="tel:${esc(p.contact_phone)}">${esc(p.contact_phone)}</a></div>
+      ${p.contact_email ? `<div class="contact-item">✉️ <a href="mailto:${esc(p.contact_email)}">${esc(p.contact_email)}</a></div>` : ''}
+    `;
+  } else {
+    html += `<div class="contact-locked">🔒 سجّل الدخول لعرض معلومات التواصل<br><a href="company_dashboard.html" style="color:var(--gold)">دخول لوحة الشركة</a> أو <a href="projects.html" onclick="openPostProject()" style="color:var(--gold)">إنشاء حساب</a></div>`;
+  }
+  html += `</div></div>`;
+
+  // BID FORM (for companies, non-owners, open projects)
+  if (canBid) {
+    html += `
+      <div class="bid-form-card">
+        <div class="section-title">💰 تقديم عرض سعر</div>
+        <div class="form-msg" id="bidMsg"></div>
+        <div class="form-grid2">
+          <div class="form-row"><label>السعر (دينار عراقي) *</label><input id="bidPrice" type="number" placeholder="10,000,000"></div>
+          <div class="form-row"><label>مدة التنفيذ (يوم)</label><input id="bidDays" type="number" placeholder="90"></div>
+        </div>
+        <div class="form-row"><label>رسالتك للعميل</label><textarea id="bidMsg2" placeholder="اشرح خبرتك في هذا المجال وما يميز شركتك..."></textarea></div>
+        <button class="btn-bid" onclick="submitBid()">إرسال العرض</button>
+      </div>
+    `;
+  } else if (isCompany && p.status !== 'published') {
+    html += `<div class="info-box">هذا المشروع ${statusLabel(p.status)} — لا يمكن تقديم عروض حالياً</div>`;
+  } else if (!authHeader) {
+    html += `<div class="info-box">🔒 <a href="company_dashboard.html" style="color:var(--gold)">سجّل دخول شركتك</a> لتقديم عرض سعر</div>`;
+  }
+
+  // BIDS SECTION — for project owner or any auth user
+  if (authHeader) {
+    html += `<div class="bids-card"><div class="section-title">📋 العروض المقدمة</div><div id="bidsList">جاري التحميل...</div></div>`;
+  }
+
+  document.getElementById('content').innerHTML = html;
+
+  if (authHeader) loadBids(isMyProject);
+}
+
+async function loadBids(isOwner) {
+  try {
+    const r = await fetch(`${API}/projects/${projectId}/bids`, {
+      headers: { 'Authorization': authHeader }
+    });
+    if (!r.ok) {
+      document.getElementById('bidsList').innerHTML = '<div style="color:var(--muted);font-size:.85rem">لا يمكن عرض العروض — تأكد من صلاحياتك</div>';
+      return;
+    }
+    const bids = await r.json();
+    renderBids(bids, isOwner && project.status === 'published');
+  } catch(e) {
+    document.getElementById('bidsList').innerHTML = '<div style="color:var(--muted);font-size:.85rem">خطأ في تحميل العروض</div>';
+  }
+}
+
+function renderBids(bids, showSelect) {
+  const el = document.getElementById('bidsList');
+  if (!bids.length) { el.innerHTML = '<div style="color:var(--muted);text-align:center;padding:1rem">لا توجد عروض بعد</div>'; return; }
+
+  const isMyBid = (b) => {
+    if (companyPayload && companyPayload.type === 'company') return false; // can't easily compare
+    return false; // simplification — company knows which is theirs
+  };
+
+  el.innerHTML = bids.map(b => `
+    <div class="bid-item">
+      <img class="bid-company-img" src="${b.company_image || 'https://via.placeholder.com/48'}" onerror="this.src='https://via.placeholder.com/48'" alt="${esc(b.company_name)}">
+      <div class="bid-info">
+        <div style="display:flex;justify-content:space-between;align-items:center">
+          <a href="company_profile.html?id=${b.company_id}" style="text-decoration:none"><div class="bid-company-name">${esc(b.company_name)}</div></a>
+          <span class="bid-status bid-status-${b.status}">${bidStatusLabel(b.status)}</span>
+        </div>
+        <div class="bid-price">${fmt(b.price)}</div>
+        ${b.duration_days ? `<div class="bid-meta">⏱ ${b.duration_days} يوم</div>` : ''}
+        ${b.message ? `<div class="bid-message">${esc(b.message)}</div>` : ''}
+        ${showSelect && b.status === 'submitted' ? `<button class="btn-select" onclick="selectCompany(${b.id})">✔ اختيار هذه الشركة</button>` : ''}
+        ${b.status === 'accepted' ? `<div style="color:var(--green);font-size:.85rem;margin-top:.3rem">✓ تم الاختيار</div>` : ''}
+      </div>
+    </div>
+  `).join('');
+}
+
+function bidStatusLabel(s) {
+  return {submitted:'قيد المراجعة',shortlisted:'مختار',accepted:'مقبول',rejected:'مرفوض'}[s] || s;
+}
+
+async function submitBid() {
+  const msgEl = document.getElementById('bidMsg');
+  msgEl.className = 'form-msg';
+  const price = document.getElementById('bidPrice').value;
+  if (!price) { msgEl.textContent = 'يرجى إدخال السعر'; msgEl.className = 'form-msg err'; return; }
+
+  const body = {
+    price: Number(price),
+    duration_days: document.getElementById('bidDays').value ? Number(document.getElementById('bidDays').value) : null,
+    message: document.getElementById('bidMsg2').value.trim() || null,
+  };
+
+  try {
+    const r = await fetch(`${API}/projects/${projectId}/bid`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'Authorization': COMPANY_TOKEN },
+      body: JSON.stringify(body),
+    });
+    const d = await r.json();
+    if (!r.ok) { msgEl.textContent = d.detail || 'حدث خطأ'; msgEl.className = 'form-msg err'; return; }
+    msgEl.textContent = 'تم إرسال العرض بنجاح!'; msgEl.className = 'form-msg ok';
+    project.bids_count++;
+    setTimeout(() => loadBids(false), 800);
+  } catch(e) {
+    msgEl.textContent = 'خطأ في الاتصال'; msgEl.className = 'form-msg err';
+  }
+}
+
+async function selectCompany(bidId) {
+  if (!confirm('هل تريد اختيار هذه الشركة لتنفيذ المشروع؟')) return;
+  try {
+    const r = await fetch(`${API}/projects/${projectId}/select-company`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'Authorization': USER_TOKEN },
+      body: JSON.stringify({ bid_id: bidId }),
+    });
+    const d = await r.json();
+    if (!r.ok) { alert(d.detail || 'حدث خطأ'); return; }
+    alert('تم اختيار الشركة بنجاح! المشروع الآن بوضع "تم الاختيار"');
+    location.reload();
+  } catch(e) {
+    alert('خطأ في الاتصال');
+  }
+}
+
+init();
+</script>
+</body>
+</html>

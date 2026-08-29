@@ -1,0 +1,51 @@
+# ═══════════════════════════════════════
+#  بُنيان — .gitignore
+# ═══════════════════════════════════════
+
+# ── أسرار — لا تُرفع أبداً ──
+.env
+.env.*
+!.env.example
+
+# ── Python ──
+__pycache__/
+*.py[cod]
+*.egg-info/
+venv/
+.venv/
+env/
+
+# ── Node ──
+node_modules/
+
+# ── قواعد بيانات محلية ──
+*.db
+*.db.backup_*
+*.sqlite
+*.sqlite3
+
+# ── سجلات التشغيل ──
+*.log
+srv_err.txt
+srv_out.txt
+server_err.log
+server_p8*.log
+srv.log
+
+# ── المحررات ──
+.idea/
+.vscode/
+*.swp
+
+# ── نظام التشغيل ──
+Thumbs.db
+desktop.ini
+.DS_Store
+
+# ── ملفات مؤقتة ──
+test_img.png
+*.tmp
+
+# ملاحظة: مجلد backups/ و ملفات *_backup.* غير مستثناة عمداً.
+# نرفعها في أول commit لحفظ تاريخ المشروع، ثم نحذفها في commit تالٍ.
+# بعد حذفها أضف هنا:  backups/  و  *_backup.*

@@ -1,0 +1,786 @@
+import hashlib
+import io
+import os
+from datetime import datetime, timedelta
+from typing import Literal, Optional
+
+from dotenv import load_dotenv
+from jose import JWTError, jwt
+from passlib.context import CryptContext
+from sqlalchemy import create_engine, text
+from sqlalchemy.orm import sessionmaker
+from fastapi import FastAPI, HTTPException, Request, UploadFile, File
+from fastapi.middleware.cors import CORSMiddleware
+from pydantic import BaseModel
+from imagekitio import ImageKit
+
+load_dotenv()
+
+# ── Auth ──────────────────────────────────────────────────────────────────────
+ADMIN_USERNAME = os.getenv("ADMIN_USERNAME", "admin")
+ADMIN_PASSWORD = os.getenv("ADMIN_PASSWORD", "")
+JWT_SECRET     = os.getenv("JWT_SECRET", "")
+
+if not JWT_SECRET:
+    raise RuntimeError("JWT_SECRET is not set in .env — server cannot start.")
+
+ALGORITHM   = "HS256"
+pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
+
+# ── Database ──────────────────────────────────────────────────────────────────
+DATABASE_URL = os.getenv("DATABASE_URL", "")
+
+if not DATABASE_URL:
+    raise RuntimeError("DATABASE_URL is not set in .env — server cannot start.")
+
+engine       = create_engine(DATABASE_URL, pool_pre_ping=True)
+SessionLocal = sessionmaker(bind=engine, autocommit=False, autoflush=False)
+
+ALLOWED_STATUSES = ("pending", "approved", "rejected")
+
+# ── ImageKit ──────────────────────────────────────────────────────────────────
+IMAGEKIT_PRIVATE_KEY  = os.getenv("IMAGEKIT_PRIVATE_KEY", "")
+IMAGEKIT_URL_ENDPOINT = os.getenv("IMAGEKIT_URL_ENDPOINT", "")
+
+if not all([IMAGEKIT_PRIVATE_KEY, IMAGEKIT_URL_ENDPOINT]):
+    raise RuntimeError("ImageKit keys are not set in .env — server cannot start.")
+
+# ImageKit v5: only private_key in constructor; URL endpoint used to build URLs
+imagekit = ImageKit(private_key=IMAGEKIT_PRIVATE_KEY)
+
+# ── App ───────────────────────────────────────────────────────────────────────
+app = FastAPI()
+
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["*"],
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
+
+
+# ── Auth helpers ──────────────────────────────────────────────────────────────
+def create_access_token(subject: str) -> str:
+    expire = datetime.utcnow() + timedelta(hours=24)
+    return jwt.encode({"sub": subject, "exp": expire}, JWT_SECRET, algorithm=ALGORITHM)
+
+
+def verify_admin(request: Request) -> None:
+    auth  = request.headers.get("Authorization", "")
+    token = auth.removeprefix("Bearer ").strip() if auth.startswith("Bearer ") else auth.strip()
+    if not token:
+        raise HTTPException(status_code=401, detail="unauthorized")
+    try:
+        payload = jwt.decode(token, JWT_SECRET, algorithms=[ALGORITHM])
+        if payload.get("sub") != ADMIN_USERNAME:
+            raise HTTPException(status_code=401, detail="unauthorized")
+    except JWTError:
+        raise HTTPException(status_code=401, detail="unauthorized")
+
+
+def require_admin(request: Request) -> None:
+    verify_admin(request)
+
+
+# ── DB helpers ────────────────────────────────────────────────────────────────
+def row_to_company_dict(r: dict) -> dict:
+    return {
+        "id":         r["id"],
+        "name":       r["name"],
+        "city":       r["city"],
+        "phone":      r["phone"],
+        "spec":       r["spec"],
+        "desc":       r["description"],   # PostgreSQL column is 'description'
+        "email":      r["email"],
+        "website":    r["website"],
+        "map_link":   r["map_link"],
+        "rating":     r["rating"],
+        "verified":   bool(r["verified"]),
+        "status":     r["status"],
+        "created_at": r["created_at"],
+        "image_url":            r.get("image_url") or "",
+        "verification_status":  r.get("verification_status") or "pending",
+    }
+
+
+# ── Pydantic models ───────────────────────────────────────────────────────────
+class Company(BaseModel):
+    name:      str
+    city:      str
+    phone:     str
+    spec:      str
+    desc:      str
+    email:     str           = ""
+    website:   str           = ""
+    map_link:  str           = ""
+    rating:    float         = 5
+    image_url: Optional[str] = ""
+
+
+class CompanyStatusUpdate(BaseModel):
+    status: Literal["pending", "approved", "rejected"]
+
+
+class CompanyUpdate(BaseModel):
+    name:      Optional[str] = None
+    city:      Optional[str] = None
+    phone:     Optional[str] = None
+    desc:      Optional[str] = None
+    email:     Optional[str] = None
+    website:   Optional[str] = None
+    image_url: Optional[str] = None
+
+
+# ── ImageKit upload helper ────────────────────────────────────────────────────
+def upload_to_imagekit(file_bytes: bytes, filename: str) -> str:
+    """رفع ملف إلى ImageKit v5 وإرجاع الرابط الكامل."""
+    try:
+        import io
+        result = imagekit.files.upload(
+            file=io.BytesIO(file_bytes),
+            file_name=filename,
+            folder="/bnyian/companies/",
+            use_unique_file_name=True,
+            is_private_file=False,
+        )
+        # v5 returns a Pydantic model — url is at result.url
+        url = getattr(result, "url", None)
+        if not url:
+            # fallback: build URL from url_endpoint + file_path
+            file_path = getattr(result, "file_path", None) or getattr(result, "name", filename)
+            url = IMAGEKIT_URL_ENDPOINT.rstrip("/") + "/" + file_path.lstrip("/")
+        if not url:
+            raise ValueError("ImageKit returned no URL")
+        return url
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Image upload failed: {str(e)}")
+
+
+# ── Endpoints ─────────────────────────────────────────────────────────────────
+
+@app.post("/upload")
+async def upload_image(file: UploadFile = File(...)):
+    """رفع صورة إلى ImageKit وإرجاع رابطها."""
+    allowed = {"image/jpeg", "image/png", "image/webp", "image/gif"}
+    if file.content_type not in allowed:
+        raise HTTPException(
+            status_code=400,
+            detail=f"Unsupported file type: {file.content_type}. Allowed: jpeg, png, webp, gif"
+        )
+
+    max_size = 5 * 1024 * 1024  # 5 MB
+    file_bytes = await file.read()
+    if len(file_bytes) > max_size:
+        raise HTTPException(status_code=400, detail="File too large. Maximum size is 5MB.")
+
+    url = upload_to_imagekit(file_bytes, file.filename or "upload.jpg")
+    return {"url": url}
+
+
+@app.post("/companies")
+def add_company(company: Company):
+    with SessionLocal() as db:
+        result = db.execute(text("""
+            INSERT INTO companies
+                (name, city, phone, spec, description, email, website,
+                 map_link, rating, verified, status, created_at, image_url)
+            VALUES
+                (:name, :city, :phone, :spec, :description, :email, :website,
+                 :map_link, :rating, :verified, :status, :created_at, :image_url)
+            RETURNING *
+        """), {
+            "name":        company.name,
+            "city":        company.city,
+            "phone":       company.phone,
+            "spec":        company.spec,
+            "description": company.desc,
+            "email":       company.email,
+            "website":     company.website,
+            "map_link":    company.map_link,
+            "rating":      company.rating,
+            "verified":    0,
+            "status":      "pending",
+            "created_at":  datetime.now().isoformat(),
+            "image_url":   company.image_url or "",
+        })
+        row = result.mappings().fetchone()
+        db.commit()
+    return row_to_company_dict(dict(row))
+
+
+@app.get("/companies")
+def get_companies():
+    with SessionLocal() as db:
+        rows = db.execute(
+            text("SELECT * FROM companies WHERE status='approved' ORDER BY id DESC")
+        ).mappings().fetchall()
+    return [row_to_company_dict(dict(r)) for r in rows]
+
+
+@app.get("/admin/companies")
+def get_all_companies():
+    with SessionLocal() as db:
+        rows = db.execute(
+            text("SELECT * FROM companies ORDER BY id DESC")
+        ).mappings().fetchall()
+    return [row_to_company_dict(dict(r)) for r in rows]
+
+
+@app.put("/companies/{id}/status")
+def update_company_status(id: int, payload: CompanyStatusUpdate, request: Request):
+    require_admin(request)
+
+    status = payload.status
+    if status not in ALLOWED_STATUSES:
+        raise HTTPException(status_code=400, detail="invalid status")
+
+    verified = 1 if status == "approved" else 0
+
+    with SessionLocal() as db:
+        result = db.execute(text("""
+            UPDATE companies SET status=:status, verified=:verified WHERE id=:id
+        """), {"status": status, "verified": verified, "id": id})
+        if result.rowcount == 0:
+            raise HTTPException(status_code=404, detail="not found")
+        db.commit()
+
+    return {"id": id, "status": status, "verified": bool(verified)}
+
+
+@app.put("/companies/{id}")
+def edit_company(id: int, payload: CompanyUpdate, request: Request):
+    require_admin(request)
+
+    fields = {k: v for k, v in payload.model_dump().items() if v is not None}
+    if not fields:
+        raise HTTPException(status_code=400, detail="no fields to update")
+
+    # map desc → description for PostgreSQL
+    if "desc" in fields:
+        fields["description"] = fields.pop("desc")
+
+    set_clause = ", ".join(f"{k}=:{k}" for k in fields)
+    fields["id"] = id
+
+    with SessionLocal() as db:
+        result = db.execute(
+            text(f"UPDATE companies SET {set_clause} WHERE id=:id RETURNING *"),
+            fields,
+        )
+        row = result.mappings().fetchone()
+        if not row:
+            raise HTTPException(status_code=404, detail="not found")
+        db.commit()
+    return row_to_company_dict(dict(row))
+
+
+@app.put("/companies/{id}/approve")
+def approve_company(id: int, request: Request):
+    return update_company_status(id, CompanyStatusUpdate(status="approved"), request)
+
+
+@app.put("/companies/{id}/reject")
+def reject_company(id: int, request: Request):
+    return update_company_status(id, CompanyStatusUpdate(status="rejected"), request)
+
+
+@app.post("/login")
+def login(data: dict):
+    username = data.get("username", "")
+    password = data.get("password", "")
+    hashed   = os.getenv("ADMIN_PASSWORD_HASH", "")
+    if username != ADMIN_USERNAME or not hashed or not pwd_context.verify(password, hashed):
+        raise HTTPException(status_code=401, detail="invalid credentials")
+    return {"token": create_access_token(username)}
+
+
+# ══════════════════════════════════════════════════════════════════════════════
+# PHASE 5 — COMPANY ACCOUNTS
+# ══════════════════════════════════════════════════════════════════════════════
+
+# ── Company Pydantic models ───────────────────────────────────────────────────
+
+class CompanyRegister(BaseModel):
+    """Claim an existing approved company. Cannot create a new company."""
+    company_id: int
+    email:      str
+    password:   str
+
+
+class CompanyLogin(BaseModel):
+    email:    str
+    password: str
+
+
+class CompanyMeUpdate(BaseModel):
+    name:      Optional[str] = None
+    city:      Optional[str] = None
+    phone:     Optional[str] = None
+    email:     Optional[str] = None
+    website:   Optional[str] = None
+    map_link:  Optional[str] = None
+    desc:      Optional[str] = None
+    image_url: Optional[str] = None
+
+
+class ProjectCreate(BaseModel):
+    title:           str
+    description:     Optional[str] = None
+    location:        Optional[str] = None
+    completion_date: Optional[str] = None
+    image_url:       Optional[str] = None
+
+
+class ProjectUpdate(BaseModel):
+    title:           Optional[str] = None
+    description:     Optional[str] = None
+    location:        Optional[str] = None
+    completion_date: Optional[str] = None
+    image_url:       Optional[str] = None
+
+
+class GalleryAdd(BaseModel):
+    image_url: str
+    title:     Optional[str] = None
+
+
+# ── Company JWT helpers ───────────────────────────────────────────────────────
+
+def create_company_token(company_id: int) -> str:
+    """JWT للشركة — payload مختلف عن الأدمن: type=company."""
+    expire = datetime.utcnow() + timedelta(days=30)
+    return jwt.encode(
+        {"sub": f"company:{company_id}", "type": "company", "company_id": company_id, "exp": expire},
+        JWT_SECRET,
+        algorithm=ALGORITHM,
+    )
+
+
+def require_company(request: Request) -> int:
+    """يتحقق من JWT الشركة ويُعيد company_id. قابل للترقية لـ OAuth لاحقاً."""
+    auth  = request.headers.get("Authorization", "")
+    token = auth.removeprefix("Bearer ").strip() if auth.startswith("Bearer ") else auth.strip()
+    if not token:
+        raise HTTPException(status_code=401, detail="company auth required")
+    try:
+        payload = jwt.decode(token, JWT_SECRET, algorithms=[ALGORITHM])
+        if payload.get("type") != "company":
+            raise HTTPException(status_code=401, detail="not a company token")
+        return int(payload["company_id"])
+    except (JWTError, KeyError, ValueError):
+        raise HTTPException(status_code=401, detail="invalid company token")
+
+
+# ── DB helpers (Phase 5) ──────────────────────────────────────────────────────
+
+def row_to_project(r: dict) -> dict:
+    return {
+        "id":              r["id"],
+        "company_id":      r["company_id"],
+        "title":           r["title"],
+        "description":     r.get("description") or "",
+        "location":        r.get("location") or "",
+        "completion_date": r.get("completion_date") or "",
+        "image_url":       r.get("image_url") or "",
+        "created_at":      str(r["created_at"]),
+    }
+
+
+def row_to_gallery(r: dict) -> dict:
+    return {
+        "id":         r["id"],
+        "company_id": r["company_id"],
+        "image_url":  r["image_url"],
+        "title":      r.get("title") or "",
+        "created_at": str(r["created_at"]),
+    }
+
+
+# ── STEP 4: Company auth endpoints ───────────────────────────────────────────
+
+@app.post("/company/register")
+def company_register(payload: CompanyRegister):
+    """
+    Claim an existing approved company.
+    - Company must exist AND be approved.
+    - No duplicate claims: each company can have only one account.
+    - Email must be unique across all company users.
+    """
+    with SessionLocal() as db:
+        # 1. Company must exist and be approved
+        company = db.execute(
+            text("SELECT id, name, status FROM companies WHERE id=:id"),
+            {"id": payload.company_id}
+        ).mappings().fetchone()
+
+        if not company:
+            raise HTTPException(status_code=404, detail="Company not found")
+        if company["status"] != "approved":
+            raise HTTPException(
+                status_code=403,
+                detail="Company must be approved by admin before claiming"
+            )
+
+        # 2. Prevent duplicate claim: company_id already has an account
+        existing_claim = db.execute(
+            text("SELECT id FROM company_users WHERE company_id=:cid"),
+            {"cid": payload.company_id}
+        ).fetchone()
+        if existing_claim:
+            raise HTTPException(
+                status_code=409,
+                detail="This company already has an account"
+            )
+
+        # 3. Email must be unique
+        existing_email = db.execute(
+            text("SELECT id FROM company_users WHERE email=:email"),
+            {"email": payload.email.lower()}
+        ).fetchone()
+        if existing_email:
+            raise HTTPException(status_code=409, detail="Email already in use")
+
+        # 4. Create company user
+        hashed = pwd_context.hash(payload.password)
+        result = db.execute(text("""
+            INSERT INTO company_users (company_id, email, password_hash, provider)
+            VALUES (:company_id, :email, :password_hash, 'email')
+            RETURNING id, company_id, email, is_active, created_at
+        """), {
+            "company_id":    payload.company_id,
+            "email":         payload.email.lower(),
+            "password_hash": hashed,
+        })
+        row = result.mappings().fetchone()
+        db.commit()
+
+    return {
+        "message":    "Company account created",
+        "user_id":    row["id"],
+        "company_id": row["company_id"],
+        "email":      row["email"],
+        "token":      create_company_token(payload.company_id),
+    }
+
+
+@app.post("/company/login")
+def company_login(payload: CompanyLogin):
+    """Login for company users. Returns JWT with type=company."""
+    with SessionLocal() as db:
+        user = db.execute(
+            text("""
+                SELECT cu.id, cu.company_id, cu.password_hash, cu.is_active,
+                       c.status AS company_status
+                FROM company_users cu
+                JOIN companies c ON c.id = cu.company_id
+                WHERE cu.email = :email
+            """),
+            {"email": payload.email.lower()}
+        ).mappings().fetchone()
+
+    if not user:
+        raise HTTPException(status_code=401, detail="Invalid credentials")
+    if not pwd_context.verify(payload.password, user["password_hash"]):
+        raise HTTPException(status_code=401, detail="Invalid credentials")
+    if not user["is_active"]:
+        raise HTTPException(status_code=403, detail="Account is disabled")
+    if user["company_status"] != "approved":
+        raise HTTPException(status_code=403, detail="Company is not approved")
+
+    return {
+        "token":      create_company_token(user["company_id"]),
+        "company_id": user["company_id"],
+    }
+
+
+# ── STEP 4: Company dashboard endpoints ──────────────────────────────────────
+
+@app.get("/company/me")
+def get_company_me(request: Request):
+    """Get the authenticated company's full profile."""
+    company_id = require_company(request)
+    with SessionLocal() as db:
+        row = db.execute(
+            text("SELECT * FROM companies WHERE id=:id"),
+            {"id": company_id}
+        ).mappings().fetchone()
+    if not row:
+        raise HTTPException(status_code=404, detail="Company not found")
+    return row_to_company_dict(dict(row))
+
+
+@app.put("/company/me")
+def update_company_me(payload: CompanyMeUpdate, request: Request):
+    """Update the authenticated company's own profile."""
+    company_id = require_company(request)
+
+    fields = {k: v for k, v in payload.model_dump().items() if v is not None}
+    if not fields:
+        raise HTTPException(status_code=400, detail="no fields to update")
+    if "desc" in fields:
+        fields["description"] = fields.pop("desc")
+
+    set_clause = ", ".join(f"{k}=:{k}" for k in fields)
+    fields["id"] = company_id
+
+    with SessionLocal() as db:
+        result = db.execute(
+            text(f"UPDATE companies SET {set_clause} WHERE id=:id RETURNING *"),
+            fields,
+        )
+        row = result.mappings().fetchone()
+        if not row:
+            raise HTTPException(status_code=404, detail="Company not found")
+        db.commit()
+    return row_to_company_dict(dict(row))
+
+
+# ── STEP 4: Company image upload (reuses ImageKit) ───────────────────────────
+
+@app.post("/company/upload")
+async def company_upload(file: UploadFile = File(...), request: Request = None):
+    """Upload image for company dashboard — same ImageKit, different folder."""
+    require_company(request)
+    allowed = {"image/jpeg", "image/png", "image/webp", "image/gif"}
+    if file.content_type not in allowed:
+        raise HTTPException(status_code=400, detail=f"Unsupported type: {file.content_type}")
+    file_bytes = await file.read()
+    if len(file_bytes) > 5 * 1024 * 1024:
+        raise HTTPException(status_code=400, detail="File too large. Max 5MB.")
+
+    try:
+        result = imagekit.files.upload(
+            file=io.BytesIO(file_bytes),
+            file_name=file.filename or "upload.jpg",
+            folder="/bnyian/dashboard/",
+            use_unique_file_name=True,
+            is_private_file=False,
+        )
+        url = getattr(result, "url", None)
+        if not url:
+            file_path = getattr(result, "file_path", None) or getattr(result, "name", file.filename)
+            url = IMAGEKIT_URL_ENDPOINT.rstrip("/") + "/" + file_path.lstrip("/")
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Upload failed: {e}")
+
+    return {"url": url}
+
+
+# ── STEP 6: Projects ──────────────────────────────────────────────────────────
+
+@app.get("/company/projects")
+def get_company_projects(request: Request):
+    company_id = require_company(request)
+    with SessionLocal() as db:
+        rows = db.execute(
+            text("SELECT * FROM company_projects WHERE company_id=:cid ORDER BY created_at DESC"),
+            {"cid": company_id}
+        ).mappings().fetchall()
+    return [row_to_project(dict(r)) for r in rows]
+
+
+@app.post("/company/projects")
+def add_company_project(payload: ProjectCreate, request: Request):
+    company_id = require_company(request)
+    with SessionLocal() as db:
+        result = db.execute(text("""
+            INSERT INTO company_projects
+                (company_id, title, description, location, completion_date, image_url)
+            VALUES
+                (:company_id, :title, :description, :location, :completion_date, :image_url)
+            RETURNING *
+        """), {
+            "company_id":      company_id,
+            "title":           payload.title,
+            "description":     payload.description or "",
+            "location":        payload.location or "",
+            "completion_date": payload.completion_date or "",
+            "image_url":       payload.image_url or "",
+        })
+        row = result.mappings().fetchone()
+        db.commit()
+    return row_to_project(dict(row))
+
+
+@app.put("/company/projects/{project_id}")
+def update_company_project(project_id: int, payload: ProjectUpdate, request: Request):
+    company_id = require_company(request)
+
+    fields = {k: v for k, v in payload.model_dump().items() if v is not None}
+    if not fields:
+        raise HTTPException(status_code=400, detail="no fields to update")
+    set_clause = ", ".join(f"{k}=:{k}" for k in fields)
+    fields["project_id"] = project_id
+    fields["company_id"] = company_id
+
+    with SessionLocal() as db:
+        result = db.execute(
+            text(f"UPDATE company_projects SET {set_clause} WHERE id=:project_id AND company_id=:company_id RETURNING *"),
+            fields,
+        )
+        row = result.mappings().fetchone()
+        if not row:
+            raise HTTPException(status_code=404, detail="Project not found")
+        db.commit()
+    return row_to_project(dict(row))
+
+
+@app.delete("/company/projects/{project_id}")
+def delete_company_project(project_id: int, request: Request):
+    company_id = require_company(request)
+    with SessionLocal() as db:
+        result = db.execute(
+            text("DELETE FROM company_projects WHERE id=:pid AND company_id=:cid"),
+            {"pid": project_id, "cid": company_id}
+        )
+        if result.rowcount == 0:
+            raise HTTPException(status_code=404, detail="Project not found")
+        db.commit()
+    return {"deleted": project_id}
+
+
+# ── STEP 5: Gallery ───────────────────────────────────────────────────────────
+
+@app.get("/company/gallery")
+def get_company_gallery(request: Request):
+    company_id = require_company(request)
+    with SessionLocal() as db:
+        rows = db.execute(
+            text("SELECT * FROM company_gallery WHERE company_id=:cid ORDER BY created_at DESC"),
+            {"cid": company_id}
+        ).mappings().fetchall()
+    return [row_to_gallery(dict(r)) for r in rows]
+
+
+@app.post("/company/gallery")
+def add_gallery_image(payload: GalleryAdd, request: Request):
+    company_id = require_company(request)
+    with SessionLocal() as db:
+        result = db.execute(text("""
+            INSERT INTO company_gallery (company_id, image_url, title)
+            VALUES (:company_id, :image_url, :title)
+            RETURNING *
+        """), {
+            "company_id": company_id,
+            "image_url":  payload.image_url,
+            "title":      payload.title or "",
+        })
+        row = result.mappings().fetchone()
+        db.commit()
+    return row_to_gallery(dict(row))
+
+
+@app.delete("/company/gallery/{image_id}")
+def delete_gallery_image(image_id: int, request: Request):
+    company_id = require_company(request)
+    with SessionLocal() as db:
+        result = db.execute(
+            text("DELETE FROM company_gallery WHERE id=:iid AND company_id=:cid"),
+            {"iid": image_id, "cid": company_id}
+        )
+        if result.rowcount == 0:
+            raise HTTPException(status_code=404, detail="Image not found")
+        db.commit()
+    return {"deleted": image_id}
+
+
+# ── STEP 7: Public company page ───────────────────────────────────────────────
+
+@app.get("/company/{company_id}")
+def get_company_public(company_id: int, request: Request):
+    """
+    Public company profile — no auth required.
+    Records a view and returns company + projects + gallery.
+    """
+    with SessionLocal() as db:
+        company = db.execute(
+            text("SELECT * FROM companies WHERE id=:id AND status='approved'"),
+            {"id": company_id}
+        ).mappings().fetchone()
+        if not company:
+            raise HTTPException(status_code=404, detail="Company not found")
+
+        projects = db.execute(
+            text("SELECT * FROM company_projects WHERE company_id=:cid ORDER BY created_at DESC"),
+            {"cid": company_id}
+        ).mappings().fetchall()
+
+        gallery = db.execute(
+            text("SELECT * FROM company_gallery WHERE company_id=:cid ORDER BY created_at DESC"),
+            {"cid": company_id}
+        ).mappings().fetchall()
+
+        # Record view (STEP 9)
+        ip_raw = request.client.host if request.client else "unknown"
+        ip_hash = hashlib.sha256(ip_raw.encode()).hexdigest()[:16]
+        ua = request.headers.get("user-agent", "")[:200]
+        db.execute(text("""
+            INSERT INTO company_views (company_id, ip_hash, user_agent)
+            VALUES (:cid, :ip_hash, :ua)
+        """), {"cid": company_id, "ip_hash": ip_hash, "ua": ua})
+        db.commit()
+
+    return {
+        "company":  row_to_company_dict(dict(company)),
+        "projects": [row_to_project(dict(r)) for r in projects],
+        "gallery":  [row_to_gallery(dict(r)) for r in gallery],
+    }
+
+
+# ── STEP 8: Admin — update verification_status ───────────────────────────────
+
+@app.put("/admin/companies/{company_id}/verification")
+def update_verification_status(company_id: int, request: Request, data: dict):
+    require_admin(request)
+    vs = data.get("verification_status", "")
+    if vs not in ("pending", "verified", "premium"):
+        raise HTTPException(status_code=400, detail="Invalid verification_status")
+    with SessionLocal() as db:
+        result = db.execute(
+            text("UPDATE companies SET verification_status=:vs WHERE id=:id RETURNING id, verification_status"),
+            {"vs": vs, "id": company_id}
+        )
+        row = result.mappings().fetchone()
+        if not row:
+            raise HTTPException(status_code=404, detail="Company not found")
+        db.commit()
+    return {"id": row["id"], "verification_status": row["verification_status"]}
+
+
+# ── STEP 9: Analytics ─────────────────────────────────────────────────────────
+
+@app.get("/company/{company_id}/views")
+def get_company_views(company_id: int, request: Request):
+    """View count — accessible to the company owner or admin."""
+    auth = request.headers.get("Authorization", "")
+    if not auth:
+        raise HTTPException(status_code=401, detail="auth required")
+
+    with SessionLocal() as db:
+        count = db.execute(
+            text("SELECT COUNT(*) FROM company_views WHERE company_id=:cid"),
+            {"cid": company_id}
+        ).scalar()
+        recent = db.execute(
+            text("""
+                SELECT DATE(viewed_at) AS day, COUNT(*) AS views
+                FROM company_views
+                WHERE company_id=:cid
+                  AND viewed_at >= NOW() - INTERVAL '30 days'
+                GROUP BY day
+                ORDER BY day DESC
+            """),
+            {"cid": company_id}
+        ).mappings().fetchall()
+    return {
+        "company_id":  company_id,
+        "total_views": count,
+        "last_30_days": [{"day": str(r["day"]), "views": r["views"]} for r in recent],
+    }
+
+# ── Static files (MUST be last) ──────────────────────────────────────────────
+from fastapi.staticfiles import StaticFiles
+app.mount('/', StaticFiles(directory='.', html=True), name='static')

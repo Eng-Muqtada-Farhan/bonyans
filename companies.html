@@ -1,0 +1,568 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>دليل شركات المقاولات — بُنيان</title>
+<meta name="description" content="دليل شامل لشركات المقاولات والتشييد في العراق — ابحث، قارن، وتواصل مباشرة مع أفضل الشركات.">
+<meta name="keywords" content="دليل شركات مقاولات, بناء, العراق, بغداد, البصرة, الموصل">
+<meta property="og:title" content="دليل شركات المقاولات — بُنيان">
+<meta property="og:description" content="اعثر على شركة المقاولات المناسبة في مدينتك">
+<meta property="og:type" content="website">
+<link rel="manifest" href="manifest.json">
+<meta name="theme-color" content="#c8a96e">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="default">
+<link rel="apple-touch-icon" href="icons/icon-192.png">
+<link rel="stylesheet" href="bunyan.css?v=11c">
+<script>
+  (function(){
+    const t = localStorage.getItem('bn-theme') || 'light';
+    document.documentElement.setAttribute('data-theme', t);
+  })();
+</script>
+<style>
+/* ── Hero مصغّر ── */
+.co-hero {
+  margin-top: 62px;
+  background: linear-gradient(160deg, #EDF5FF 0%, #D8ECFF 35%, #C8D8F8 70%, #D4E4FF 100%);
+  padding: 28px 18px 48px;
+  text-align: center;
+  position: relative;
+  overflow: hidden;
+}
+.co-hero::before {
+  content: ''; position: absolute; inset: 0; pointer-events: none;
+  background:
+    radial-gradient(ellipse 80% 70% at 50% -10%, rgba(255,255,255,0.68) 0%, transparent 62%),
+    radial-gradient(ellipse 45% 35% at 85% 80%, rgba(212,160,23,0.10) 0%, transparent 55%);
+}
+.co-hero::after {
+  content: ''; position: absolute; bottom: -1px; right: 0; left: 0; height: 40px;
+  background: var(--bg); clip-path: ellipse(55% 100% at 50% 100%); transition: background 0.4s;
+}
+[data-theme="dark"] .co-hero {
+  background: linear-gradient(150deg, #0A1220 0%, #0F1E38 40%, #142040 100%);
+}
+[data-theme="dark"] .co-hero::before {
+  background: radial-gradient(ellipse 70% 55% at 50% -10%, rgba(46,84,153,0.25) 0%, transparent 62%);
+}
+.co-hero h1 {
+  font-size: clamp(20px, 3.5vw, 30px);
+  font-weight: 900;
+  color: var(--clay-deep);
+  margin-bottom: 6px;
+  position: relative;
+  text-shadow: 0 1px 0 rgba(255,255,255,0.8);
+}
+[data-theme="dark"] .co-hero h1 { color: #fff; text-shadow: 0 2px 16px rgba(0,0,0,0.3); }
+.co-hero-sub {
+  font-size: 14px;
+  color: var(--text-2);
+  position: relative;
+}
+[data-theme="dark"] .co-hero-sub { color: rgba(255,255,255,0.65); }
+.co-hero-count {
+  display: inline-block;
+  margin-top: 10px;
+  padding: 5px 16px;
+  background: rgba(27,58,107,0.08);
+  border: 1.5px solid rgba(27,58,107,0.14);
+  border-radius: var(--r-pill);
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--clay);
+  position: relative;
+}
+[data-theme="dark"] .co-hero-count {
+  background: rgba(255,255,255,0.08);
+  border-color: rgba(255,255,255,0.14);
+  color: var(--clay-light);
+}
+
+/* ── شريط الفلاتر sticky ── */
+.co-filter-bar {
+  position: sticky;
+  top: 62px;
+  z-index: 180;
+  background: rgba(200,216,248,0.75);
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
+  border-bottom: 1px solid var(--border2);
+  padding: 10px 0;
+  transition: background 0.3s;
+}
+[data-theme="dark"] .co-filter-bar { background: rgba(8,14,28,0.80); }
+.co-filter-inner {
+  display: flex;
+  gap: 8px;
+  padding: 0 18px;
+  max-width: 960px;
+  margin: 0 auto;
+  overflow-x: auto;
+  flex-wrap: nowrap;
+  scrollbar-width: none;
+  -webkit-overflow-scrolling: touch;
+}
+.co-filter-inner::-webkit-scrollbar { display: none; }
+.co-filter-city {
+  flex-shrink: 0;
+  padding: 7px 12px;
+  border: 1.5px solid var(--border);
+  border-radius: var(--r-pill);
+  background: var(--surface);
+  color: var(--text-2);
+  font-family: 'Cairo', sans-serif;
+  font-size: 13px;
+  font-weight: 600;
+  outline: none;
+  cursor: pointer;
+  transition: border-color 0.2s;
+}
+.co-filter-city:focus { border-color: var(--clay); }
+
+/* ── صف النتائج والبحث ── */
+.co-result-row {
+  max-width: 960px;
+  margin: 16px auto 12px;
+  padding: 0 18px;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+.co-search-wrap {
+  flex: 1;
+  position: relative;
+}
+.co-search-icon {
+  position: absolute;
+  right: 12px;
+  top: 50%;
+  transform: translateY(-50%);
+  color: var(--text-3);
+  font-size: 14px;
+  pointer-events: none;
+}
+.co-search-input {
+  width: 100%;
+  padding: 10px 36px 10px 14px;
+  border: 1.5px solid var(--border);
+  border-radius: var(--r-pill);
+  background: var(--surface);
+  color: var(--text-1);
+  font-family: 'Cairo', sans-serif;
+  font-size: 14px;
+  outline: none;
+  direction: rtl;
+  transition: border-color 0.2s;
+}
+.co-search-input:focus { border-color: var(--clay); }
+.co-result-count {
+  font-size: 13px;
+  color: var(--text-3);
+  font-weight: 700;
+  white-space: nowrap;
+  flex-shrink: 0;
+}
+
+/* ── Main container ── */
+.co-main {
+  max-width: 960px;
+  margin: 0 auto;
+  padding: 0 18px 120px;
+}
+
+/* ── Demo notice ── */
+.co-demo-notice {
+  display: none;
+  align-items: center;
+  gap: 8px;
+  padding: 10px 14px;
+  background: rgba(212,160,23,0.08);
+  border: 1px solid rgba(212,160,23,0.22);
+  border-radius: var(--r);
+  font-size: 12px;
+  color: var(--sand-dark);
+  margin-bottom: 14px;
+}
+.co-demo-notice.visible { display: flex; }
+
+/* ── Empty state ── */
+.co-empty {
+  grid-column: 1/-1;
+  text-align: center;
+  padding: 48px 24px;
+}
+.co-empty-icon { font-size: 48px; margin-bottom: 12px; opacity: 0.5; }
+.co-empty-text { font-size: 15px; color: var(--text-3); font-weight: 600; }
+
+/* ── Skeleton ── */
+.co-skeleton {
+  background: var(--surface);
+  border: 1.5px solid var(--border);
+  border-radius: var(--r);
+  height: 84px;
+  position: relative;
+  overflow: hidden;
+}
+.co-skeleton::after {
+  content: '';
+  position: absolute; inset: 0;
+  background: linear-gradient(90deg, transparent, rgba(255,255,255,0.3), transparent);
+  transform: translateX(-100%);
+  animation: co-shimmer 1.4s infinite;
+}
+@keyframes co-shimmer { to { transform: translateX(300%); } }
+
+/* ── Responsive ── */
+@media (max-width: 680px) {
+  .co-hero { padding: 22px 14px 40px; }
+  .co-result-row { flex-wrap: wrap; }
+}
+</style>
+</head>
+<body>
+
+<!-- Orbs background -->
+<div class="bn-orbs" aria-hidden="true">
+  <div class="bn-orb bn-orb-1"></div>
+  <div class="bn-orb bn-orb-2"></div>
+  <div class="bn-orb bn-orb-3"></div>
+</div>
+
+<!-- Nav -->
+<div id="bn-nav-mount"></div>
+
+<!-- Hero مصغّر -->
+<section class="co-hero">
+  <h1>🏢 دليل شركات المقاولات</h1>
+  <p class="co-hero-sub">ابحث وقارن وتواصل مع أفضل شركات البناء في العراق</p>
+  <span class="co-hero-count" id="heroCount">جارٍ التحميل...</span>
+</section>
+
+<!-- شريط الفلاتر -->
+<div class="co-filter-bar">
+  <div class="co-filter-inner" id="filterPillsInner" data-pills-scroll>
+    <button class="bn-fpill active" onclick="setFilter('all', this)">🏗 الكل</button>
+    <!-- تُحمَّل باقي التصنيفات ديناميكياً من /categories -->
+    <select id="filterCity" class="co-filter-city" onchange="filterCompanies()">
+      <option value="">📍 كل المدن</option>
+      <option>بغداد</option>
+      <option>البصرة</option>
+      <option>الموصل</option>
+      <option>أربيل</option>
+      <option>النجف</option>
+      <option>كربلاء</option>
+      <option>السليمانية</option>
+      <option>كركوك</option>
+    </select>
+  </div>
+</div>
+
+<!-- صف النتائج والبحث -->
+<div class="co-result-row">
+  <div class="co-search-wrap">
+    <span class="co-search-icon">🔍</span>
+    <input class="co-search-input" id="searchInput"
+           placeholder="ابحث عن شركة أو تخصص أو مدينة..."
+           oninput="filterCompanies()">
+  </div>
+  <div class="co-result-count" id="resultCount">...</div>
+</div>
+
+<!-- Main -->
+<div class="co-main">
+  <div class="co-demo-notice" id="demoNotice">
+    <span>⚠️</span>
+    <span>وضع تجريبي — السيرفر غير متاح، البيانات محلية مؤقتاً</span>
+  </div>
+  <div class="bn-grid" id="companiesGrid">
+    <div class="co-skeleton"></div>
+    <div class="co-skeleton"></div>
+    <div class="co-skeleton"></div>
+    <div class="co-skeleton"></div>
+    <div class="co-skeleton"></div>
+    <div class="co-skeleton"></div>
+  </div>
+</div>
+
+<!-- Footer -->
+<div id="bn-footer-mount"></div>
+
+<script src="auth-core.js"></script>
+<script src="auth-ui.js"></script>
+<script src="bunyan-nav.js?v=11c"></script>
+<script>
+'use strict';
+
+const API_URL = '';
+let DEMO_MODE = false;
+
+const LOGO_COLORS = [
+  ['#1a2a3a','#4a90d9'], ['#1a2a1e','#3fb950'], ['#2a1a1e','#d45a5a'],
+  ['#2a2014','#e3b341'], ['#1e1a2a','#a371f7'], ['#14242a','#3bc9db'],
+  ['#2a1f14','#e8834a'], ['#1e2828','#4acfa0'],
+];
+
+const FALLBACK_DATA = [
+  { id:'s1', name:'شركة النخيل للمقاولات',      spec:'مقاولات عامة',    city:'بغداد',  year:2008, size:'كبيرة',   rating:4.9, projects:47, verified:true,  phone:'+964770111222', email:'info@nakheel.iq',  desc:'رائدة في إنشاء المجمعات السكنية والتجارية في بغداد منذ 2008.' },
+  { id:'s2', name:'مجموعة الرافدين الهندسية',   spec:'تصميم معماري',    city:'البصرة', year:2012, size:'متوسطة', rating:4.7, projects:31, verified:true,  phone:'+964780222333', email:'',                 desc:'تصميم وإشراف هندسي للمشاريع الحكومية والخاصة.' },
+  { id:'s3', name:'شركة الفرات للبنية التحتية', spec:'بنية تحتية',      city:'الموصل', year:2015, size:'كبيرة',  rating:4.6, projects:22, verified:true,  phone:'+964750333444', email:'info@furat.iq',    desc:'تخصص في مشاريع الطرق والجسور وشبكات الصرف الصحي.' },
+  { id:'s4', name:'مؤسسة الجزيرة للتشطيبات',   spec:'تشطيبات داخلية', city:'أربيل',  year:2018, size:'صغيرة', rating:4.8, projects:58, verified:false, phone:'+964770444555', email:'hello@jazira.com', desc:'تشطيبات فاخرة وديكور داخلي للمباني السكنية والتجارية.' },
+  { id:'s5', name:'شركة دجلة للكهرباء',         spec:'كهرباء وميكانيك', city:'بغداد',  year:2010, size:'متوسطة',rating:4.5, projects:39, verified:true,  phone:'+964790555666', email:'tech@dijla.iq',    desc:'حلول كهربائية وميكانيكية متكاملة للمشاريع الكبرى.' },
+  { id:'s6', name:'بيت الهندسة للإدارة',        spec:'إدارة مشاريع',   city:'البصرة', year:2016, size:'صغيرة', rating:4.7, projects:15, verified:false, phone:'+964780666777', email:'',                 desc:'إدارة وإشراف متكامل على المشاريع الإنشائية.' },
+];
+
+/* ═══════════════════════════════
+   STATE
+═══════════════════════════════ */
+let companies = [];
+let filtered  = [];
+let _activeSpecFilter = 'all';
+
+/* ═══════════════════════════════
+   NORMALIZE
+═══════════════════════════════ */
+function normalizeCompany(c) {
+  return {
+    id:           String(c.id || Date.now()),
+    name:         c.name     || '—',
+    spec:         c.spec     || 'مقاولات عامة',
+    city:         c.city     || '—',
+    year:         c.year     || 2020,
+    size:         c.size     || 'صغيرة',
+    rating:       Number(c.rating)   || 0,
+    projects:     Number(c.projects) || 0,
+    verified:     Boolean(c.verified),
+    status:       c.status || (c.verified ? 'approved' : 'pending'),
+    phone:        c.phone     || '',
+    email:        c.email     || '',
+    desc:         c.desc      || '',
+    image_url:    c.image_url || '',
+    review_count: Number(c.review_count) || 0,
+    review_avg:   c.review_avg != null ? Number(c.review_avg) : null,
+    plan_key:     c.plan_key  || c.subscription_plan || 'starter',
+  };
+}
+
+function planBadge(plan, verified) {
+  if (plan === 'partner')  return '<span class="bn-plan-badge bn-plan-partner">💎شريك بنيان</span>';
+  if (plan === 'featured') return '<span class="bn-plan-badge bn-plan-featured">⭐بارز</span>';
+  if (plan === 'active' || verified) return '<span class="bn-plan-badge bn-plan-active">🥉نشط</span>';
+  return '';
+}
+
+/* ═══════════════════════════════
+   LOAD CATEGORIES
+═══════════════════════════════ */
+async function loadCategories() {
+  try {
+    const res = await fetch(`${API_URL}/categories`);
+    if (!res.ok) return;
+    const cats = await res.json();
+
+    const inner = document.getElementById('filterPillsInner');
+    if (!inner) return;
+    const citySelect = inner.querySelector('#filterCity');
+    cats.forEach(cat => {
+      const btn = document.createElement('button');
+      btn.className = 'bn-fpill';
+      btn.textContent = `${cat.icon} ${cat.name_ar}`;
+      btn.onclick = function() { setFilter(cat.name_ar, btn); };
+      inner.insertBefore(btn, citySelect);
+    });
+
+    // بعد تحميل الـ pills: طبّق spec من URL إذا وُجد
+    const specParam = new URLSearchParams(location.search).get('spec');
+    if (specParam && specParam !== 'all') {
+      const pills = inner.querySelectorAll('button.bn-fpill');
+      pills.forEach(b => {
+        if (b.textContent.trim().includes(specParam)) {
+          pills.forEach(x => x.classList.remove('active'));
+          b.classList.add('active');
+          _activeSpecFilter = specParam;
+        }
+      });
+      filterCompanies();
+    }
+  } catch(e) {
+    console.warn('[Bunyan] categories load failed:', e);
+  }
+}
+
+/* ═══════════════════════════════
+   LOAD COMPANIES
+═══════════════════════════════ */
+async function loadCompanies() {
+  showSkeletons();
+  try {
+    const res = await fetch(`${API_URL}/companies`, { signal: AbortSignal.timeout(12000) });
+    if (!res.ok) throw new Error(`HTTP ${res.status}`);
+    const data = await res.json();
+    companies = data.map(normalizeCompany);
+    DEMO_MODE = false;
+    document.getElementById('demoNotice').classList.remove('visible');
+  } catch(err) {
+    console.warn('[Bunyan] demo mode:', err.message);
+    companies = [...FALLBACK_DATA];
+    DEMO_MODE = true;
+    document.getElementById('demoNotice').classList.add('visible');
+  }
+  filtered = [...companies];
+  renderCards();
+  updateHeroCount();
+}
+
+/* ═══════════════════════════════
+   RENDER
+═══════════════════════════════ */
+function showSkeletons() {
+  document.getElementById('companiesGrid').innerHTML =
+    '<div class="co-skeleton"></div>'.repeat(6);
+  document.getElementById('resultCount').textContent = 'جارٍ التحميل...';
+}
+
+function renderCards() {
+  const grid    = document.getElementById('companiesGrid');
+  const visible = filtered.filter(c => c.status !== 'rejected');
+  document.getElementById('resultCount').textContent = visible.length + ' شركة';
+
+  if (!visible.length) {
+    grid.innerHTML = `<div class="co-empty">
+      <div class="co-empty-icon">🏗</div>
+      <div class="co-empty-text">لا توجد شركات تطابق البحث</div>
+    </div>`;
+    return;
+  }
+
+  grid.innerHTML = visible.map((c, i) => {
+    const [bg, fg] = LOGO_COLORS[i % LOGO_COLORS.length];
+    const initials  = c.name.split(' ').slice(0,2).map(w => w[0]).join('');
+    const isPending = (c.status === 'pending');
+    const avgR      = c.review_count > 0 ? Number(c.review_avg||0).toFixed(1) : c.rating.toFixed(1);
+    const starsN    = Math.round(c.review_count > 0 ? (c.review_avg||0) : c.rating);
+    const badge     = planBadge(c.plan_key, c.verified);
+
+    const av = c.image_url
+      ? `<div class="bn-lc-av"><img src="${c.image_url}" alt="${c.name}"
+             onerror="this.parentElement.innerHTML='${initials}';this.parentElement.style.background='${bg}';this.parentElement.style.color='${fg}'"></div>`
+      : `<div class="bn-lc-av" style="background:${bg};color:${fg}">${initials}</div>`;
+
+    return `
+    <a class="bn-lc" href="company_profile.html?id=${c.id}" style="animation-delay:${Math.min(i*0.04,0.3)}s">
+      ${av}
+      <div class="bn-lc-info">
+        <div class="bn-lc-name">
+          ${c.name}
+          ${c.verified && !isPending ? '<span class="bn-vbadge" title="موثّق">✓</span>' : ''}
+        </div>
+        <div class="bn-lc-sub">${c.city} · ${c.year}</div>
+        <div class="bn-lc-spec">${c.spec}</div>
+        ${isPending ? '<span style="font-size:10px;color:var(--text-3);margin-top:3px;display:block">⏳ قيد المراجعة</span>' : ''}
+      </div>
+      <div class="bn-lc-right">
+        <div class="bn-lc-rating">⭐ ${avgR}</div>
+        ${badge}
+        <div class="bn-lc-stars">${'★'.repeat(starsN)}${'☆'.repeat(5-starsN)}</div>
+        <div style="font-size:10px;color:var(--text-3)">${c.projects} مشروع</div>
+      </div>
+    </a>`;
+  }).join('');
+}
+
+function updateHeroCount() {
+  const approved = companies.filter(c => c.status === 'approved' || c.verified).length;
+  const el = document.getElementById('heroCount');
+  if (el) el.textContent = approved + ' شركة موثّقة في العراق';
+}
+
+/* ═══════════════════════════════
+   FILTER
+═══════════════════════════════ */
+function filterCompanies() {
+  const q    = (document.getElementById('searchInput').value || '').trim().toLowerCase();
+  const city = document.getElementById('filterCity').value;
+  const spec = _activeSpecFilter === 'all' ? '' : _activeSpecFilter;
+
+  filtered = companies.filter(c => {
+    if (c.status === 'rejected') return false;
+    const matchQ = !q
+      || c.name.toLowerCase().includes(q)
+      || c.spec.toLowerCase().includes(q)
+      || c.city.toLowerCase().includes(q)
+      || (c.desc||'').toLowerCase().includes(q);
+    return matchQ && (!spec || c.spec === spec) && (!city || c.city === city);
+  });
+
+  renderCards();
+  updateURL();
+}
+
+function setFilter(specVal, el) {
+  _activeSpecFilter = specVal;
+  document.querySelectorAll('#filterPillsInner button.bn-fpill').forEach(b => b.classList.remove('active'));
+  if (el) el.classList.add('active');
+  filterCompanies();
+}
+
+/* ═══════════════════════════════
+   URL SYNC
+═══════════════════════════════ */
+function updateURL() {
+  const p = new URLSearchParams();
+  if (_activeSpecFilter !== 'all') p.set('spec', _activeSpecFilter);
+  const city = document.getElementById('filterCity').value;
+  if (city) p.set('city', city);
+  const q = (document.getElementById('searchInput').value || '').trim();
+  if (q)    p.set('q', q);
+  const qs = p.toString();
+  history.replaceState(null, '', qs ? '?' + qs : location.pathname);
+}
+
+function applyURLParams() {
+  const p    = new URLSearchParams(location.search);
+  const city = p.get('city');
+  const q    = p.get('q');
+  const spec = p.get('spec');
+
+  if (city) {
+    const sel = document.getElementById('filterCity');
+    if (sel) sel.value = city;
+  }
+  if (q) {
+    const inp = document.getElementById('searchInput');
+    if (inp) inp.value = q;
+  }
+  if (spec && spec !== 'all') {
+    _activeSpecFilter = spec;
+    // Pills يُطبَّق بعد تحميل loadCategories لأنها ديناميكية
+  }
+
+  if (city || q || spec) filterCompanies();
+}
+
+/* ═══════════════════════════════
+   LIVE STATS (اختياري)
+═══════════════════════════════ */
+async function loadLiveStats() {
+  try {
+    const r = await fetch(`${API_URL}/stats`);
+    if (!r.ok) return;
+    const s = await r.json();
+    const el = document.getElementById('heroCount');
+    if (el && s.companies > 0) el.textContent = s.companies + ' شركة موثّقة في العراق';
+  } catch(_) {}
+}
+
+/* ═══════════════════════════════
+   INIT
+═══════════════════════════════ */
+document.addEventListener('DOMContentLoaded', () => {
+  applyURLParams();
+  loadCategories();
+  loadCompanies().then(loadLiveStats);
+});
+</script>
+</body>
+</html>
+

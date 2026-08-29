@@ -1,0 +1,11 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="192" height="192" viewBox="0 0 192 192">
+  <rect width="192" height="192" rx="40" fill="#0d1117"/>
+  <rect x="8" y="8" width="176" height="176" rx="36" fill="none" stroke="#c8a96e" stroke-width="3" opacity="0.3"/>
+  <!-- House/building icon -->
+  <path d="M40 150 L40 90 L96 50 L152 90 L152 150 Z" fill="none" stroke="#c8a96e" stroke-width="8" stroke-linejoin="round"/>
+  <rect x="76" y="100" width="40" height="50" rx="4" fill="#c8a96e" opacity="0.9"/>
+  <path d="M60 150 L60 110 L84 110 L84 150" fill="none" stroke="#a07840" stroke-width="5"/>
+  <path d="M108 150 L108 110 L132 110 L132 150" fill="none" stroke="#a07840" stroke-width="5"/>
+  <!-- بُنيان text hint: horizontal line at bottom -->
+  <line x1="32" y1="154" x2="160" y2="154" stroke="#c8a96e" stroke-width="5" stroke-linecap="round"/>
+</svg>

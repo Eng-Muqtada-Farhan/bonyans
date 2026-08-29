@@ -1,0 +1,416 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>بُنيان — ملف الشركة</title>
+<link href="https://fonts.googleapis.com/css2?family=Cairo:wght@300;400;600;700;900&display=swap" rel="stylesheet">
+<style>
+:root {
+  --gold:    #c8a96e;
+  --gold-lt: #e2c99a;
+  --bg0:     #07090f;
+  --bg1:     #0d1117;
+  --bg2:     #131920;
+  --bg3:     #1a2030;
+  --border:  rgba(200,169,110,0.15);
+  --border2: rgba(200,169,110,0.30);
+  --text1:   #f0ede8;
+  --text2:   #a09880;
+  --radius:  14px;
+  --green:   #3fb950;
+}
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+body {
+  font-family: 'Cairo', sans-serif;
+  background: var(--bg0); color: var(--text1);
+  min-height: 100vh;
+}
+body::before {
+  content: ''; position: fixed; inset: 0; z-index: 0;
+  background-image:
+    linear-gradient(rgba(200,169,110,0.03) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(200,169,110,0.03) 1px, transparent 1px);
+  background-size: 60px 60px; pointer-events: none;
+}
+
+/* ── Top bar ── */
+.topbar {
+  position: sticky; top: 0; z-index: 100;
+  background: rgba(7,9,15,0.92);
+  backdrop-filter: blur(12px);
+  border-bottom: 1px solid var(--border);
+  padding: 0 32px; height: 60px;
+  display: flex; align-items: center; justify-content: space-between;
+}
+.topbar-brand { font-size: 20px; font-weight: 900; color: var(--gold); text-decoration: none; }
+.topbar-back {
+  display: flex; align-items: center; gap: 8px;
+  color: var(--text2); font-size: 13px;
+  text-decoration: none; transition: color 0.2s;
+}
+.topbar-back:hover { color: var(--gold); }
+
+/* ── Page layout ── */
+.page { max-width: 960px; margin: 0 auto; padding: 40px 24px 80px; position: relative; z-index: 1; }
+
+/* ── Hero ── */
+.hero {
+  background: var(--bg1);
+  border: 1px solid var(--border);
+  border-radius: 20px; padding: 36px;
+  display: flex; gap: 28px; align-items: flex-start;
+  margin-bottom: 32px;
+  position: relative; overflow: hidden;
+}
+.hero::before {
+  content: ''; position: absolute; inset: 0;
+  background: radial-gradient(ellipse 60% 80% at 80% -20%, rgba(200,169,110,0.06), transparent 70%);
+  pointer-events: none;
+}
+.hero-logo {
+  width: 100px; height: 100px; border-radius: 16px;
+  object-fit: cover; border: 2px solid var(--border2);
+  flex-shrink: 0; position: relative;
+}
+.hero-logo-ph {
+  width: 100px; height: 100px; border-radius: 16px;
+  background: var(--bg3); border: 1px solid var(--border);
+  display: flex; align-items: center; justify-content: center;
+  font-size: 42px; flex-shrink: 0;
+}
+.hero-info { flex: 1; min-width: 0; }
+.hero-name { font-size: 28px; font-weight: 900; color: var(--text1); margin-bottom: 6px; }
+.hero-spec {
+  display: inline-block; font-size: 12px; color: var(--gold);
+  background: rgba(200,169,110,0.08); border: 1px solid rgba(200,169,110,0.2);
+  border-radius: 20px; padding: 3px 14px; margin-bottom: 10px;
+}
+.hero-city { font-size: 14px; color: var(--text2); margin-bottom: 12px; }
+.hero-desc { font-size: 14px; color: var(--text2); line-height: 1.8; }
+
+.hero-badges { display: flex; gap: 10px; flex-wrap: wrap; margin-top: 14px; }
+.badge {
+  display: inline-flex; align-items: center; gap: 5px;
+  font-size: 12px; padding: 4px 12px; border-radius: 20px;
+  font-weight: 600;
+}
+.badge-verified { background: rgba(63,185,80,0.1);  border: 1px solid rgba(63,185,80,0.3);  color: var(--green); }
+.badge-premium  { background: rgba(200,169,110,0.1); border: 1px solid rgba(200,169,110,0.3); color: var(--gold); }
+.badge-approved { background: rgba(63,185,80,0.08); border: 1px solid rgba(63,185,80,0.2);  color: #7ee787; }
+
+/* ── Contact strip ── */
+.contact-strip {
+  display: flex; flex-wrap: wrap; gap: 12px;
+  background: var(--bg2); border: 1px solid var(--border);
+  border-radius: var(--radius); padding: 16px 20px;
+  margin-bottom: 32px;
+}
+.contact-item {
+  display: flex; align-items: center; gap: 8px;
+  font-size: 13px; color: var(--text2);
+}
+.contact-item a { color: var(--gold); text-decoration: none; }
+.contact-item a:hover { text-decoration: underline; }
+.contact-icon { font-size: 16px; }
+
+.btn-whatsapp {
+  display: inline-flex; align-items: center; gap: 8px;
+  background: #25d366; color: white;
+  border: none; border-radius: 10px; padding: 9px 20px;
+  font-family: 'Cairo', sans-serif; font-size: 14px; font-weight: 600;
+  cursor: pointer; text-decoration: none;
+  transition: opacity 0.2s;
+}
+.btn-whatsapp:hover { opacity: 0.88; }
+
+/* ── Sections ── */
+.section-hdr {
+  font-size: 17px; font-weight: 700; color: var(--gold);
+  margin-bottom: 20px; padding-bottom: 10px;
+  border-bottom: 1px solid var(--border);
+  display: flex; align-items: center; gap: 8px;
+}
+.section-hdr .count {
+  background: rgba(200,169,110,0.12); border: 1px solid var(--border);
+  font-size: 12px; font-weight: 600; color: var(--text2);
+  border-radius: 20px; padding: 2px 10px;
+}
+
+/* ── Projects ── */
+.projects-grid {
+  display: grid; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+  gap: 20px; margin-bottom: 40px;
+}
+.proj-card {
+  background: var(--bg2); border: 1px solid var(--border);
+  border-radius: var(--radius); overflow: hidden;
+  transition: border-color 0.2s, transform 0.2s;
+}
+.proj-card:hover { border-color: var(--border2); transform: translateY(-2px); }
+.proj-img {
+  width: 100%; aspect-ratio: 16/9; object-fit: cover;
+  display: block; background: var(--bg3);
+}
+.proj-img-ph {
+  width: 100%; aspect-ratio: 16/9;
+  background: var(--bg3); display: flex;
+  align-items: center; justify-content: center;
+  font-size: 36px; color: var(--text2);
+}
+.proj-body { padding: 16px; }
+.proj-title { font-size: 15px; font-weight: 700; color: var(--text1); margin-bottom: 6px; }
+.proj-meta  { font-size: 12px; color: var(--text2); display: flex; gap: 12px; flex-wrap: wrap; }
+.proj-desc  { font-size: 13px; color: var(--text2); margin-top: 8px; line-height: 1.7; }
+
+/* ── Gallery ── */
+.gallery-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));
+  gap: 12px; margin-bottom: 40px;
+}
+.gal-item { position: relative; overflow: hidden; border-radius: 12px; cursor: pointer; }
+.gal-item img {
+  width: 100%; aspect-ratio: 1; object-fit: cover; display: block;
+  border: 1px solid var(--border); border-radius: 12px;
+  transition: transform 0.3s;
+}
+.gal-item:hover img { transform: scale(1.04); }
+.gal-title-overlay {
+  position: absolute; bottom: 0; left: 0; right: 0;
+  background: linear-gradient(transparent, rgba(0,0,0,0.7));
+  padding: 20px 10px 8px;
+  font-size: 12px; color: white;
+  opacity: 0; transition: opacity 0.2s;
+  border-radius: 0 0 12px 12px;
+}
+.gal-item:hover .gal-title-overlay { opacity: 1; }
+
+/* ── Lightbox ── */
+#lightbox {
+  display: none; position: fixed; inset: 0; z-index: 9999;
+  background: rgba(0,0,0,0.92);
+  align-items: center; justify-content: center;
+}
+#lightbox.open { display: flex; }
+#lightbox img { max-width: 90vw; max-height: 90vh; border-radius: 10px; object-fit: contain; }
+#lightboxClose {
+  position: absolute; top: 20px; left: 20px;
+  background: rgba(255,255,255,0.1); border: none; color: white;
+  border-radius: 50%; width: 40px; height: 40px; font-size: 20px;
+  cursor: pointer; display: flex; align-items: center; justify-content: center;
+}
+
+/* ── Empty / Error states ── */
+.empty-state {
+  text-align: center; padding: 40px 20px; color: var(--text2); font-size: 14px;
+}
+.empty-state .icon { font-size: 36px; margin-bottom: 10px; }
+
+/* ── Loading skeleton ── */
+.skeleton {
+  background: linear-gradient(90deg, var(--bg2) 25%, var(--bg3) 50%, var(--bg2) 75%);
+  background-size: 200% 100%; animation: shimmer 1.4s infinite;
+  border-radius: 10px;
+}
+@keyframes shimmer { 0% { background-position: 200% 0; } 100% { background-position: -200% 0; } }
+
+/* ── Not found ── */
+.not-found {
+  min-height: 60vh; display: flex; flex-direction: column;
+  align-items: center; justify-content: center;
+  text-align: center; color: var(--text2);
+}
+.not-found .icon { font-size: 56px; margin-bottom: 16px; }
+.not-found h2    { font-size: 22px; color: var(--text1); margin-bottom: 8px; }
+.not-found p     { font-size: 14px; }
+</style>
+</head>
+<body>
+
+<!-- Top bar -->
+<div class="topbar">
+  <a href="index.html" class="topbar-brand">بُنيان</a>
+  <a href="index.html" class="topbar-back">← العودة للدليل</a>
+</div>
+
+<!-- Page -->
+<div class="page" id="page">
+  <div style="color:var(--text2);font-size:14px;text-align:center;padding:60px;">جارٍ تحميل ملف الشركة...</div>
+</div>
+
+<!-- Lightbox -->
+<div id="lightbox" onclick="closeLightbox()">
+  <button id="lightboxClose" onclick="closeLightbox()">✕</button>
+  <img id="lightboxImg" src="" alt="">
+</div>
+
+<script>
+const API = 'http://127.0.0.1:8000';
+
+/* ── Get company id from URL ── */
+const params    = new URLSearchParams(location.search);
+const companyId = parseInt(params.get('id') || '0');
+
+function esc(str) {
+  return String(str||'')
+    .replace(/&/g,'&amp;').replace(/</g,'&lt;')
+    .replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+}
+
+function openLightbox(src) {
+  document.getElementById('lightboxImg').src = src;
+  document.getElementById('lightbox').classList.add('open');
+  document.body.style.overflow = 'hidden';
+}
+function closeLightbox() {
+  document.getElementById('lightbox').classList.remove('open');
+  document.body.style.overflow = '';
+}
+document.addEventListener('keydown', e => { if (e.key==='Escape') closeLightbox(); });
+
+/* ── Load & Render ── */
+async function load() {
+  const page = document.getElementById('page');
+
+  if (!companyId) {
+    page.innerHTML = notFound('رابط غير صحيح', 'لم يتم تحديد رقم الشركة في الرابط.');
+    return;
+  }
+
+  try {
+    const r = await fetch(`${API}/company/${companyId}`);
+    if (r.status === 404) {
+      page.innerHTML = notFound('الشركة غير موجودة', 'هذه الشركة غير موجودة أو لم تحصل على الموافقة بعد.');
+      return;
+    }
+    if (!r.ok) throw new Error(`HTTP ${r.status}`);
+
+    const { company: c, projects, gallery } = await r.json();
+    document.title = `بُنيان — ${c.name}`;
+    page.innerHTML = renderPage(c, projects, gallery);
+
+  } catch (e) {
+    page.innerHTML = notFound('خطأ في التحميل', 'تعذّر الاتصال بالسيرفر. تأكد من تشغيل الخادم وأعد المحاولة.');
+  }
+}
+
+function notFound(title, sub) {
+  return `<div class="not-found">
+    <div class="icon">🏗</div>
+    <h2>${title}</h2>
+    <p>${sub}</p>
+    <a href="index.html" style="color:var(--gold);margin-top:16px;display:inline-block;">← العودة للدليل</a>
+  </div>`;
+}
+
+function renderPage(c, projects, gallery) {
+  /* ── Hero ── */
+  const logoHtml = c.image_url
+    ? `<img class="hero-logo" src="${esc(c.image_url)}" alt="${esc(c.name)}" onerror="this.outerHTML='<div class=\\'hero-logo-ph\\'>🏢</div>'">`
+    : `<div class="hero-logo-ph">🏢</div>`;
+
+  const vsBadge = {
+    verified: '<span class="badge badge-verified">✔ موثّق</span>',
+    premium:  '<span class="badge badge-premium">★ بريميوم</span>',
+  }[c.verification_status] || '';
+
+  const hero = `
+    <div class="hero">
+      ${logoHtml}
+      <div class="hero-info">
+        <div class="hero-name">${esc(c.name)}</div>
+        <span class="hero-spec">${esc(c.spec)}</span>
+        <div class="hero-city">📍 ${esc(c.city)}</div>
+        ${c.desc ? `<div class="hero-desc">${esc(c.desc)}</div>` : ''}
+        <div class="hero-badges">
+          <span class="badge badge-approved">✓ معتمد في الدليل</span>
+          ${vsBadge}
+        </div>
+      </div>
+    </div>`;
+
+  /* ── Contact strip ── */
+  const contactItems = [];
+  if (c.phone) {
+    const num = c.phone.replace(/\D/g,'');
+    contactItems.push(`
+      <div class="contact-item">
+        <span class="contact-icon">📞</span>
+        <a href="tel:${esc(c.phone)}">${esc(c.phone)}</a>
+      </div>
+      <a href="https://wa.me/${num}" target="_blank" rel="noopener" class="btn-whatsapp">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="white"><path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347m-5.421 7.403h-.004a9.87 9.87 0 01-5.031-1.378l-.361-.214-3.741.982.998-3.648-.235-.374a9.86 9.86 0 01-1.51-5.26c.001-5.45 4.436-9.884 9.888-9.884 2.64 0 5.122 1.03 6.988 2.898a9.825 9.825 0 012.893 6.994c-.003 5.45-4.437 9.884-9.885 9.884m8.413-18.297A11.815 11.815 0 0012.05 0C5.495 0 .16 5.335.157 11.892c0 2.096.547 4.142 1.588 5.945L.057 24l6.305-1.654a11.882 11.882 0 005.683 1.448h.005c6.554 0 11.89-5.335 11.893-11.893a11.821 11.821 0 00-3.48-8.413z"/></svg>
+        واتساب
+      </a>`);
+  }
+  if (c.email) contactItems.push(`
+    <div class="contact-item">
+      <span class="contact-icon">✉️</span>
+      <a href="mailto:${esc(c.email)}">${esc(c.email)}</a>
+    </div>`);
+  if (c.website) contactItems.push(`
+    <div class="contact-item">
+      <span class="contact-icon">🌐</span>
+      <a href="${esc(c.website)}" target="_blank" rel="noopener">${esc(c.website)}</a>
+    </div>`);
+  if (c.map_link) contactItems.push(`
+    <div class="contact-item">
+      <span class="contact-icon">📍</span>
+      <a href="${esc(c.map_link)}" target="_blank" rel="noopener">عرض على الخريطة</a>
+    </div>`);
+
+  const contact = contactItems.length
+    ? `<div class="contact-strip">${contactItems.join('')}</div>`
+    : '';
+
+  /* ── Projects ── */
+  let projectsSection = '';
+  if (projects && projects.length) {
+    const cards = projects.map(p => `
+      <div class="proj-card">
+        ${p.image_url
+          ? `<img class="proj-img" src="${esc(p.image_url)}" alt="${esc(p.title)}" onerror="this.outerHTML='<div class=\\'proj-img-ph\\'>🏗</div>'">`
+          : `<div class="proj-img-ph">🏗</div>`}
+        <div class="proj-body">
+          <div class="proj-title">${esc(p.title)}</div>
+          <div class="proj-meta">
+            ${p.location       ? `<span>📍 ${esc(p.location)}</span>` : ''}
+            ${p.completion_date? `<span>📅 ${esc(p.completion_date)}</span>` : ''}
+          </div>
+          ${p.description ? `<div class="proj-desc">${esc(p.description)}</div>` : ''}
+        </div>
+      </div>`).join('');
+
+    projectsSection = `
+      <div class="section-hdr">
+        🏗 المشاريع
+        <span class="count">${projects.length}</span>
+      </div>
+      <div class="projects-grid">${cards}</div>`;
+  }
+
+  /* ── Gallery ── */
+  let gallerySection = '';
+  if (gallery && gallery.length) {
+    const imgs = gallery.map(img => `
+      <div class="gal-item" onclick="openLightbox('${esc(img.image_url)}')">
+        <img src="${esc(img.image_url)}" alt="${esc(img.title||'')}" onerror="this.style.display='none'">
+        ${img.title ? `<div class="gal-title-overlay">${esc(img.title)}</div>` : ''}
+      </div>`).join('');
+
+    gallerySection = `
+      <div class="section-hdr">
+        🖼 معرض الصور
+        <span class="count">${gallery.length}</span>
+      </div>
+      <div class="gallery-grid">${imgs}</div>`;
+  }
+
+  return hero + contact + projectsSection + gallerySection;
+}
+
+load();
+</script>
+</body>
+</html>

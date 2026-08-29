@@ -1,0 +1,44 @@
+{
+  "name": "بُنيان — منصة المقاولات",
+  "short_name": "بُنيان",
+  "description": "منصة المقاولات الذكية في العراق — دليل شركات البناء والمقاولات",
+  "start_url": "/index.html",
+  "display": "standalone",
+  "background_color": "#07090f",
+  "theme_color": "#c8a96e",
+  "lang": "ar",
+  "dir": "rtl",
+  "orientation": "portrait-primary",
+  "icons": [
+    {
+      "src": "icons/icon-192.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "any maskable"
+    },
+    {
+      "src": "icons/icon-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any maskable"
+    }
+  ],
+  "screenshots": [],
+  "shortcuts": [
+    {
+      "name": "دليل الشركات",
+      "short_name": "الشركات",
+      "description": "استعرض شركات المقاولات",
+      "url": "/index.html#companies",
+      "icons": [{ "src": "icons/icon-192.png", "sizes": "192x192" }]
+    },
+    {
+      "name": "سوق المشاريع",
+      "short_name": "المشاريع",
+      "description": "تصفح المشاريع المطروحة",
+      "url": "/projects.html",
+      "icons": [{ "src": "icons/icon-192.png", "sizes": "192x192" }]
+    }
+  ],
+  "categories": ["business", "productivity"]
+}
