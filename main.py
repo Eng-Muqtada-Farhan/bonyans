@@ -1,7 +1,8 @@
 import hashlib
 import io
 import os
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
+from math import ceil
 from typing import Literal, Optional
 
 from dotenv import load_dotenv
@@ -402,8 +403,23 @@ def add_company(company: Company, request: Request):
 
 
 @app.get("/companies")
-def get_companies(spec: Optional[str] = None, city: Optional[str] = None, q: Optional[str] = None):
-    """إرجاع الشركات المعتمدة مع دعم الفلترة: ?spec=X&city=Y&q=search"""
+def get_companies(
+    spec: Optional[str] = None,
+    city: Optional[str] = None,
+    q: Optional[str] = None,
+    page: int = 1,
+    per_page: int = 20,
+):
+    """
+    إرجاع الشركات المعتمدة مع الفلترة والترقيم:
+    ?spec=X&city=Y&q=search&page=1&per_page=20
+
+    الشكل: {items, page, per_page, total, pages}
+    """
+    page     = max(page, 1)
+    per_page = min(max(per_page, 1), 100)
+    offset   = (page - 1) * per_page
+
     where_clauses = ["c.status = 'approved'"]
     params: dict = {}
 
@@ -444,14 +460,27 @@ def get_companies(spec: Optional[str] = None, city: Optional[str] = None, q: Opt
             ) rv ON true
             WHERE {where_sql}
             ORDER BY _priority DESC, c.id DESC
-        """), params).mappings().fetchall()
+            LIMIT :_per_page OFFSET :_offset
+        """), {**params, "_per_page": per_page, "_offset": offset}).mappings().fetchall()
+
+        total = db.execute(
+            text(f"SELECT COUNT(*) FROM companies c WHERE {where_sql}"), params
+        ).scalar() or 0
+
     result = []
     for r in rows:
         d = row_to_company_dict(dict(r))
         d["review_count"] = int(r["review_count"] or 0)
         d["review_avg"]   = float(r["review_avg"]) if r["review_avg"] else None
         result.append(d)
-    return result
+
+    return {
+        "items":    result,
+        "page":     page,
+        "per_page": per_page,
+        "total":    int(total),
+        "pages":    ceil(total / per_page) if total else 0,
+    }
 
 
 @app.get("/admin/companies")
@@ -1743,7 +1772,18 @@ def create_project(payload: MarketProjectCreate, request: Request):
 
 
 @app.get("/projects")
-def list_projects(city: Optional[str] = None, category: Optional[str] = None, status: Optional[str] = None):
+def list_projects(
+    city: Optional[str] = None,
+    category: Optional[str] = None,
+    status: Optional[str] = None,
+    page: int = 1,
+    per_page: int = 20,
+):
+    """الشكل: {items, page, per_page, total, pages}"""
+    page     = max(page, 1)
+    per_page = min(max(per_page, 1), 100)
+    offset   = (page - 1) * per_page
+
     where_parts = ["p.status = 'published'"]
     params: dict = {}
     if status:
@@ -1763,8 +1803,20 @@ def list_projects(city: Optional[str] = None, category: Optional[str] = None, st
             FROM projects p
             WHERE {where}
             ORDER BY p.created_at DESC
-        """), params).mappings().fetchall()
-    return [row_to_project_dict(dict(r)) for r in rows]
+            LIMIT :_per_page OFFSET :_offset
+        """), {**params, "_per_page": per_page, "_offset": offset}).mappings().fetchall()
+
+        total = db.execute(
+            text(f"SELECT COUNT(*) FROM projects p WHERE {where}"), params
+        ).scalar() or 0
+
+    return {
+        "items":    [row_to_project_dict(dict(r)) for r in rows],
+        "page":     page,
+        "per_page": per_page,
+        "total":    int(total),
+        "pages":    ceil(total / per_page) if total else 0,
+    }
 
 
 @app.get("/projects/{project_id}")

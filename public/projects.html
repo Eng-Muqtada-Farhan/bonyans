@@ -218,6 +218,14 @@
   <div class="bn-proj-grid" id="grid">
     <div class="proj-loading">⏳ جارٍ التحميل...</div>
   </div>
+
+  <div id="projLoadMoreWrap" style="display:none; text-align:center; margin-top:20px">
+    <button id="projLoadMoreBtn" onclick="loadMoreProjects(this)"
+      style="padding:10px 22px;border:none;border-radius:12px;cursor:pointer;
+             font-family:'Cairo',sans-serif;font-size:14px;font-weight:700;
+             color:#fff;background:var(--clay,#1B3A6B)">تحميل المزيد</button>
+    <div id="projLoadMoreInfo" style="font-size:12px;color:var(--text-3);margin-top:8px"></div>
+  </div>
 </div>
 
 <!-- G1: MY PROJECTS PANEL -->
@@ -315,23 +323,63 @@ function esc(s) {
   return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
 }
 
-async function loadProjects() {
+const PROJ_PER_PAGE = 20;
+let PROJ_PAGE = 1;
+let PROJ_TOTAL_PAGES = 0;
+let PROJ_TOTAL = 0;
+let PROJ_LOADED = [];
+
+async function loadProjects({ append = false } = {}) {
   const city     = document.getElementById('filterCity').value;
   const category = document.getElementById('filterCategory').value;
-  let url = `/projects?`;
+  if (!append) PROJ_PAGE = 1;
+
+  let url = `/projects?page=${PROJ_PAGE}&per_page=${PROJ_PER_PAGE}&`;
   if (city)     url += `city=${encodeURIComponent(city)}&`;
   if (category) url += `category=${encodeURIComponent(category)}&`;
 
   const grid = document.getElementById('grid');
-  grid.innerHTML = '<div class="proj-loading">⏳ جارٍ التحميل...</div>';
+  if (!append) grid.innerHTML = '<div class="proj-loading">⏳ جارٍ التحميل...</div>';
 
   try {
     const r = await fetch(url);
-    const projects = await r.json();
-    renderProjects(projects);
+    if (!r.ok) throw new Error(`HTTP ${r.status}`);
+    /* الـ API يُعيد {items, page, per_page, total, pages} */
+    const data = await r.json();
+    const batch = data.items || [];
+    PROJ_LOADED = append ? PROJ_LOADED.concat(batch) : batch;
+    PROJ_TOTAL_PAGES = data.pages || 0;
+    PROJ_TOTAL = data.total || 0;
+    renderProjects(PROJ_LOADED);
+    updateProjLoadMore();
   } catch(e) {
-    grid.innerHTML = '<div class="proj-empty"><h3>خطأ في التحميل</h3><p>تأكد من الاتصال بالإنترنت</p></div>';
+    if (!append) {
+      PROJ_LOADED = []; PROJ_TOTAL_PAGES = 0; PROJ_TOTAL = 0;
+      grid.innerHTML = '<div class="proj-empty"><h3>خطأ في التحميل</h3><p>تأكد من الاتصال بالإنترنت</p></div>';
+    }
+    updateProjLoadMore();
   }
+}
+
+function updateProjLoadMore() {
+  const wrap = document.getElementById('projLoadMoreWrap');
+  if (!wrap) return;
+  const more = PROJ_PAGE < PROJ_TOTAL_PAGES;
+  wrap.style.display = more ? 'block' : 'none';
+  if (more) {
+    document.getElementById('projLoadMoreInfo').textContent =
+      `عُرض ${PROJ_LOADED.length} من ${PROJ_TOTAL}`;
+  }
+}
+
+async function loadMoreProjects(btn) {
+  if (PROJ_PAGE >= PROJ_TOTAL_PAGES) return;
+  btn.disabled = true;
+  btn.textContent = 'جارٍ التحميل...';
+  PROJ_PAGE += 1;
+  await loadProjects({ append: true });
+  btn.disabled = false;
+  btn.textContent = 'تحميل المزيد';
 }
 
 function renderProjects(list) {

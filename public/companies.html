@@ -276,6 +276,11 @@
     <div class="co-skeleton"></div>
     <div class="co-skeleton"></div>
   </div>
+
+  <div id="loadMoreWrap" style="display:none; text-align:center; margin-top:20px">
+    <button class="co-retry-btn" id="loadMoreBtn" onclick="loadMore(this)">تحميل المزيد</button>
+    <div id="loadMoreInfo" style="font-size:12px;color:var(--text-3);margin-top:8px"></div>
+  </div>
 </div>
 
 <!-- Footer -->
@@ -379,23 +384,57 @@ async function loadCategories() {
 /* ═══════════════════════════════
    LOAD COMPANIES
 ═══════════════════════════════ */
-async function loadCompanies() {
-  showSkeletons();
+const PER_PAGE = 20;
+let PAGE = 1;
+let TOTAL_PAGES = 0;
+let TOTAL_COUNT = 0;
+
+async function loadCompanies({ append = false } = {}) {
+  if (!append) { showSkeletons(); PAGE = 1; }
   try {
-    const res = await fetch(`${API_URL}/companies`, { signal: AbortSignal.timeout(12000) });
+    const res = await fetch(
+      `${API_URL}/companies?page=${PAGE}&per_page=${PER_PAGE}`,
+      { signal: AbortSignal.timeout(12000) }
+    );
     if (!res.ok) throw new Error(`HTTP ${res.status}`);
+    /* الـ API يُعيد {items, page, per_page, total, pages} */
     const data = await res.json();
-    companies = data.map(normalizeCompany);
+    const batch = (data.items || []).map(normalizeCompany);
+    companies = append ? companies.concat(batch) : batch;
+    TOTAL_PAGES = data.pages || 0;
+    TOTAL_COUNT = data.total || 0;
     LOAD_ERROR = false;
   } catch(err) {
     /* لا بيانات بديلة — قائمة فارغة وحالة خطأ صريحة. */
     console.warn('[Bunyan] فشل تحميل الشركات:', err.message);
-    companies = [];
+    if (!append) { companies = []; TOTAL_PAGES = 0; TOTAL_COUNT = 0; }
     LOAD_ERROR = true;
   }
   filtered = [...companies];
   renderCards();
   updateHeroCount();
+  updateLoadMore();
+}
+
+function updateLoadMore() {
+  const wrap = document.getElementById('loadMoreWrap');
+  if (!wrap) return;
+  const more = !LOAD_ERROR && PAGE < TOTAL_PAGES;
+  wrap.style.display = more ? 'block' : 'none';
+  if (more) {
+    document.getElementById('loadMoreInfo').textContent =
+      `عُرض ${companies.length} من ${TOTAL_COUNT}`;
+  }
+}
+
+async function loadMore(btn) {
+  if (PAGE >= TOTAL_PAGES) return;
+  btn.disabled = true;
+  btn.textContent = 'جارٍ التحميل...';
+  PAGE += 1;
+  await loadCompanies({ append: true });
+  btn.disabled = false;
+  btn.textContent = 'تحميل المزيد';
 }
 
 /* إعادة محاولة تحميل الشركات والإحصاءات بعد فشل الاتصال. */

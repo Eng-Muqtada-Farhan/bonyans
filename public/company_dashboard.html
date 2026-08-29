@@ -1041,7 +1041,8 @@ async function loadMarketplace() {
   document.getElementById('mkList').innerHTML = '<div style="color:var(--text2);font-size:13px">جارٍ التحميل...</div>';
   try {
     const r = await fetch(url);
-    const list = await r.json();
+    const data = await r.json();
+    const list = data.items || [];   /* {items, page, per_page, total, pages} */
     if (!list.length) { document.getElementById('mkList').innerHTML = '<div style="color:var(--text2);font-size:13px">لا توجد مشاريع مفتوحة حالياً</div>'; return; }
     document.getElementById('mkList').innerHTML = list.map(p => `
       <div style="background:var(--bg2);border:1px solid var(--border);border-radius:10px;padding:1rem;margin-bottom:.7rem">
