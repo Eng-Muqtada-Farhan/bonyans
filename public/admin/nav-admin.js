@@ -172,8 +172,9 @@ body{padding-inline-start:244px}
       ['admin_token', 'token'].forEach(function (k) {
         try { localStorage.removeItem(k); } catch (e) {}
       });
-      /* امسح كعكة جلسة الخادم أيضاً وإلا بقي الحارس يسمح بالمرور */
-      document.cookie = 'bn_sess=; path=/; max-age=0; SameSite=Lax';
+      /* الكعكة HttpOnly فلا تمسحها الصفحة — يمسحها الخادم.
+         keepalive حتى يكتمل الطلب رغم مغادرة الصفحة. */
+      try { fetch('/logout', { method: 'POST', keepalive: true }); } catch (e) {}
       /* استثناء مُصرَّح به من صاحب المشروع: العزل يحكم الجلسة لا
          نهايتها. من خرج لم يعد مديراً بل زائراً، وصفحة الدخول وجهته. */
       location.replace('../login.html');

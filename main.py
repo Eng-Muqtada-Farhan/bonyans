@@ -14,7 +14,7 @@ from sqlalchemy.orm import sessionmaker
 from sqlalchemy.exc import IntegrityError
 from fastapi import FastAPI, HTTPException, Request, UploadFile, File
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import RedirectResponse
+from fastapi.responses import JSONResponse, RedirectResponse
 from pydantic import BaseModel
 from imagekitio import ImageKit
 
@@ -172,8 +172,42 @@ async def surface_guard(request: Request, call_next):
 
 
 # ── Auth helpers ──────────────────────────────────────────────────────────────
+# أعمار الرموز — مصدر واحد يستعمله الرمز والكعكة معاً حتى لا يفترقا.
+ADMIN_TTL   = timedelta(hours=24)
+SESSION_TTL = timedelta(days=30)   # الشركة وصاحب المشروع
+
+
+def set_session_cookie(response, token: str, ttl: timedelta) -> None:
+    """
+    يضع كعكة الجلسة بخصائصها الكاملة.
+
+    HttpOnly     — لا يقرؤها JavaScript، فسرقة الرمز عبر XSS أصعب.
+                   لهذا يضعها الخادم لا الصفحة: كعكة يكتبها JS
+                   لا يمكن أن تكون HttpOnly أصلاً.
+    SameSite=Lax — لا تُرسَل مع طلبات المواقع الأخرى (حماية CSRF).
+    Secure       — في الإنتاج فقط، وإلا تعذّر الاختبار على http محلياً.
+    Max-Age      — مطابق لعمر الرمز نفسه، فلا تبقى كعكة بعد انتهائه.
+    Path=/       — الحارس يعمل على /app و /me و /admin جميعاً.
+    """
+    response.set_cookie(
+        key=SESSION_COOKIE,
+        value=token,
+        max_age=int(ttl.total_seconds()),
+        path="/",
+        httponly=True,
+        samesite="lax",
+        secure=IS_PROD,
+    )
+
+
+def clear_session_cookie(response) -> None:
+    response.delete_cookie(
+        key=SESSION_COOKIE, path="/", httponly=True, samesite="lax", secure=IS_PROD
+    )
+
+
 def create_access_token(subject: str) -> str:
-    expire = datetime.now(timezone.utc) + timedelta(hours=24)
+    expire = datetime.now(timezone.utc) + ADMIN_TTL
     return jwt.encode({"sub": subject, "exp": expire}, JWT_SECRET, algorithm=ALGORITHM)
 
 
@@ -651,7 +685,25 @@ def login(data: dict, request: Request):
     with SessionLocal() as db:
         write_audit_log(db, "admin", username, "login_success", request)
         db.commit()
-    return {"token": create_access_token(username)}
+    token = create_access_token(username)
+    resp = JSONResponse({"token": token})
+    set_session_cookie(resp, token, ADMIN_TTL)
+    return resp
+
+
+@app.post("/logout")
+def logout():
+    """
+    يمسح كعكة الجلسة. لازم لأنها HttpOnly فلا تستطيع الصفحة مسحها.
+
+    ⚠️ حدّ معروف: هذا يُنهي الجلسة في هذا المتصفح فقط. الرمز نفسه
+    يبقى صالحاً حتى انتهاء صلاحيته — نسخةٌ منه أُخذت قبل الخروج
+    تظل تعمل. الإبطال الحقيقي (قائمة سوداء أو رموز قصيرة + refresh)
+    مؤجَّل صراحةً في SCOPE.md سطر ١٢٣.
+    """
+    resp = JSONResponse({"ok": True})
+    clear_session_cookie(resp)
+    return resp
 
 
 # ══════════════════════════════════════════════════════════════════════════════
@@ -760,7 +812,7 @@ class ProjectRequestCreate(BaseModel):
 # ── JWT helpers ───────────────────────────────────────────────────────────────
 
 def create_company_token(company_id: int) -> str:
-    expire = datetime.now(timezone.utc) + timedelta(days=30)
+    expire = datetime.now(timezone.utc) + SESSION_TTL
     return jwt.encode(
         {"sub": f"company:{company_id}", "type": "company", "company_id": company_id, "exp": expire},
         JWT_SECRET,
@@ -769,7 +821,7 @@ def create_company_token(company_id: int) -> str:
 
 
 def create_user_token(user_id: int) -> str:
-    expire = datetime.now(timezone.utc) + timedelta(days=30)
+    expire = datetime.now(timezone.utc) + SESSION_TTL
     return jwt.encode(
         {"sub": f"user:{user_id}", "type": "user", "user_id": user_id, "exp": expire},
         JWT_SECRET,
@@ -958,10 +1010,10 @@ def company_login(payload: CompanyLogin, request: Request):
     with SessionLocal() as db:
         write_audit_log(db, "company", str(user["company_id"]), "login_success", request)
         db.commit()
-    return {
-        "token":      create_company_token(user["company_id"]),
-        "company_id": user["company_id"],
-    }
+    token = create_company_token(user["company_id"])
+    resp = JSONResponse({"token": token, "company_id": user["company_id"]})
+    set_session_cookie(resp, token, SESSION_TTL)
+    return resp
 
 
 # ── STEP 4: Company dashboard endpoints ──────────────────────────────────────
@@ -1595,11 +1647,14 @@ def auth_login(payload: UserLogin, request: Request):
     with SessionLocal() as db:
         write_audit_log(db, "user", str(user_id), "login_success", request)
         db.commit()
-    return {
-        "token":      create_user_token(user_id),
+    token = create_user_token(user_id)
+    resp = JSONResponse({
+        "token":      token,
         "user_id":    user_id,
         "company_id": company_id,
-    }
+    })
+    set_session_cookie(resp, token, SESSION_TTL)
+    return resp
 
 
 @app.post("/company/create")
