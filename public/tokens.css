@@ -46,6 +46,9 @@
   --bn-err-bg:      rgba(163,78,63,.10);
   --bn-err-line:    rgba(163,78,63,.26);
 
+  /* حجاب النوافذ — أغمق في الوضع الليلي ليبقى الفصل محسوساً */
+  --bn-scrim:       rgba(29,26,21,.46);
+
   /* الظلال */
   --bn-sh-1: 0 1px 2px rgba(29,26,21,.04);
   --bn-sh-2: 0 2px 8px rgba(29,26,21,.05), 0 18px 40px -22px rgba(29,26,21,.22);
@@ -113,6 +116,8 @@
     --bn-err-bg:      rgba(217,127,108,.12);
     --bn-err-line:    rgba(217,127,108,.28);
 
+    --bn-scrim:       rgba(0,0,0,.62);
+
     --bn-sh-1: 0 1px 2px rgba(0,0,0,.3);
     --bn-sh-2: 0 2px 8px rgba(0,0,0,.35), 0 18px 40px -22px rgba(0,0,0,.7);
     --bn-sh-3: 0 4px 14px rgba(0,0,0,.4), 0 30px 70px -30px rgba(0,0,0,.85);
@@ -128,6 +133,7 @@
   --bn-ac:#C9A96A; --bn-ac-2:#B08D57; --bn-ac-lite:#DCC48F;
   --bn-ac-bg:rgba(201,169,106,.11); --bn-ac-line:rgba(201,169,106,.26); --bn-ac-on:#15120E;
   --bn-err:#D97F6C; --bn-err-bg:rgba(217,127,108,.12); --bn-err-line:rgba(217,127,108,.28);
+  --bn-scrim:rgba(0,0,0,.62);
   --bn-sh-1:0 1px 2px rgba(0,0,0,.3);
   --bn-sh-2:0 2px 8px rgba(0,0,0,.35), 0 18px 40px -22px rgba(0,0,0,.7);
   --bn-sh-3:0 4px 14px rgba(0,0,0,.4), 0 30px 70px -30px rgba(0,0,0,.85);

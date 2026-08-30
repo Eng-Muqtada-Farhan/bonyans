@@ -4,1325 +4,780 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>بُنيان — منصة المقاولات الذكية في العراق</title>
-<meta name="description" content="بُنيان: أكبر منصة لشركات المقاولات والبناء في العراق. ابحث عن شريكك المثالي، استعرض المشاريع، وقيّم الشركات.">
+<meta name="description" content="بُنيان: دليل شركات المقاولات والبناء في العراق. ابحث، قارن، وتواصل مباشرة.">
 <meta name="keywords" content="مقاولات, بناء, شركات بناء, مشاريع, العراق, بغداد">
 <meta property="og:title" content="بُنيان — منصة المقاولات الذكية">
-<meta property="og:description" content="أكبر دليل لشركات المقاولات في العراق">
+<meta property="og:description" content="دليل شركات المقاولات في العراق">
 <meta property="og:type" content="website">
 <link rel="manifest" href="manifest.json">
-<meta name="theme-color" content="#c8a96e">
+<meta name="theme-color" content="#F4F2ED" media="(prefers-color-scheme: light)">
+<meta name="theme-color" content="#15120E" media="(prefers-color-scheme: dark)">
 <meta name="apple-mobile-web-app-capable" content="yes">
-<meta name="apple-mobile-web-app-status-bar-style" content="default">
 <link rel="apple-touch-icon" href="icons/icon-192.png">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" data-bn-font
+      href="https://fonts.googleapis.com/css2?family=Tajawal:wght@300;400;500;700&display=swap">
 <link rel="stylesheet" href="tokens.css">
-<link rel="stylesheet" href="bunyan.css?v=11c">
 <script>
-  /* Inline theme init to avoid flash */
-  (function(){
-    const t = localStorage.getItem('bn-theme') || 'light';
-    document.documentElement.setAttribute('data-theme', t);
-  })();
+  (function(){ var t=localStorage.getItem('bn-theme')||'light';
+    document.documentElement.setAttribute('data-theme',t); })();
 </script>
 <style>
-/* ── PAGE-SPECIFIC OVERRIDES ── */
-body { min-height:100vh; }
+/* ══════════════════════════════════════════════════════════════
+   الصفحة الرئيسية — مبنية على tokens.css وحده.
+   لا قيمة لونية خام هنا: كل لون من رمز، وإلا انكسر الوضع الليلي.
+   الزجاج للأسطح الثابتة فقط (الشريط والنوافذ)؛ بطاقات القوائم
+   تستعمل .bn-solid — عشرون بطاقة زجاجية تقتل التمرير (§٣).
+   ══════════════════════════════════════════════════════════════ */
+body { margin:0; background:var(--bn-bg); color:var(--bn-ink);
+  font:var(--bn-t-body); font-family:var(--bn-font); -webkit-font-smoothing:antialiased; }
 
-/* ── OLD COMPATIBILITY CLASSES (used by existing JS) ── */
-.company-card   { /* mapped to bn-lc in renderCards() output */ }
-.skeleton { background: var(--surface); border: 1.5px solid var(--border); border-radius: var(--r); height: 84px; position: relative; overflow: hidden; }
-.skeleton::after { content:''; position:absolute; inset:0; background:linear-gradient(90deg,transparent,rgba(255,255,255,0.3),transparent); transform:translateX(-100%); animation:shimmer 1.4s infinite; }
-@keyframes shimmer { to { transform:translateX(300%); } }
-.empty-state { grid-column:1/-1; text-align:center; padding:48px 24px; }
-.empty-icon  { font-size:48px; margin-bottom:12px; opacity:0.5; }
-.empty-text  { font-size:15px; color:var(--text-3); font-weight:600; }
-.empty-sub   { font-size:13px; color:var(--text-3); font-weight:500; margin-top:6px; opacity:0.85; }
-.retry-btn {
-  margin-top:16px; padding:10px 22px; border:none; border-radius:12px; cursor:pointer;
-  font-family:'Cairo',sans-serif; font-size:14px; font-weight:700; color:#fff;
-  background:var(--clay,#1B3A6B); transition:filter 0.18s, transform 0.18s;
-}
-.retry-btn:hover  { filter:brightness(1.12); transform:translateY(-1px); }
-.retry-btn:active { transform:translateY(0); }
-.retry-btn[disabled] { opacity:0.6; cursor:progress; transform:none; }
+.wrap { max-width:1080px; margin-inline:auto; padding-inline:var(--bn-s5); }
+@media(max-width:560px){ .wrap { padding-inline:var(--bn-s4); } }
 
-/* ── THEME TOGGLE ── */
-.bn-theme-btn {
-  width:34px; height:34px; border-radius:10px;
-  background:var(--surface); border:1.5px solid var(--border);
-  display:flex; align-items:center; justify-content:center;
-  font-size:16px; cursor:pointer; transition:all 0.2s;
-  flex-shrink:0;
-}
-.bn-theme-btn:hover { border-color:var(--clay); }
+/* ── البطل ─────────────────────────────────────────────────── */
+.hero { padding-block:var(--bn-s14) var(--bn-s10); text-align:center; position:relative; }
+.hero-tag { display:inline-flex; align-items:center; gap:7px;
+  font:var(--bn-t-cap); color:var(--bn-ac); background:var(--bn-ac-bg);
+  border:1px solid var(--bn-ac-line); border-radius:var(--bn-r-pill);
+  padding:6px 14px; margin-block-end:var(--bn-s5); }
+.hero h1 { font:var(--bn-t-display); margin:0 0 var(--bn-s4);
+  letter-spacing:-.015em; text-wrap:balance; }
+.hero h1 em { font-style:normal; color:var(--bn-ac); }
+.hero-sub { font-size:15px; color:var(--bn-ink-2); max-width:52ch;
+  margin:0 auto var(--bn-s8); line-height:1.8; }
 
-/* ── HERO SEARCH BAR ── */
-.bn-hero-search {
-  display:flex; gap:8px; max-width:540px; margin:0 auto 26px;
-  position:relative;
-}
-.bn-hero-search input {
-  flex:1; padding:14px 22px; border-radius:var(--r-pill);
-  background:rgba(255,255,255,0.80); border:1.5px solid rgba(255,255,255,0.95);
-  color:var(--text-1); font-family:'Cairo',sans-serif; font-size:15px;
-  outline:none; direction:rtl; backdrop-filter:blur(12px);
-  box-shadow:0 2px 16px rgba(27,58,107,0.10);
-  transition:all 0.2s;
-}
-.bn-hero-search input::placeholder { color:var(--text-3); }
-.bn-hero-search input:focus {
-  background:rgba(255,255,255,0.96); border-color:var(--clay);
-  box-shadow:0 4px 24px rgba(27,58,107,0.18);
-}
-[data-theme="dark"] .bn-hero-search input {
-  background:rgba(255,255,255,0.12); border-color:rgba(255,255,255,0.22);
-  color:#fff;
-}
-[data-theme="dark"] .bn-hero-search input::placeholder { color:rgba(255,255,255,0.50); }
-[data-theme="dark"] .bn-hero-search input:focus { background:rgba(255,255,255,0.18); border-color:rgba(255,255,255,0.50); }
-.bn-hero-search-btn {
-  padding:14px 22px; border-radius:var(--r-pill);
-  background:var(--clay); border:none; color:#fff;
-  font-family:'Cairo',sans-serif; font-size:14px; font-weight:800;
-  cursor:pointer; transition:all 0.2s; flex-shrink:0;
-  box-shadow:var(--shadow-clay);
-}
-.bn-hero-search-btn:hover { transform:translateY(-2px); box-shadow:0 8px 24px rgba(27,58,107,0.35); background:var(--clay-deep); }
+.hero-search { display:flex; gap:var(--bn-s2); max-width:540px; margin:0 auto var(--bn-s5); }
+.hero-search .bn-input { flex:1; border-radius:var(--bn-r-pill); padding-inline:var(--bn-s4); }
+.hero-search .bn-btn { border-radius:var(--bn-r-pill); flex:none; }
 
-/* ── RESULT COUNT ── */
-.bn-result-row {
-  display:flex; align-items:center; justify-content:space-between;
-  margin-bottom:12px; margin-top:6px;
-}
-.bn-result-count { font-size:13px; color:var(--text-3); font-weight:600; }
+.hero-actions { display:flex; gap:var(--bn-s3); justify-content:center;
+  flex-wrap:wrap; margin-block-end:var(--bn-s10); }
 
-/* ── SECTION HEADER ── */
-.bn-sh-h { display:flex; align-items:center; justify-content:space-between; margin-bottom:14px; }
-.bn-sh-title2 { font-size:17px; font-weight:900; color:var(--text-1); display:flex; align-items:center; gap:7px; }
-.bn-sh-dot { width:6px; height:6px; border-radius:50%; background:var(--clay); display:inline-block; }
-.bn-sh-link { font-size:13px; color:var(--clay); font-weight:700; text-decoration:none; }
-.bn-sh-link:hover { text-decoration:underline; }
-
-/* ── PROFILE QUICK-VIEW (kept for demo/offline mode) ── */
-.bn-overlay { position:fixed; inset:0; z-index:400; background:rgba(10,22,40,0.55); backdrop-filter:blur(4px); display:none; align-items:flex-end; justify-content:center; }
-.bn-overlay.open { display:flex; }
-.bn-modal { background:rgba(255,255,255,0.72); backdrop-filter:blur(24px); border-radius:24px 24px 0 0; border:1.5px solid rgba(255,255,255,0.82); border-bottom:none; padding:16px 18px 36px; width:100%; max-width:580px; max-height:92vh; overflow-y:auto; animation:slideUp 0.3s ease; }
-[data-theme="dark"] .bn-modal { background:rgba(8,14,28,0.90); border-color:rgba(255,255,255,0.12); }
-@keyframes slideUp { from{transform:translateY(100%)} to{transform:translateY(0)} }
-.bn-modal-handle { width:36px; height:4px; background:var(--border2); border-radius:2px; margin:0 auto 16px; }
-
-/* Profile modal specific */
-.profile-av-wrap { display:flex; align-items:center; gap:14px; margin-bottom:16px; }
-.profile-av { width:64px; height:64px; border-radius:16px; overflow:hidden; background:var(--bg2); border:1.5px solid var(--border); display:flex; align-items:center; justify-content:center; font-size:22px; flex-shrink:0; }
-.profile-av img { width:100%; height:100%; object-fit:cover; }
-.profile-name { font-size:18px; font-weight:900; color:var(--text-1); }
-.profile-spec { font-size:13px; color:var(--text-3); margin-top:2px; }
-.profile-desc { font-size:13px; color:var(--text-2); line-height:1.7; margin-bottom:16px; padding:12px 14px; background:var(--bg2); border-radius:var(--r); border:1px solid var(--border); }
-.profile-stats { display:grid; grid-template-columns:repeat(3,1fr); gap:8px; margin-bottom:16px; }
-.pstat { text-align:center; padding:12px 8px; background:var(--bg2); border-radius:var(--r); border:1.5px solid var(--border); }
-.pstat-n { font-size:18px; font-weight:900; color:var(--clay); }
-.pstat-l { font-size:11px; color:var(--text-3); }
-.profile-contact { display:flex; align-items:center; gap:10px; padding:10px 12px; background:var(--bg2); border:1.5px solid var(--border); border-radius:var(--r); font-size:14px; color:var(--text-1); margin-bottom:8px; }
-.profile-contact-label { font-size:10px; color:var(--text-3); }
-.wa-btn {
-  display:block; width:100%; padding:13px; border:none; border-radius:var(--r-pill);
-  background:linear-gradient(135deg,#1DA855,#25D366); color:#fff;
-  font-family:'Cairo',sans-serif; font-size:15px; font-weight:800;
-  cursor:pointer; margin-top:12px; transition:all 0.2s;
-  box-shadow:0 4px 16px rgba(37,211,102,0.30);
-}
-.wa-btn:hover { transform:translateY(-2px); box-shadow:0 6px 22px rgba(37,211,102,0.40); }
-.profile-full-link {
-  display:block; width:100%; padding:11px; border:1.5px solid var(--clay); border-radius:var(--r-pill);
-  background:transparent; color:var(--clay); font-family:'Cairo',sans-serif;
-  font-size:14px; font-weight:700; cursor:pointer; margin-top:8px;
-  text-align:center; transition:all 0.18s; text-decoration:none;
-}
-.profile-full-link:hover { background:rgba(27,58,107,0.08); }
-
-/* Registration form */
-.bn-fg { margin-bottom:12px; }
-.bn-fg label { display:block; font-size:12px; font-weight:700; color:var(--text-3); margin-bottom:5px; }
-.bn-fg input, .bn-fg select, .bn-fg textarea {
-  width:100%; padding:11px 14px; border:1.5px solid var(--border); border-radius:var(--r);
-  background:var(--bg2); color:var(--text-1); font-family:'Cairo',sans-serif; font-size:14px;
-  outline:none; transition:border-color 0.2s; direction:rtl;
-}
-.bn-fg input:focus, .bn-fg select:focus, .bn-fg textarea:focus { border-color:var(--clay); }
-.bn-fg input.error { border-color:var(--red-light); }
-.bn-fg textarea { resize:vertical; min-height:80px; }
-.bn-frow { display:grid; grid-template-columns:1fr 1fr; gap:10px; }
-@media(max-width:480px){ .bn-frow { grid-template-columns:1fr; } }
-.spec-grid { display:grid; grid-template-columns:repeat(3,1fr); gap:7px; }
-.spec-chip {
-  padding:7px 8px; border-radius:var(--r-sm); border:1.5px solid var(--border);
-  background:var(--bg2); color:var(--text-2); font-size:11px; cursor:pointer;
-  text-align:center; transition:all 0.15s; user-select:none; font-family:'Cairo',sans-serif;
-}
-.spec-chip:hover { border-color:var(--clay); color:var(--clay); }
-.spec-chip.active { border-color:var(--clay); background:rgba(27,58,107,0.1); color:var(--clay); font-weight:700; }
-.img-preview { display:none; margin-top:8px; }
-.img-thumb { width:70px; height:70px; border-radius:var(--r); object-fit:cover; border:1.5px solid var(--border); }
-
-/* Toast */
-.toast {
-  position:fixed; bottom:100px; left:50%; transform:translateX(-50%);
-  background:var(--clay-deep); color:#fff; padding:10px 22px;
-  border-radius:var(--r-pill); font-size:13px; font-weight:700;
-  opacity:0; transition:opacity 0.3s; z-index:500;
-  white-space:nowrap; box-shadow:var(--shadow-clay); pointer-events:none;
-  display:flex; align-items:center; gap:8px;
-}
-.toast.error { background:var(--red); }
-.toast.show  { opacity:1; }
-
-/* Project status badges */
-.status-pub  { background:rgba(46,125,94,0.12); color:var(--green); padding:2px 8px; border-radius:var(--r-pill); font-size:10px; font-weight:700; }
-.status-cont { background:rgba(212,160,23,0.12); color:var(--sand-dark); padding:2px 8px; border-radius:var(--r-pill); font-size:10px; font-weight:700; }
-.status-cls  { background:rgba(122,144,184,0.12); color:var(--text-3); padding:2px 8px; border-radius:var(--r-pill); font-size:10px; font-weight:700; }
-
-/* Add company btn */
-.bn-add-co-btn {
-  display:inline-flex; align-items:center; gap:7px;
-  padding:11px 22px; border-radius:var(--r-pill);
-  background:var(--sand); border:none; color:#fff;
-  font-family:'Cairo',sans-serif; font-size:14px; font-weight:800;
-  cursor:pointer; transition:all 0.2s; box-shadow:var(--shadow-gold);
-}
-.bn-add-co-btn:hover { transform:translateY(-2px); box-shadow:0 8px 28px rgba(212,160,23,0.4); }
-
-/* ══════════════════════════════════════
-   MOBILE RESPONSIVE  ≤ 680px
-   Desktop = Light Glass | Mobile = Dark Navy
-══════════════════════════════════════ */
-@media (max-width: 680px) {
-
-  /* ── 1. NAV: collapse to logo + inline search + ⋮ ── */
-  #bn-nav .bn-nav-links-row { display: none !important; }
-  #bn-nav .bn-hamburger { display: none !important; }
-
-  /* Show mobile search row (injected by bunyan-nav.js) */
-  .bn-mobile-search-row {
-    display: flex !important;
-    flex: 1;
-    margin: 0 10px;
-    gap: 0;
-  }
-  .bn-mobile-search-row input {
-    flex: 1;
-    padding: 9px 14px;
-    border-radius: 20px;
-    border: 1.5px solid rgba(27,58,107,0.15);
-    background: rgba(255,255,255,0.92);
-    font-family: 'Cairo', sans-serif;
-    font-size: 14px;
-    color: #0F2347;
-    outline: none;
-    direction: rtl;
-  }
-  .bn-mobile-search-row input::placeholder { color: #8899AA; }
-
-  /* Three-dots button */
-  .bn-mobile-dots {
-    display: flex !important;
-    align-items: center; justify-content: center;
-    width: 36px; height: 36px;
-    background: rgba(255,255,255,0.80);
-    border: 1.5px solid rgba(27,58,107,0.12);
-    border-radius: 50%;
-    font-size: 18px;
-    font-weight: 900;
-    cursor: pointer;
-    color: #1B3A6B;
-    flex-shrink: 0;
-    letter-spacing: -1px;
-  }
-
-  /* Account btn in nav: make smaller */
-  #bn-acct-btn span:last-of-type { display: none; }
-  #bn-acct-btn > span:nth-child(1) { font-size: 20px; }
-
-  /* ── 2. HERO: Dark Navy + Checkerboard ── */
-  .bn-hero {
-    background: #0D1B3E !important;
-    background-image:
-      linear-gradient(160deg, #0B1632 0%, #0D1F48 50%, #0F2256 100%) !important;
-    position: relative;
-  }
-  .bn-hero::before {
-    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='40' height='40'%3E%3Crect width='20' height='20' fill='rgba(255,255,255,0.035)'/%3E%3Crect x='20' y='20' width='20' height='20' fill='rgba(255,255,255,0.035)'/%3E%3C/svg%3E") !important;
-    background-size: 40px 40px !important;
-    opacity: 1 !important;
-  }
-  .bn-hero::after {
-    background: #F0F5FF !important;
-  }
-
-  /* Hero tag: glass pill */
-  .bn-hero-tag {
-    background: rgba(255,255,255,0.12) !important;
-    border-color: rgba(255,255,255,0.20) !important;
-    color: rgba(255,255,255,0.85) !important;
-  }
-
-  /* Hero title: white + gold mobile text */
-  .bn-hero h1 {
-    color: #fff !important;
-    text-shadow: 0 2px 16px rgba(0,0,0,0.30) !important;
-    font-size: 28px !important;
-  }
-  .bn-hero h1 em {
-    color: #D4A017 !important;
-    font-style: normal;
-  }
-
-  /* Mobile title override via CSS */
-  .bn-hero h1 .hero-title-desktop { display: none; }
-  .bn-hero h1 .hero-title-mobile  { display: inline; }
-
-  .bn-hero p {
-    color: rgba(255,255,255,0.75) !important;
-  }
-
-  /* Hero search: hide (moved to nav) */
-  .bn-hero-search { display: none !important; }
-
-  /* Hero actions: hide theme button, keep buttons */
-  .bn-theme-btn { display: none !important; }
-  .btn-primary, .btn-secondary {
-    background: rgba(255,255,255,0.14) !important;
-    border: 1.5px solid rgba(255,255,255,0.25) !important;
-    color: #fff !important;
-    font-size: 13px !important;
-    padding: 9px 16px !important;
-  }
-  .btn-primary {
-    background: #1B3A6B !important;
-    border-color: rgba(255,255,255,0.30) !important;
-  }
-
-  /* Hero stats: 3 translucent white cards */
-  .bn-hero-stats {
-    gap: 10px !important;
-  }
-  .bn-hstat {
-    background: rgba(255,255,255,0.13) !important;
-    border: 1px solid rgba(255,255,255,0.22) !important;
-    border-radius: 16px !important;
-    padding: 14px 10px !important;
-    backdrop-filter: blur(8px) !important;
-  }
-  .bn-hstat:last-child { display: none !important; } /* hide 4th stat */
-  .bn-hstat-n {
-    color: #fff !important;
-    font-size: 22px !important;
-    font-weight: 900 !important;
-  }
-  .bn-hstat-l {
-    color: rgba(255,255,255,0.65) !important;
-    font-size: 11px !important;
-  }
-
-  /* ── 3. FILTER PILLS: horizontal scroll ── */
-  .bn-filter-wrap {
-    overflow-x: auto !important;
-    -webkit-overflow-scrolling: touch;
-    scrollbar-width: none;
-    padding: 10px 12px !important;
-  }
-  .bn-filter-wrap::-webkit-scrollbar { display: none; }
-  .bn-filter-inner {
-    flex-wrap: nowrap !important;
-    gap: 8px !important;
-    width: max-content;
-  }
-  .bn-fpill {
-    white-space: nowrap;
-    font-size: 13px !important;
-    padding: 7px 14px !important;
-  }
-
-  /* ── 4. GENERAL LAYOUT ── */
-  .bn-hero { padding: 32px 16px 72px !important; }
-  /* اضبط --page-px نفسه لا الحشو مباشرةً: الشريط الأفقي
-     (.bn-hscroll) يسحب بهامش سالب مقداره --page-px، فتثبيت
-     الحشو على رقم مخالف كان يجعله أعرض من الشاشة بـ٦ بكسل
-     ويخلق تمريراً أفقياً يمنعه DESIGN.md §٦. */
-  .bn-main { --page-px: 12px; padding: 0 var(--page-px) 100px !important; }
-
+.stats { display:grid; grid-template-columns:repeat(4,1fr); gap:var(--bn-s3);
+  max-width:640px; margin-inline:auto; }
+.stat { padding:var(--bn-s4) var(--bn-s2); border-radius:var(--bn-r-lg); text-align:center; }
+.stat-n { font:700 26px/1.1 var(--bn-font); color:var(--bn-ac);
+  font-family:var(--bn-mono); font-variant-numeric:tabular-nums; }
+.stat-l { font:var(--bn-t-cap); color:var(--bn-ink-3); margin-block-start:5px; }
+@media(max-width:560px){
+  .stats { grid-template-columns:repeat(2,1fr); }
+  .hero { padding-block:var(--bn-s10) var(--bn-s8); }
 }
 
-/* Elements hidden on desktop, shown on mobile */
-.bn-mobile-search-row { display: none; }
-.bn-mobile-dots { display: none; }
-.hero-title-mobile { display: none; }
+/* ── شريط الفلاتر ──────────────────────────────────────────── */
+.filters { position:sticky; inset-block-start:60px; z-index:200;
+  background:var(--bn-bg); border-block:1px solid var(--bn-line-soft);
+  padding-block:var(--bn-s3); margin-block-end:var(--bn-s8); }
+.filters-row { display:flex; gap:var(--bn-s2); overflow-x:auto;
+  scrollbar-width:none; -webkit-overflow-scrolling:touch; }
+.filters-row::-webkit-scrollbar { display:none; }
+.pill { flex:none; display:inline-flex; align-items:center; gap:6px;
+  min-height:38px; padding-inline:var(--bn-s4); border-radius:var(--bn-r-pill);
+  border:1px solid var(--bn-line); background:transparent; cursor:pointer;
+  color:var(--bn-ink-2); font:400 13px/1 var(--bn-font); white-space:nowrap;
+  transition:border-color var(--bn-fast), color var(--bn-fast), background var(--bn-fast); }
+.pill:hover { border-color:var(--bn-ac-line); color:var(--bn-ac); }
+.pill.is-on { background:var(--bn-ac); color:var(--bn-ac-on); border-color:transparent; }
+.pill-city { flex:none; min-height:38px; padding-inline:var(--bn-s3);
+  border:1px solid var(--bn-line); border-radius:var(--bn-r-pill);
+  background:transparent; color:var(--bn-ink-2);
+  font:400 13px/1 var(--bn-font); cursor:pointer; }
+
+/* ── العناوين ──────────────────────────────────────────────── */
+.sec { margin-block-end:var(--bn-s10); }
+.sec-head { display:flex; align-items:baseline; justify-content:space-between;
+  gap:var(--bn-s4); margin-block-end:var(--bn-s5); }
+.sec-t { font:var(--bn-t-h2); margin:0; display:flex; align-items:center; gap:9px; }
+.sec-t::before { content:""; width:5px; height:5px; border-radius:50%;
+  background:var(--bn-ac); flex:none; }
+.sec-link { font:var(--bn-t-sm); color:var(--bn-ac); text-decoration:none; white-space:nowrap; }
+.sec-link:hover { text-decoration:underline; }
+
+/* ── لافتة الدعوة ──────────────────────────────────────────── */
+.cta-band { display:flex; align-items:center; justify-content:space-between;
+  gap:var(--bn-s5); flex-wrap:wrap; padding:var(--bn-s6);
+  border-radius:var(--bn-r-xl); border:1px solid var(--bn-ac-line);
+  background:var(--bn-ac-bg); margin-block-end:var(--bn-s10); }
+.cta-band h3 { font:var(--bn-t-h3); margin:0 0 5px; }
+.cta-band p { font:var(--bn-t-sm); color:var(--bn-ink-2); margin:0; max-width:46ch; }
+
+/* ── بطاقة شركة ────────────────────────────────────────────── */
+.grid { display:grid; grid-template-columns:repeat(auto-fill,minmax(268px,1fr));
+  gap:var(--bn-s3); }
+.card { display:flex; gap:var(--bn-s3); padding:var(--bn-s4);
+  border-radius:var(--bn-r-lg); text-decoration:none; color:inherit;
+  transition:transform var(--bn-mid), box-shadow var(--bn-mid), border-color var(--bn-mid); }
+.card:hover { transform:translateY(-2px); box-shadow:var(--bn-sh-2);
+  border-color:var(--bn-ac-line); }
+.card-av { width:48px; height:48px; border-radius:var(--bn-r); flex:none;
+  display:grid; place-items:center; overflow:hidden;
+  background:var(--bn-ac-bg); color:var(--bn-ac);
+  font:500 15px/1 var(--bn-font); border:1px solid var(--bn-ac-line); }
+.card-av img { width:100%; height:100%; object-fit:cover; }
+.card-body { min-width:0; flex:1; }
+.card-name { font:500 14.5px/1.4 var(--bn-font); display:flex;
+  align-items:center; gap:6px; margin-block-end:3px; }
+.card-name span { overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+.card-meta { font:var(--bn-t-cap); color:var(--bn-ink-3);
+  display:flex; align-items:center; gap:10px; flex-wrap:wrap; margin-block-end:8px; }
+.card-meta i { display:inline-flex; align-items:center; gap:4px; font-style:normal; }
+.card-foot { display:flex; align-items:center; justify-content:space-between; gap:var(--bn-s2); }
+.rating { display:inline-flex; align-items:center; gap:4px;
+  font:500 12.5px/1 var(--bn-font); color:var(--bn-ac);
+  font-family:var(--bn-mono); font-variant-numeric:tabular-nums; }
+
+/* ── شريط الشركات المميزة ──────────────────────────────────── */
+.rail { display:flex; gap:var(--bn-s3); overflow-x:auto; scrollbar-width:none;
+  -webkit-overflow-scrolling:touch; padding-block-end:var(--bn-s2); }
+.rail::-webkit-scrollbar { display:none; }
+.rail .fcard { flex:0 0 232px; padding:var(--bn-s5) var(--bn-s4); text-align:center;
+  border-radius:var(--bn-r-lg); text-decoration:none; color:inherit;
+  transition:transform var(--bn-mid), box-shadow var(--bn-mid); }
+.rail .fcard:hover { transform:translateY(-2px); box-shadow:var(--bn-sh-2); }
+.fcard-av { width:54px; height:54px; border-radius:var(--bn-r); margin-inline:auto;
+  margin-block-end:var(--bn-s3); display:grid; place-items:center; overflow:hidden;
+  background:var(--bn-ac); color:var(--bn-ac-on); font:500 17px/1 var(--bn-font); }
+.fcard-av img { width:100%; height:100%; object-fit:cover; }
+.fcard-n { font:500 14px/1.4 var(--bn-font); margin-block-end:3px; }
+.fcard-s { font:var(--bn-t-cap); color:var(--bn-ink-3); }
+
+/* ── مشروع ─────────────────────────────────────────────────── */
+.pcard { display:block; padding:var(--bn-s4); border-radius:var(--bn-r-lg);
+  text-decoration:none; color:inherit; transition:border-color var(--bn-mid), box-shadow var(--bn-mid); }
+.pcard:hover { border-color:var(--bn-ac-line); box-shadow:var(--bn-sh-1); }
+.pcard-t { font:500 14px/1.45 var(--bn-font); margin-block-end:7px; }
+.pcard-m { font:var(--bn-t-cap); color:var(--bn-ink-3); display:flex; gap:10px;
+  flex-wrap:wrap; margin-block-end:9px; }
+.pcard-b { font:500 14px/1 var(--bn-font); color:var(--bn-ac);
+  font-family:var(--bn-mono); font-variant-numeric:tabular-nums; }
+
+/* ── الباقات ───────────────────────────────────────────────── */
+.plans { display:grid; grid-template-columns:repeat(auto-fit,minmax(200px,1fr)); gap:var(--bn-s3); }
+.plan { padding:var(--bn-s5); border-radius:var(--bn-r-lg); text-align:center; }
+.plan.is-best { border-color:var(--bn-ac-line); background:var(--bn-ac-bg); }
+.plan-n { font:500 13px/1 var(--bn-font); color:var(--bn-ink-2);
+  letter-spacing:.06em; margin-block-end:var(--bn-s3); }
+.plan-p { font:700 30px/1 var(--bn-font); color:var(--bn-ac);
+  font-family:var(--bn-mono); font-variant-numeric:tabular-nums; }
+.plan-u { font:var(--bn-t-cap); color:var(--bn-ink-3); margin-block-start:6px; }
+
+/* ── الحالات ───────────────────────────────────────────────── */
+.state { grid-column:1/-1; text-align:center; padding:var(--bn-s14) var(--bn-s5); }
+.state svg { width:38px; height:38px; stroke:var(--bn-ink-3); fill:none;
+  stroke-width:1.3; margin-block-end:var(--bn-s3); }
+.state-t { font:500 15px/1.5 var(--bn-font); color:var(--bn-ink-2); }
+.state-d { font:var(--bn-t-sm); color:var(--bn-ink-3); margin-block-start:6px;
+  max-width:40ch; margin-inline:auto; }
+.state .bn-btn { margin-block-start:var(--bn-s4); }
+.skel { height:82px; border-radius:var(--bn-r-lg); background:var(--bn-glass-tint);
+  border:1px solid var(--bn-line-soft); position:relative; overflow:hidden; }
+.skel::after { content:""; position:absolute; inset:0; transform:translateX(-100%);
+  background:linear-gradient(90deg,transparent,var(--bn-glass),transparent);
+  animation:sweep 1.4s infinite; }
+@keyframes sweep { to { transform:translateX(300%); } }
+
+/* ── التذييل ───────────────────────────────────────────────── */
+.foot { border-block-start:1px solid var(--bn-line-soft);
+  padding-block:var(--bn-s8) var(--bn-s14); margin-block-start:var(--bn-s14); }
+.foot-grid { display:grid; grid-template-columns:1.6fr 1fr 1fr; gap:var(--bn-s8); }
+@media(max-width:700px){ .foot-grid { grid-template-columns:1fr 1fr; gap:var(--bn-s6); } }
+.foot-logo { font:700 19px/1 var(--bn-font); margin-block-end:var(--bn-s3); }
+.foot-logo b { color:var(--bn-ac); }
+.foot p { font:var(--bn-t-sm); color:var(--bn-ink-3); margin:0; max-width:34ch; }
+.foot h4 { font:var(--bn-t-cap); color:var(--bn-ink-3); letter-spacing:.05em;
+  margin:0 0 var(--bn-s3); }
+.foot a { display:block; font:var(--bn-t-sm); color:var(--bn-ink-2);
+  text-decoration:none; min-height:32px; }
+.foot a:hover { color:var(--bn-ac); }
+.foot-base { margin-block-start:var(--bn-s8); padding-block-start:var(--bn-s4);
+  border-block-start:1px solid var(--bn-line-soft);
+  font:var(--bn-t-cap); color:var(--bn-ink-3); text-align:center; }
+
+/* ── النوافذ ───────────────────────────────────────────────── */
+.ov { position:fixed; inset:0; z-index:400; display:none;
+  align-items:flex-end; justify-content:center;
+  background:var(--bn-scrim); padding-block-start:var(--bn-s10); }
+.ov.is-open { display:flex; }
+.sheet { width:100%; max-width:560px; max-height:92vh; overflow-y:auto;
+  border-radius:var(--bn-r-xl) var(--bn-r-xl) 0 0;
+  padding:var(--bn-s4) var(--bn-s6) var(--bn-s10); animation:rise .3s var(--bn-ease); }
+@keyframes rise { from { transform:translateY(100%); } }
+.sheet-h { width:38px; height:4px; border-radius:2px; background:var(--bn-line);
+  margin:0 auto var(--bn-s5); }
+.sheet h2 { font:var(--bn-t-h3); margin:0 0 var(--bn-s5); }
+.f-row { display:grid; grid-template-columns:1fr 1fr; gap:var(--bn-s3); }
+@media(max-width:520px){ .f-row { grid-template-columns:1fr; } }
+.chips { display:flex; flex-wrap:wrap; gap:7px; }
+.chip { min-height:36px; padding-inline:var(--bn-s3); border-radius:var(--bn-r-pill);
+  border:1px solid var(--bn-line); background:transparent; cursor:pointer;
+  color:var(--bn-ink-2); font:400 12.5px/1 var(--bn-font); }
+.chip.is-on { background:var(--bn-ac); color:var(--bn-ac-on); border-color:transparent; }
+
+/* ── التنبيه ───────────────────────────────────────────────── */
+.toast { position:fixed; inset-block-end:var(--bn-s6); inset-inline:0;
+  margin-inline:auto; width:max-content; max-width:88vw; z-index:500;
+  padding:12px var(--bn-s5); border-radius:var(--bn-r-pill);
+  background:var(--bn-ink); color:var(--bn-bg); font:var(--bn-t-sm);
+  box-shadow:var(--bn-sh-3); opacity:0; transform:translateY(12px);
+  pointer-events:none; transition:opacity var(--bn-mid), transform var(--bn-mid); }
+.toast.is-on { opacity:1; transform:none; }
+.toast.is-err { background:var(--bn-err); }
+@media(max-width:820px){ .toast { inset-block-end:80px; } }
 </style>
 </head>
-<body>
-<!-- ══════════════════════════════════════
-     BACKGROUND
-══════════════════════════════════════ -->
-<div class="bn-orbs" aria-hidden="true">
-  <div class="bn-orb bn-orb-1"></div>
-  <div class="bn-orb bn-orb-2"></div>
-  <div class="bn-orb bn-orb-3"></div>
-</div>
+<body class="bn-body">
 
-<!-- ══════════════════════════════════════
-     TOP NAV (injected by bunyan-nav.js)
-══════════════════════════════════════ -->
-<div id="bn-nav-mount"></div>
+<div class="bn-backdrop" aria-hidden="true"></div>
+<div id="bn-nav"></div>
 
-<!-- ══════════════════════════════════════
-     HERO
-══════════════════════════════════════ -->
-<section class="bn-hero">
-  <div class="bn-hero-tag">🇮🇶 منصة المقاولات الأولى في العراق</div>
-  <h1>
-    <span class="hero-title-desktop">ابنِ مستقبلك مع<br><em>أفضل شركات البناء</em></span>
-    <span class="hero-title-mobile">ابنِ ثقةً مع<br><em>الشركات الموثوقة</em></span>
-  </h1>
-  <p>دليل شامل لشركات المقاولات والتشييد في العراق — ابحث، قارن، وتواصل مباشرة</p>
+<!-- ══ البطل ══ -->
+<header class="hero wrap">
+  <span class="hero-tag" id="heroTag"></span>
+  <h1>ابنِ ثقةً مع <em>الشركات الموثوقة</em></h1>
+  <p class="hero-sub">دليل شركات المقاولات والتشييد في العراق — ابحث، قارن، وتواصل مباشرة.</p>
 
-  <!-- Hero Search -->
-  <div class="bn-hero-search">
-    <input type="text" id="searchInput" placeholder="ابحث عن شركة أو تخصص أو مدينة..."
-           oninput="filterCompanies()" onkeydown="if(event.key==='Enter')filterCompanies()">
-    <button class="bn-hero-search-btn" onclick="filterCompanies()">🔍 بحث</button>
+  <form class="hero-search" onsubmit="event.preventDefault();syncSearch(this.q.value)">
+    <label class="bn-input">
+      <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="11" cy="11" r="7"/><path d="M20 20l-3.5-3.5"/></svg>
+      <input name="q" type="search" placeholder="ابحث عن شركة أو تخصص أو مدينة" aria-label="بحث">
+    </label>
+    <button class="bn-btn" type="submit">بحث</button>
+  </form>
+
+  <div class="hero-actions">
+    <button class="bn-btn" type="button" onclick="openRegModal()" id="regCta"></button>
+    <a class="bn-btn bn-btn-ghost" href="projects.html" id="projCta"></a>
   </div>
 
-  <!-- Hero Actions -->
-  <div class="bn-hero-actions">
-    <button class="btn-primary" onclick="openRegModal()">🏢 سجّل شركتك</button>
-    <a href="projects.html" class="btn-secondary">🎯 اطلب مشروع الآن</a>
-    <button class="bn-theme-btn" onclick="toggleTheme()" title="تبديل المظهر" id="themeBtn">🌙</button>
+  <div class="stats">
+    <div class="stat bn-solid"><div class="stat-n" id="statCompanies">—</div><div class="stat-l">شركة مسجّلة</div></div>
+    <div class="stat bn-solid"><div class="stat-n" id="statProjects">—</div><div class="stat-l">مشروع نشط</div></div>
+    <div class="stat bn-solid"><div class="stat-n" id="statRating">—</div><div class="stat-l">متوسط التقييم</div></div>
+    <div class="stat bn-solid"><div class="stat-n" id="statReviews">—</div><div class="stat-l">تقييم موثّق</div></div>
   </div>
+</header>
 
-  <!-- Hero Stats -->
-  <div class="bn-hero-stats">
-    <div class="bn-hstat">
-      <div class="bn-hstat-n" id="countStat">—</div>
-      <div class="bn-hstat-l">شركة مسجلة</div>
-    </div>
-    <div class="bn-hstat">
-      <div class="bn-hstat-n" id="projectsStat">—</div>
-      <div class="bn-hstat-l">مشروع نشط</div>
-    </div>
-    <div class="bn-hstat">
-      <div class="bn-hstat-n" id="avgRatingStat">—</div>
-      <div class="bn-hstat-l">متوسط التقييم</div>
-    </div>
-    <div class="bn-hstat">
-      <div class="bn-hstat-n" id="reviewsStat">—</div>
-      <div class="bn-hstat-l">تقييم موثّق</div>
-    </div>
-  </div>
-</section>
-
-<!-- ══════════════════════════════════════
-     FILTER PILLS
-══════════════════════════════════════ -->
-<div class="bn-filter-wrap" id="filterWrap">
-  <div class="bn-filter-inner" id="filterPillsInner" data-pills-scroll>
-    <button class="bn-fpill active" onclick="setFilter('all',this)">🏗 الكل</button>
-    <!-- تُحمَّل باقي التصنيفات ديناميكياً من /categories -->
-    <select id="filterCity" class="bn-fpill" style="appearance:auto;cursor:pointer;background:var(--surface);border:1.5px solid var(--border);padding:7px 12px;font-family:'Cairo',sans-serif;"
-            onchange="filterCompanies()">
-      <option value="">📍 كل المدن</option>
-      <option>بغداد</option><option>البصرة</option><option>الموصل</option>
-      <option>أربيل</option><option>النجف</option><option>كربلاء</option>
-      <option>السليمانية</option><option>كركوك</option>
+<!-- ══ الفلاتر ══ -->
+<div class="filters">
+  <div class="wrap filters-row" id="filterRow">
+    <button class="pill is-on" type="button" onclick="setFilter('all',this)">الكل</button>
+    <select class="pill-city" id="filterCity" onchange="applyFilters()" aria-label="المدينة">
+      <option value="">كل المدن</option>
+      <option>بغداد</option><option>البصرة</option><option>أربيل</option>
+      <option>الموصل</option><option>النجف</option><option>كربلاء</option>
     </select>
   </div>
 </div>
 
-<!-- ══════════════════════════════════════
-     MAIN CONTENT
-══════════════════════════════════════ -->
-<main class="bn-main" id="mainContent">
+<main class="wrap">
 
-  <!-- REQUEST BANNER -->
-  <div class="bn-req">
-    <div class="bn-req-text">
-      <h3>🎯 هل لديك مشروع بناء؟</h3>
-      <p>اطرح مشروعك مجاناً واستقبل عروض من أفضل الشركات في 24 ساعة</p>
+  <!-- دعوة -->
+  <section class="cta-band">
+    <div>
+      <h3>لديك مشروع بناء؟</h3>
+      <p>اطرح مشروعك مجاناً واستقبل عروضاً من الشركات المسجّلة.</p>
     </div>
-    <button class="bn-req-btn" onclick="window.location.href='projects.html'">
-      اطلب عروض الآن ←
-    </button>
-  </div>
+    <a class="bn-btn" href="projects.html">اطرح مشروعك</a>
+  </section>
 
-  <!-- FEATURED COMPANIES -->
-  <div class="bn-sh-h">
-    <div class="bn-sh-title2"><span class="bn-sh-dot"></span>شركات مميزة</div>
-    <a href="#companies-grid" class="bn-sh-link">عرض الكل ↓</a>
-  </div>
-  <div class="bn-hscroll" id="featuredScroll">
-    <!-- populated by renderFeatured() -->
-    <div class="bn-skeleton" style="flex:0 0 270px;height:200px;border-radius:20px;"></div>
-    <div class="bn-skeleton" style="flex:0 0 270px;height:200px;border-radius:20px;"></div>
-    <div class="bn-skeleton" style="flex:0 0 270px;height:200px;border-radius:20px;"></div>
-  </div>
+  <!-- مميزة -->
+  <section class="sec">
+    <div class="sec-head">
+      <h2 class="sec-t">شركات مميزة</h2>
+      <a class="sec-link" href="companies.html">عرض الكل</a>
+    </div>
+    <div class="rail" id="featured"></div>
+  </section>
 
-  <!-- ALL COMPANIES -->
-  <div id="companies-grid">
-    <div class="bn-sh-h" style="margin-top:28px">
-      <div class="bn-sh-title2"><span class="bn-sh-dot"></span>جميع الشركات</div>
-      <div class="bn-result-count" id="resultCount">جارٍ التحميل...</div>
+  <!-- كل الشركات -->
+  <section class="sec">
+    <div class="sec-head">
+      <h2 class="sec-t">جميع الشركات</h2>
+      <span class="sec-link" id="resultCount" style="color:var(--bn-ink-3)"></span>
     </div>
+    <div class="grid" id="companiesGrid">
+      <div class="skel"></div><div class="skel"></div><div class="skel"></div>
+      <div class="skel"></div><div class="skel"></div><div class="skel"></div>
+    </div>
+  </section>
 
-    <!-- Search row (secondary, below hero search) -->
-    <div class="bn-search-bar" style="margin-bottom:14px">
-      <div class="bn-search-wrap">
-        <span class="bn-si" style="position:absolute;right:12px;top:50%;transform:translateY(-50%);color:var(--text-3)">🔍</span>
-        <input class="bn-search-input" id="searchInput2" placeholder="بحث دقيق..."
-               oninput="syncSearch(this.value)" style="padding-right:36px">
-      </div>
-      <button class="bn-add-co-btn" onclick="openRegModal()">+ سجّل شركتك</button>
+  <!-- مشاريع -->
+  <section class="sec">
+    <div class="sec-head">
+      <h2 class="sec-t">أحدث المشاريع</h2>
+      <a class="sec-link" href="projects.html">كل المشاريع</a>
     </div>
+    <div class="grid" id="projectsMini"></div>
+  </section>
 
-    <div class="bn-grid" id="companiesGrid">
-      <div class="skeleton"></div>
-      <div class="skeleton"></div>
-      <div class="skeleton"></div>
-      <div class="skeleton"></div>
-      <div class="skeleton"></div>
-      <div class="skeleton"></div>
-    </div>
-  </div>
-
-  <!-- LATEST PROJECTS -->
-  <div id="projects-section" style="margin-top:36px">
-    <div class="bn-sh-h">
-      <div class="bn-sh-title2"><span class="bn-sh-dot"></span>أحدث المشاريع</div>
-      <a href="projects.html" class="bn-sh-link">كل المشاريع ←</a>
-    </div>
-    <div class="bn-proj-grid" id="projectsMini">
-      <div class="bn-skeleton" style="height:130px;border-radius:14px;"></div>
-      <div class="bn-skeleton" style="height:130px;border-radius:14px;"></div>
-      <div class="bn-skeleton" style="height:130px;border-radius:14px;"></div>
-    </div>
-  </div>
-
-  <!-- SUBSCRIPTION PLANS -->
-  <div id="plans-section" style="margin-top:40px">
-    <div class="bn-sh-h">
-      <div class="bn-sh-title2"><span class="bn-sh-dot"></span>باقات الاشتراك</div>
-    </div>
-    <p style="font-size:13px;color:var(--text-3);margin-bottom:16px">
-      عزّز حضور شركتك واحصل على عملاء أكثر مع باقاتنا المميزة
-    </p>
-    <div class="bn-plans-grid" id="plansGrid">
-      <div class="bn-skeleton" style="height:260px;border-radius:20px;"></div>
-      <div class="bn-skeleton" style="height:260px;border-radius:20px;"></div>
-      <div class="bn-skeleton" style="height:260px;border-radius:20px;"></div>
-    </div>
-  </div>
+  <!-- باقات -->
+  <section class="sec">
+    <div class="sec-head"><h2 class="sec-t">باقات الاشتراك</h2></div>
+    <div class="plans" id="plansGrid"></div>
+  </section>
 
 </main>
 
-<!-- FOOTER MOUNT -->
-<div id="bn-footer-mount"></div>
-
-<!-- ══════════════════════════════════════
-     REGISTRATION MODAL
-══════════════════════════════════════ -->
-<div class="bn-overlay" id="regOverlay" onclick="handleOverlayClick(event,'regOverlay')">
-  <div class="bn-modal">
-    <div class="bn-modal-handle"></div>
-    <h3 style="font-size:18px;font-weight:800;margin-bottom:16px;color:var(--text-1)">
-      🏢 تسجيل شركة جديدة
-    </h3>
-
-    <div class="bn-fg">
-      <label>اسم الشركة *</label>
-      <input id="f-name" placeholder="مثال: شركة النخيل للمقاولات">
-    </div>
-
-    <div class="bn-frow">
-      <div class="bn-fg">
-        <label>المدينة *</label>
-        <select id="f-city">
-          <option value="">اختر المدينة</option>
-          <option>بغداد</option><option>البصرة</option><option>الموصل</option>
-          <option>أربيل</option><option>النجف</option><option>كربلاء</option>
-          <option>السليمانية</option><option>كركوك</option>
-        </select>
-      </div>
-      <div class="bn-fg">
-        <label>سنة التأسيس</label>
-        <input id="f-year" type="number" placeholder="2010" min="1950" max="2025">
-      </div>
-    </div>
-
-    <div class="bn-frow">
-      <div class="bn-fg">
-        <label>رقم الهاتف *</label>
-        <input id="f-phone" type="tel" placeholder="+964 7XX XXX XXXX" dir="ltr">
-      </div>
-      <div class="bn-fg">
-        <label>البريد الإلكتروني *</label>
-        <input id="f-email" type="email" placeholder="info@company.iq" dir="ltr">
-      </div>
-    </div>
-
-    <div class="bn-frow">
-      <div class="bn-fg">
-        <label>كلمة المرور * (8+ أحرف)</label>
-        <input id="f-password" type="password" placeholder="••••••••">
-      </div>
-      <div class="bn-fg">
-        <label>تأكيد كلمة المرور *</label>
-        <input id="f-password2" type="password" placeholder="••••••••">
-      </div>
-    </div>
-
-    <div class="bn-fg">
-      <label>التخصصات</label>
-      <div class="spec-grid" id="specChipsGrid">
-        <!-- تُحمَّل ديناميكياً من /categories -->
-      </div>
-    </div>
-
-    <div class="bn-fg">
-      <label>حجم الشركة</label>
-      <select id="f-size">
-        <option value="">اختر</option>
-        <option>صغيرة</option><option>متوسطة</option><option>كبيرة</option>
-      </select>
-    </div>
-
-    <div class="bn-fg">
-      <label>نبذة عن الشركة</label>
-      <textarea id="f-desc" placeholder="اكتب نبذة مختصرة عن خبرات ومشاريع شركتك..."></textarea>
-    </div>
-
-    <div class="bn-fg">
-      <label>شعار الشركة (اختياري)</label>
-      <input id="f-image" type="file" accept="image/*" style="padding:8px">
-      <div class="img-preview" id="f-image-preview">
-        <img class="img-thumb" id="f-image-thumb" src="" alt="معاينة">
-      </div>
-    </div>
-
-    <button class="bn-btn-clay" id="submitBtn" onclick="submitCompany()">
-      <span id="submitText">تسجيل الشركة ←</span>
-    </button>
-    <button class="bn-btn-cancel" onclick="closeRegModal()">إلغاء</button>
-  </div>
-</div>
-
-<!-- ══════════════════════════════════════
-     PROFILE QUICK-VIEW MODAL
-     (used in demo mode / offline fallback)
-══════════════════════════════════════ -->
-<div class="bn-overlay" id="profileOverlay" onclick="handleOverlayClick(event,'profileOverlay')">
-  <div class="bn-modal">
-    <div class="bn-modal-handle"></div>
-    <div class="profile-av-wrap">
-      <div class="profile-av" id="profileLogoWrap">
-        <img id="profileLogo" src="" alt="">
+<!-- ══ التذييل ══ -->
+<footer class="foot">
+  <div class="wrap">
+    <div class="foot-grid">
+      <div>
+        <div class="foot-logo">بُ<b>نيان</b></div>
+        <p>منصة المقاولات الذكية في العراق — نربط أصحاب المشاريع بشركات البناء الموثوقة.</p>
       </div>
       <div>
-        <div class="profile-name" id="profileName">—</div>
-        <div class="profile-spec" id="profileSpec">—</div>
+        <h4>الخدمات</h4>
+        <a href="companies.html">دليل الشركات</a>
+        <a href="projects.html">سوق المشاريع</a>
+      </div>
+      <div>
+        <h4>الحساب</h4>
+        <a href="login.html">تسجيل الدخول</a>
+        <a href="#" onclick="openRegModal();return false">سجّل شركتك</a>
       </div>
     </div>
-    <div class="profile-desc" id="profileDesc">—</div>
-    <div class="profile-stats">
-      <div class="pstat"><div class="pstat-n" id="profileProjects">0</div><div class="pstat-l">مشروع</div></div>
-      <div class="pstat"><div class="pstat-n" id="profileRating">0</div><div class="pstat-l">التقييم</div></div>
-      <div class="pstat"><div class="pstat-n" id="profileYear">—</div><div class="pstat-l">تأسيس</div></div>
+    <div class="foot-base">بُنيان — صُنع في العراق</div>
+  </div>
+</footer>
+
+<!-- ══ نافذة تسجيل الشركة ══ -->
+<div class="ov" id="regOverlay" onclick="ovClick(event,'regOverlay')">
+  <div class="sheet bn-glass">
+    <div class="sheet-h"></div>
+    <h2>سجّل شركتك</h2>
+
+    <div class="f-row">
+      <div class="bn-field">
+        <label for="f-name">اسم الشركة</label>
+        <div class="bn-input"><input id="f-name" required></div>
+      </div>
+      <div class="bn-field">
+        <label for="f-city">المدينة</label>
+        <div class="bn-input">
+          <select id="f-city" required>
+            <option value="">اختر</option>
+            <option>بغداد</option><option>البصرة</option><option>أربيل</option>
+            <option>الموصل</option><option>النجف</option><option>كربلاء</option>
+          </select>
+        </div>
+      </div>
     </div>
-    <div class="profile-contact">
-      <span>📞</span>
-      <div><div class="profile-contact-label">الهاتف</div><div id="profilePhone">—</div></div>
+
+    <div class="f-row">
+      <div class="bn-field">
+        <label for="f-phone">الهاتف</label>
+        <div class="bn-input"><input id="f-phone" dir="ltr" inputmode="tel" required></div>
+      </div>
+      <div class="bn-field">
+        <label for="f-email">البريد الإلكتروني</label>
+        <div class="bn-input"><input id="f-email" type="email" dir="ltr" required></div>
+      </div>
     </div>
-    <div class="profile-contact" id="profileEmailRow" style="display:none">
-      <span>✉️</span>
-      <div><div class="profile-contact-label">البريد الإلكتروني</div><div id="profileEmail">—</div></div>
+
+    <div class="f-row">
+      <div class="bn-field">
+        <label for="f-password">كلمة المرور</label>
+        <div class="bn-input"><input id="f-password" type="password" required></div>
+      </div>
+      <div class="bn-field">
+        <label for="f-password2">تأكيد كلمة المرور</label>
+        <div class="bn-input"><input id="f-password2" type="password" required></div>
+      </div>
     </div>
-    <button class="wa-btn" id="whatsappBtn">💬 تواصل عبر واتساب</button>
-    <a class="profile-full-link" id="profileFullLink" href="#">عرض الصفحة الكاملة ←</a>
-    <button class="bn-btn-cancel" onclick="closeProfileModal()">إغلاق</button>
+
+    <div class="bn-field">
+      <label>التخصصات</label>
+      <div class="chips" id="specChips"></div>
+    </div>
+
+    <div class="bn-field">
+      <label for="f-desc">نبذة عن الشركة</label>
+      <div class="bn-input"><textarea id="f-desc" rows="3"></textarea></div>
+    </div>
+
+    <div class="bn-field">
+      <label for="f-image">شعار الشركة (اختياري)</label>
+      <div class="bn-input"><input id="f-image" type="file" accept="image/*"></div>
+    </div>
+
+    <button class="bn-btn bn-btn-block" type="button" id="submitBtn" onclick="submitCompany()">
+      <span id="submitText">تسجيل الشركة</span>
+    </button>
   </div>
 </div>
 
-<!-- TOAST -->
-<div class="toast" id="toast">
-  <span id="toastMsg">تم بنجاح!</span>
+<!-- ══ نافذة الملف السريع ══ -->
+<div class="ov" id="profOverlay" onclick="ovClick(event,'profOverlay')">
+  <div class="sheet bn-glass" id="profBody"></div>
 </div>
 
-<!-- ══════════════════════════════════════
-     JAVASCRIPT
-══════════════════════════════════════ -->
+<div class="toast" id="toast"><span id="toastMsg"></span></div>
+
+<script src="nav-public.js"></script>
 <script>
+(function () {
 'use strict';
 
-/* ════════════════════════════════════════
-   CONFIG
-════════════════════════════════════════ */
-const API_URL = '';
-/* true عندما يفشل تحميل الشركات — تُعرض حالة خطأ صادقة، لا بيانات بديلة. */
+const API = '';
 let LOAD_ERROR = false;
+let companies = [], filtered = [], PAGE = 1, PAGES = 0, TOTAL = 0;
+let specFilter = 'all';
+let searchQ = '';
 
-const LOGO_COLORS = [
-  ['#1a2a3a','#4a90d9'], ['#1a2a1e','#3fb950'], ['#2a1a1e','#d45a5a'],
-  ['#2a2014','#e3b341'], ['#1e1a2a','#a371f7'], ['#14242a','#3bc9db'],
-  ['#2a1f14','#e8834a'], ['#1e2828','#4acfa0'],
-];
+/* ── الأيقونات — SVG لا إيموجي.
+   الإيموجي يتغيّر شكله بين المنصّات ولا يرث لون النص،
+   فلا يمكن ضبطه على النظام اللوني ولا على الوضع الليلي. ── */
+const IC = {
+  spark:   '<path d="M12 3l1.9 5.6L19.5 10l-5.6 1.4L12 17l-1.9-5.6L4.5 10l5.6-1.4z"/>',
+  building:'<rect x="4" y="3" width="16" height="18" rx="1.5"/><path d="M9 8h2M13 8h2M9 12h2M13 12h2M9 16h2M13 16h2"/>',
+  pin:     '<path d="M12 21s7-5.6 7-11a7 7 0 1 0-14 0c0 5.4 7 11 7 11z"/><circle cx="12" cy="10" r="2.5"/>',
+  star:    '<path d="M12 3.7l2.5 5.1 5.6.8-4 3.9 1 5.6-5.1-2.7-5.1 2.7 1-5.6-4-3.9 5.6-.8z"/>',
+  check:   '<path d="M20 6L9 17l-5-5"/>',
+  phone:   '<path d="M21 16.5v3a2 2 0 0 1-2.2 2 19.8 19.8 0 0 1-8.6-3.1 19.5 19.5 0 0 1-6-6A19.8 19.8 0 0 1 1.1 3.7 2 2 0 0 1 3.1 1.5h3a2 2 0 0 1 2 1.7c.1 1 .4 1.9.7 2.8a2 2 0 0 1-.5 2.1L7.1 9.3a16 16 0 0 0 6 6l1.2-1.2a2 2 0 0 1 2.1-.5c.9.3 1.8.6 2.8.7a2 2 0 0 1 1.8 2z"/>',
+  folder:  '<path d="M3 7.5A1.5 1.5 0 0 1 4.5 6h4l2 2.5h9A1.5 1.5 0 0 1 21 10v8a1.5 1.5 0 0 1-1.5 1.5h-15A1.5 1.5 0 0 1 3 18z"/>',
+  offline: '<path d="M3 3l18 18"/><path d="M5.5 12.5a9 9 0 0 1 3.2-2.1M2 8.8A14 14 0 0 1 6 6.3M18.5 6.3A14 14 0 0 1 22 8.8M15.4 10.5a9 9 0 0 1 3.1 2"/><circle cx="12" cy="18" r="1"/>',
+  empty:   '<rect x="3" y="5" width="18" height="15" rx="2"/><path d="M3 10h18M8 15h8"/>'
+};
+const svg = (d, s) => '<svg viewBox="0 0 24 24" width="' + (s||14) + '" height="' + (s||14) +
+  '" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" ' +
+  'stroke-linejoin="round" aria-hidden="true">' + d + '</svg>';
 
-/* ════════════════════════════════════════
-   STATE
-════════════════════════════════════════ */
-let companies = [];
-let filtered  = [];
-let _activeSpecFilter = 'all';
+const $  = (id) => document.getElementById(id);
+const esc = (s) => String(s == null ? '' : s)
+  .replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
 
+/* أيقونات النصوص الثابتة */
+$('heroTag').innerHTML  = svg(IC.spark, 13) + 'منصة المقاولات الأولى في العراق';
+$('regCta').innerHTML   = svg(IC.building, 15) + ' سجّل شركتك';
+$('projCta').innerHTML  = svg(IC.folder, 15) + ' اطلب عروضاً لمشروعك';
+
+/* ══ التصنيفات ══ */
 async function loadCategories() {
   try {
-    const res = await fetch(`${API_URL}/categories`);
-    if (!res.ok) return;
-    const cats = await res.json();
-
-    // filter pills
-    const inner = document.getElementById('filterPillsInner');
-    if (inner) {
-      const citySelect = inner.querySelector('#filterCity');
-      cats.forEach(cat => {
-        const btn = document.createElement('button');
-        btn.className = 'bn-fpill';
-        btn.textContent = `${cat.icon} ${cat.name_ar}`;
-        btn.onclick = function() { setFilter(cat.name_ar, btn); };
-        inner.insertBefore(btn, citySelect);
-      });
-    }
-
-    // spec chips in registration form
-    const grid = document.getElementById('specChipsGrid');
-    if (grid) {
-      grid.innerHTML = cats.map(cat =>
-        `<div class="spec-chip" onclick="toggleSpec(this)">${cat.icon} ${cat.name_ar}</div>`
-      ).join('');
-    }
-  } catch(e) {
-    console.warn('[Bunyan] categories load failed:', e);
-  }
+    const r = await fetch(API + '/categories');
+    if (!r.ok) return;
+    const cats = await r.json();
+    const row = $('filterRow');
+    const city = $('filterCity');
+    cats.slice(0, 12).forEach(c => {
+      const b = document.createElement('button');
+      b.type = 'button'; b.className = 'pill'; b.textContent = c.name_ar;
+      b.onclick = () => setFilter(c.name_ar, b);
+      row.insertBefore(b, city);
+    });
+    const chips = $('specChips');
+    cats.slice(0, 10).forEach(c => {
+      const b = document.createElement('button');
+      b.type = 'button'; b.className = 'chip'; b.textContent = c.name_ar;
+      b.onclick = () => b.classList.toggle('is-on');
+      chips.appendChild(b);
+    });
+  } catch (e) { /* الفلاتر تحسين لا شرط */ }
 }
 
-
-
-/* ════════════════════════════════════════
-   NORMALIZE
-════════════════════════════════════════ */
-function normalizeCompany(c) {
+/* ══ الشركات ══ */
+function normalize(c) {
   return {
-    id:           String(c.id || Date.now()),
-    name:         c.name     || '—',
-    spec:         c.spec     || 'مقاولات عامة',
-    city:         c.city     || '—',
-    year:         c.year     || 2020,
-    size:         c.size     || 'صغيرة',
-    rating:       Number(c.rating)   || 0,
-    projects:     Number(c.projects) || 0,
-    verified:     Boolean(c.verified),
-    status:       c.status || (c.verified ? 'approved' : 'pending'),
-    phone:        c.phone     || '',
-    email:        c.email     || '',
-    desc:         c.desc      || '',
-    image_url:    c.image_url || '',
+    id: String(c.id), name: c.name || '—', spec: c.spec || 'مقاولات عامة',
+    city: c.city || '—', rating: Number(c.rating) || 0,
+    verified: Boolean(c.verified), status: c.status || 'pending',
+    image_url: c.image_url || '', phone: c.phone || '',
     review_count: Number(c.review_count) || 0,
-    review_avg:   c.review_avg != null ? Number(c.review_avg) : null,
-    plan_key:     c.plan_key  || c.subscription_plan || 'starter',
+    review_avg: c.review_avg != null ? Number(c.review_avg) : null,
+    plan_key: c.plan_key || c.subscription_plan || 'starter'
   };
 }
 
-/* plan → badge HTML */
-function planBadge(plan, verified) {
-  if (plan === 'partner')  return '<span class="bn-plan-badge bn-plan-partner">💎شريك بنيان</span>';
-  if (plan === 'featured') return '<span class="bn-plan-badge bn-plan-featured">⭐بارز</span>';
-  if (plan === 'active' || verified) return '<span class="bn-plan-badge bn-plan-active">🥉نشط</span>';
-  return '';
-}
-
-/* ════════════════════════════════════════
-   LOAD
-════════════════════════════════════════ */
 async function loadCompanies() {
-  showSkeletons();
-
   try {
-    const res = await fetch(`${API_URL}/companies?page=1&per_page=100`, { signal: AbortSignal.timeout(12000) });
-    if (!res.ok) throw new Error(`HTTP ${res.status}`);
-    const data = await res.json();
-    /* الـ API يُعيد {items, page, per_page, total, pages} */
-    companies = (data.items || []).map(normalizeCompany);
+    const r = await fetch(API + '/companies?page=1&per_page=100', { signal: AbortSignal.timeout(12000) });
+    if (!r.ok) throw new Error('HTTP ' + r.status);
+    const d = await r.json();
+    companies = (d.items || []).map(normalize);
+    TOTAL = d.total || companies.length;
     LOAD_ERROR = false;
-    console.log('[Bunyan] Companies loaded:', companies.length);
-  } catch (err) {
-    /* لا بيانات بديلة — قائمة فارغة وحالة خطأ صريحة. */
-    console.warn('[Bunyan] فشل تحميل الشركات:', err.message);
-    companies = [];
-    LOAD_ERROR = true;
+  } catch (e) {
+    /* لا بيانات بديلة — حالة خطأ صريحة */
+    companies = []; TOTAL = 0; LOAD_ERROR = true;
   }
-
-  filtered = [...companies];
-  renderCards();
+  applyFilters();
   renderFeatured();
-  /* إحصاءات البطل مصدرها /stats وحده — لا تُشتق من البيانات المعروضة. */
 }
 
-/* إعادة محاولة تحميل الشركات والإحصاءات بعد فشل الاتصال. */
-async function retryLoad(btn) {
-  if (btn) { btn.disabled = true; btn.textContent = 'جارٍ المحاولة...'; }
-  await loadCompanies();
-  loadLiveStats();
+function applyFilters() {
+  const city = $('filterCity').value;
+  filtered = companies.filter(c => {
+    if (specFilter !== 'all' && !c.spec.includes(specFilter)) return false;
+    if (city && c.city !== city) return false;
+    if (searchQ) {
+      const q = searchQ.toLowerCase();
+      if (!(c.name + ' ' + c.spec + ' ' + c.city).toLowerCase().includes(q)) return false;
+    }
+    return true;
+  });
+  renderCards();
 }
 
-/* ════════════════════════════════════════
-   RENDER CARDS (list grid)
-════════════════════════════════════════ */
-function showSkeletons() {
-  document.getElementById('companiesGrid').innerHTML =
-    '<div class="skeleton"></div>'.repeat(6);
-  document.getElementById('resultCount').textContent = 'جارٍ التحميل...';
+function setFilter(val, el) {
+  specFilter = val;
+  document.querySelectorAll('#filterRow .pill').forEach(p => p.classList.remove('is-on'));
+  el.classList.add('is-on');
+  applyFilters();
+}
+function syncSearch(v) { searchQ = (v || '').trim(); applyFilters(); }
+
+function initials(n) {
+  return n.split(/\s+/).slice(0, 2).map(w => w[0] || '').join('');
 }
 
 function renderCards() {
-  const grid = document.getElementById('companiesGrid');
-  const visible = filtered.filter(c => c.status !== 'rejected');
+  const g = $('companiesGrid');
 
   if (LOAD_ERROR) {
-    document.getElementById('resultCount').textContent = '—';
-    grid.innerHTML = `<div class="empty-state">
-      <div class="empty-icon">📡</div>
-      <div class="empty-text">تعذّر الاتصال بالخادم</div>
-      <div class="empty-sub">لم نتمكن من تحميل قائمة الشركات. تحقّق من اتصالك ثم أعد المحاولة.</div>
-      <button class="retry-btn" onclick="retryLoad(this)">إعادة المحاولة</button>
-    </div>`;
+    $('resultCount').textContent = '';
+    g.innerHTML = '<div class="state">' + svg(IC.offline, 38) +
+      '<div class="state-t">تعذّر الاتصال بالخادم</div>' +
+      '<div class="state-d">لم نتمكّن من تحميل قائمة الشركات. تحقّق من اتصالك ثم أعد المحاولة.</div>' +
+      '<button class="bn-btn" type="button" onclick="retryLoad(this)">إعادة المحاولة</button></div>';
     return;
   }
 
-  document.getElementById('resultCount').textContent = visible.length + ' شركة';
+  const vis = filtered.filter(c => c.status !== 'rejected');
+  $('resultCount').textContent = vis.length + ' من ' + TOTAL;
 
-  if (!visible.length) {
-    grid.innerHTML = `<div class="empty-state">
-      <div class="empty-icon">🏗</div>
-      <div class="empty-text">لا توجد شركات تطابق البحث</div>
-    </div>`;
+  if (!vis.length) {
+    g.innerHTML = '<div class="state">' + svg(IC.empty, 38) +
+      '<div class="state-t">لا توجد شركات تطابق البحث</div>' +
+      '<div class="state-d">جرّب تغيير التخصص أو المدينة.</div></div>';
     return;
   }
 
-  grid.innerHTML = visible.map((c, i) => {
-    const [bg, fg] = LOGO_COLORS[i % LOGO_COLORS.length];
-    const initials = c.name.split(' ').slice(0,2).map(w => w[0]).join('');
-    const isPending = (c.status === 'pending');
-    const avgR = c.review_count > 0 ? Number(c.review_avg||0).toFixed(1) : c.rating.toFixed(1);
-    const starsN = Math.round(c.review_count > 0 ? (c.review_avg||0) : c.rating);
-    const badge = planBadge(c.plan_key, c.verified);
-
+  g.innerHTML = vis.map(c => {
     const av = c.image_url
-      ? `<div class="bn-lc-av"><img src="${c.image_url}" alt="${c.name}"
-             onerror="this.parentElement.innerHTML='${initials}';this.parentElement.style.background='${bg}';this.parentElement.style.color='${fg}'"></div>`
-      : `<div class="bn-lc-av" style="background:${bg};color:${fg}">${initials}</div>`;
-
-    return `
-    <a class="bn-lc" href="company_profile.html?id=${c.id}" style="animation-delay:${Math.min(i*0.04,0.3)}s">
-      ${av}
-      <div class="bn-lc-info">
-        <div class="bn-lc-name">
-          ${c.name}
-          ${c.verified && !isPending ? '<span class="bn-vbadge" title="موثّق">✓</span>' : ''}
-        </div>
-        <div class="bn-lc-sub">${c.city} · ${c.year}</div>
-        <div class="bn-lc-spec">${c.spec}</div>
-        ${isPending ? '<span style="font-size:10px;color:var(--text-3);margin-top:3px;display:block">⏳ قيد المراجعة</span>' : ''}
-      </div>
-      <div class="bn-lc-right">
-        <div class="bn-lc-rating">⭐ ${avgR}</div>
-        ${badge}
-        <div class="bn-lc-stars">${'★'.repeat(starsN)}${'☆'.repeat(5-starsN)}</div>
-        <div style="font-size:10px;color:var(--text-3)">${c.projects} مشروع</div>
-      </div>
-    </a>`;
+      ? '<div class="card-av"><img src="' + esc(c.image_url) + '" alt="" loading="lazy"></div>'
+      : '<div class="card-av">' + esc(initials(c.name)) + '</div>';
+    const score = c.review_count > 0 ? (c.review_avg || 0) : c.rating;
+    return '<a class="card bn-solid" href="company_profile.html?id=' + esc(c.id) + '">' + av +
+      '<div class="card-body">' +
+        '<div class="card-name"><span>' + esc(c.name) + '</span>' +
+          (c.verified ? '<span class="bn-badge bn-badge-verified">' + svg(IC.check, 10) + 'موثّقة</span>' : '') +
+        '</div>' +
+        '<div class="card-meta">' +
+          '<i>' + svg(IC.pin, 12) + esc(c.city) + '</i>' +
+          '<i>' + esc(c.spec) + '</i>' +
+        '</div>' +
+        '<div class="card-foot">' +
+          '<span class="rating">' + svg(IC.star, 12) + score.toFixed(1) +
+            (c.review_count ? ' (' + c.review_count + ')' : '') + '</span>' +
+          (c.phone ? '<span class="card-meta" style="margin:0">' + svg(IC.phone, 12) + '</span>' : '') +
+        '</div>' +
+      '</div></a>';
   }).join('');
 }
 
-/* ════════════════════════════════════════
-   RENDER FEATURED (horizontal scroll)
-════════════════════════════════════════ */
 function renderFeatured() {
-  const scroll = document.getElementById('featuredScroll');
+  const el = $('featured');
+  if (LOAD_ERROR) { el.innerHTML = '<div class="state-d">تعذّر الاتصال بالخادم</div>'; return; }
   const top = companies
-    .filter(c => c.status !== 'rejected' && c.status !== 'pending')
-    .sort((a,b) => (b.review_avg||b.rating) - (a.review_avg||a.rating))
+    .filter(c => c.status === 'approved')
+    .sort((a, b) => (b.review_avg || b.rating) - (a.review_avg || a.rating))
     .slice(0, 8);
-
-  if (LOAD_ERROR) { scroll.innerHTML = '<p style="color:var(--text-3);font-size:13px;padding:8px">تعذّر الاتصال بالخادم</p>'; return; }
-  if (!top.length) { scroll.innerHTML = '<p style="color:var(--text-3);font-size:13px;padding:8px">لا توجد شركات مميزة بعد</p>'; return; }
-
-  const BG_GRADS = [
-    'linear-gradient(135deg,#0F2347,#1B3A6B)',
-    'linear-gradient(135deg,#1a2a3a,#2E5499)',
-    'linear-gradient(135deg,#14242a,#1B5E20)',
-    'linear-gradient(135deg,#2a1a1e,#8B1A2F)',
-    'linear-gradient(135deg,#2a2014,#7B4F00)',
-    'linear-gradient(135deg,#1e1a2a,#5B2D9F)',
-    'linear-gradient(135deg,#0a1a2a,#0D47A1)',
-    'linear-gradient(135deg,#1a2a20,#1B5E20)',
-  ];
-
-  scroll.innerHTML = top.map((c, i) => {
-    const [bg, fg] = LOGO_COLORS[i % LOGO_COLORS.length];
-    const initials = c.name.split(' ').slice(0,2).map(w=>w[0]).join('');
-    const avgR = c.review_count > 0 ? Number(c.review_avg||0).toFixed(1) : c.rating.toFixed(1);
-    const badge = planBadge(c.plan_key, c.verified);
-    const planCls = c.plan_key === 'partner' ? 'bn-plan-partner' :
-                    c.plan_key === 'featured' ? 'bn-plan-featured' : 'bn-plan-active';
-
-    return `
-    <a class="bn-fc" href="company_profile.html?id=${c.id}">
-      <div class="bn-fc-img">
-        <div class="bn-fc-img-bg" style="background:${BG_GRADS[i % BG_GRADS.length]}"></div>
-        <div class="bn-fc-img-icon">🏗</div>
-        <span class="bn-fc-plan-badge ${planCls}">${planBadge(c.plan_key,c.verified).replace(/<[^>]+>/g,'')}</span>
-        <span class="bn-fc-spec">${c.spec}</span>
-      </div>
-      <div class="bn-fc-body">
-        <div class="bn-fc-top">
-          <div class="bn-fc-av" style="background:${bg};color:${fg}">${initials}</div>
-          <div>
-            <div class="bn-fc-name">${c.name} ${c.verified?'<span class="bn-vbadge">✓</span>':''}</div>
-            <div class="bn-fc-loc">📍 ${c.city}</div>
-          </div>
-        </div>
-        <div class="bn-fc-rating">
-          <span style="font-size:13px;font-weight:800;color:var(--text-1)">⭐ ${avgR}</span>
-          <span style="font-size:11px;color:var(--text-3)">${c.projects} مشروع · ${c.year}</span>
-        </div>
-      </div>
-    </a>`;
+  if (!top.length) { el.innerHTML = '<div class="state-d">لا توجد شركات مميزة بعد</div>'; return; }
+  el.innerHTML = top.map(c => {
+    const av = c.image_url
+      ? '<div class="fcard-av"><img src="' + esc(c.image_url) + '" alt="" loading="lazy"></div>'
+      : '<div class="fcard-av">' + esc(initials(c.name)) + '</div>';
+    return '<a class="fcard bn-solid" href="company_profile.html?id=' + esc(c.id) + '">' + av +
+      '<div class="fcard-n">' + esc(c.name) + '</div>' +
+      '<div class="fcard-s">' + esc(c.city) + ' · ' + esc(c.spec) + '</div></a>';
   }).join('');
 }
 
-/* ════════════════════════════════════════
-   FILTER
-════════════════════════════════════════ */
-function filterCompanies() {
-  const q    = (document.getElementById('searchInput').value || document.getElementById('searchInput2').value).trim().toLowerCase();
-  const city = document.getElementById('filterCity').value;
-  const spec = _activeSpecFilter === 'all' ? '' : _activeSpecFilter;
-
-  filtered = companies.filter(c => {
-    if (c.status === 'rejected') return false;
-    const matchQ = !q
-      || c.name.toLowerCase().includes(q)
-      || c.spec.toLowerCase().includes(q)
-      || c.city.toLowerCase().includes(q)
-      || (c.desc||'').toLowerCase().includes(q);
-    return matchQ && (!spec || c.spec === spec) && (!city || c.city === city);
-  });
-
-  renderCards();
-  document.getElementById('resultCount').textContent = filtered.filter(c=>c.status!=='rejected').length + ' شركة';
+async function retryLoad(btn) {
+  if (btn) { btn.disabled = true; btn.textContent = 'جارٍ المحاولة...'; }
+  await loadCompanies();
+  loadStats();
+  if (btn) { btn.disabled = false; btn.textContent = 'إعادة المحاولة'; }
 }
 
-function setFilter(specVal, el) {
-  _activeSpecFilter = specVal;
-  document.querySelectorAll('.bn-fpill').forEach(b => {
-    if (b.tagName === 'BUTTON') b.classList.remove('active');
-  });
-  if (el) el.classList.add('active');
-  filterCompanies();
-}
-
-function syncSearch(val) {
-  document.getElementById('searchInput').value = val;
-  filterCompanies();
-}
-
-/* ════════════════════════════════════════
-   LOAD LATEST PROJECTS
-════════════════════════════════════════ */
-async function loadLatestProjects() {
-  const grid = document.getElementById('projectsMini');
+/* ══ المشاريع ══ */
+async function loadProjects() {
+  const el = $('projectsMini');
   try {
-    const r = await fetch(`${API_URL}/projects?page=1&per_page=6`, { signal: AbortSignal.timeout(5000) });
+    const r = await fetch(API + '/projects?page=1&per_page=6', { signal: AbortSignal.timeout(8000) });
     if (!r.ok) throw new Error();
-    const data = await r.json();
-    const list = data.items || [];
-    const pub = list.filter(p => p.status === 'published').slice(0, 6);
-    if (!pub.length) { grid.innerHTML = '<p style="color:var(--text-3);font-size:13px;padding:8px">لا توجد مشاريع بعد</p>'; return; }
-
-    const statusLabel = s => s === 'published' ? '<span class="status-pub">نشط</span>' :
-                              s === 'contracted' ? '<span class="status-cont">مُعيَّن</span>' :
-                              '<span class="status-cls">مغلق</span>';
-
-    grid.innerHTML = pub.map(p => `
-    <a class="bn-proj-card" href="project_details.html?id=${p.id}">
-      <div class="bn-proj-title">${p.title}</div>
-      <div class="bn-proj-meta">
-        <span>📍 ${p.city||'—'}</span>
-        <span>📁 ${p.spec||'—'}</span>
-        ${statusLabel(p.status)}
-      </div>
-      <div style="display:flex;justify-content:space-between;align-items:center">
-        <div class="bn-proj-budget">${p.budget ? p.budget.toLocaleString('ar-IQ') + ' د.ع' : 'مفتوح'}</div>
-        <div class="bn-proj-bids">${p.bid_count||0} عرض</div>
-      </div>
-    </a>`).join('');
-  } catch (_) {
-    grid.innerHTML = '<p style="color:var(--text-3);font-size:13px;padding:8px">تعذّر تحميل المشاريع</p>';
-  }
+    const list = (await r.json()).items || [];
+    if (!list.length) { el.innerHTML = '<div class="state-d">لا توجد مشاريع منشورة بعد</div>'; return; }
+    el.innerHTML = list.map(p => {
+      const b = p.budget_min && p.budget_max
+        ? Number(p.budget_min).toLocaleString('en') + ' – ' + Number(p.budget_max).toLocaleString('en') + ' $'
+        : 'غير محدّدة';
+      return '<a class="pcard bn-solid" href="project_details.html?id=' + esc(p.id) + '">' +
+        '<div class="pcard-t">' + esc(p.title) + '</div>' +
+        '<div class="pcard-m"><i>' + svg(IC.pin, 11) + ' ' + esc(p.city) + '</i>' +
+          '<i>' + esc(p.category) + '</i></div>' +
+        '<div class="pcard-b">' + b + '</div></a>';
+    }).join('');
+  } catch (e) { el.innerHTML = '<div class="state-d">تعذّر تحميل المشاريع</div>'; }
 }
 
-/* ════════════════════════════════════════
-   LOAD SUBSCRIPTION PLANS
-════════════════════════════════════════ */
+/* ══ الباقات ══ */
 async function loadPlans() {
-  const grid = document.getElementById('plansGrid');
+  const el = $('plansGrid');
   try {
-    const r = await fetch(`${API_URL}/subscription/plans`, { signal: AbortSignal.timeout(5000) });
+    const r = await fetch(API + '/subscription/plans');
     if (!r.ok) throw new Error();
     const plans = await r.json();
-    if (!plans.length) { grid.innerHTML = ''; return; }
-
-    const popularKey = 'featured';
-    grid.innerHTML = plans.map(p => {
-      const isPopular = p.plan_key === popularKey;
-      const features = (p.description || '').split('،').map(f => f.trim()).filter(Boolean);
-
-      return `
-      <div class="bn-plan-card ${isPopular ? 'popular' : ''}">
-        ${isPopular ? '<div class="bn-plan-popular-tag">⭐ الأكثر شيوعاً</div>' : ''}
-        <div class="bn-plan-name">${p.name_ar || p.name}</div>
-        <div class="bn-plan-price">
-          ${p.price > 0 ? Number(p.price).toLocaleString('ar-IQ') + ' د.ع' : 'مجاني'}
-          <span class="bn-plan-period"> / شهر</span>
-        </div>
-        <ul class="bn-plan-features">
-          ${features.length
-            ? features.map(f => `<li>${f}</li>`).join('')
-            : `<li>جميع الميزات الأساسية</li>`}
-        </ul>
-        <button class="bn-plan-cta" onclick="openRegModal()">
-          ${p.price > 0 ? 'اشترك الآن' : 'ابدأ مجاناً'}
-        </button>
-      </div>`;
-    }).join('');
-  } catch (_) {
-    grid.innerHTML = '<p style="color:var(--text-3);font-size:13px;padding:8px">تعذّر تحميل الباقات</p>';
-  }
+    el.innerHTML = plans.map(p =>
+      '<div class="plan bn-solid' + (p.code === 'featured' ? ' is-best' : '') + '">' +
+        '<div class="plan-n">' + esc(p.name) + '</div>' +
+        '<div class="plan-p">' + (Number(p.monthly_price) || 0) + '</div>' +
+        '<div class="plan-u">دولار / شهرياً</div></div>'
+    ).join('');
+  } catch (e) { el.innerHTML = '<div class="state-d">تعذّر تحميل الباقات</div>'; }
 }
 
-/* ════════════════════════════════════════
-   LIVE STATS
-════════════════════════════════════════ */
-async function loadLiveStats() {
+/* ══ الإحصاءات — من /stats وحده، لا تُشتق من المعروض ══ */
+async function loadStats() {
   try {
-    const r = await fetch('/stats');
+    const r = await fetch(API + '/stats');
     if (!r.ok) return;
     const s = await r.json();
-    const el = document.getElementById('countStat');
-    if (el) animateCounter(el, s.companies, 1200);
-    const pr = document.getElementById('projectsStat');
-    if (pr) animateCounter(pr, s.projects, 1200);
-    const rv = document.getElementById('reviewsStat');
-    if (rv && s.reviews > 0) rv.textContent = s.reviews + '+';
-    const av = document.getElementById('avgRatingStat');
-    if (av && s.avg_rating > 0) av.textContent = Number(s.avg_rating).toFixed(1);
-  } catch (_) {}
+    if (s.companies) count($('statCompanies'), s.companies);
+    if (s.projects)  count($('statProjects'),  s.projects);
+    if (s.avg_rating > 0) $('statRating').textContent = Number(s.avg_rating).toFixed(1);
+    if (s.reviews > 0)    $('statReviews').textContent = s.reviews + '+';
+  } catch (e) { /* تبقى — */ }
+}
+function count(el, target) {
+  if (!el) return;
+  const step = Math.max(1, Math.ceil(target / 40));
+  let cur = 0;
+  const t = setInterval(() => {
+    cur = Math.min(cur + step, target);
+    el.textContent = cur;
+    if (cur >= target) clearInterval(t);
+  }, 24);
 }
 
-/* ════════════════════════════════════════
-   SUBMIT COMPANY
-════════════════════════════════════════ */
-document.addEventListener('DOMContentLoaded', () => {
-  const imgInput = document.getElementById('f-image');
-  if (imgInput) {
-    imgInput.addEventListener('change', () => {
-      const file = imgInput.files[0];
-      if (!file) return;
-      const preview = document.getElementById('f-image-preview');
-      const thumb   = document.getElementById('f-image-thumb');
-      thumb.src = URL.createObjectURL(file);
-      preview.style.display = 'block';
-    });
-  }
+/* ══ النوافذ ══ */
+function openRegModal()  { $('regOverlay').classList.add('is-open'); }
+function closeRegModal() { $('regOverlay').classList.remove('is-open'); }
+function ovClick(e, id)  { if (e.target.id === id) $(id).classList.remove('is-open'); }
+document.addEventListener('keydown', e => {
+  if (e.key === 'Escape') document.querySelectorAll('.ov.is-open').forEach(o => o.classList.remove('is-open'));
 });
 
+function resetRegForm() {
+  ['f-name','f-city','f-phone','f-email','f-password','f-password2','f-desc']
+    .forEach(id => { const el = $(id); if (el) el.value = ''; });
+  document.querySelectorAll('#specChips .chip.is-on').forEach(c => c.classList.remove('is-on'));
+}
+
+function toast(msg, isErr) {
+  const t = $('toast');
+  $('toastMsg').textContent = msg;
+  t.className = 'toast is-on' + (isErr ? ' is-err' : '');
+  setTimeout(() => t.classList.remove('is-on'), 4000);
+}
+
+/* ══ تسجيل الشركة ══ */
 async function submitCompany() {
-  const name      = document.getElementById('f-name').value.trim();
-  const city      = document.getElementById('f-city').value;
-  const phone     = document.getElementById('f-phone').value.trim();
-  const email     = document.getElementById('f-email').value.trim();
-  const password  = document.getElementById('f-password').value;
-  const password2 = document.getElementById('f-password2').value;
-  const desc      = document.getElementById('f-desc').value.trim();
-  const specs     = [...document.querySelectorAll('.spec-chip.active')].map(e => e.textContent.trim());
+  const name = $('f-name').value.trim(), city = $('f-city').value;
+  const phone = $('f-phone').value.trim(), email = $('f-email').value.trim();
+  const pw = $('f-password').value, pw2 = $('f-password2').value;
+  const desc = $('f-desc').value.trim();
+  const specs = [...document.querySelectorAll('#specChips .chip.is-on')].map(e => e.textContent.trim());
 
-  let valid = true;
-  [['f-name',name],['f-city',city],['f-phone',phone],
-   ['f-email',email],['f-password',password],['f-password2',password2]
-  ].forEach(([id,val]) => {
-    const el = document.getElementById(id);
-    if (!val) { el.classList.add('error'); valid = false; }
-    else       { el.classList.remove('error'); }
+  let ok = true;
+  [['f-name',name],['f-city',city],['f-phone',phone],['f-email',email],
+   ['f-password',pw],['f-password2',pw2]].forEach(([id, v]) => {
+    const w = $(id).closest('.bn-input');
+    if (!v) { w.classList.add('is-error'); ok = false; } else { w.classList.remove('is-error'); }
   });
-  if (!valid) { showToast('يرجى ملء جميع الحقول المطلوبة', true); return; }
-  if (password.length < 8) {
-    document.getElementById('f-password').classList.add('error');
-    showToast('كلمة المرور يجب أن تكون 8 أحرف على الأقل', true); return;
-  }
-  if (password !== password2) {
-    document.getElementById('f-password2').classList.add('error');
-    showToast('كلمتا المرور غير متطابقتين', true); return;
-  }
+  if (!ok) { toast('يرجى ملء جميع الحقول المطلوبة', true); return; }
+  if (pw.length < 8)  { toast('كلمة المرور يجب أن تكون 8 أحرف على الأقل', true); return; }
+  if (pw !== pw2)     { toast('كلمتا المرور غير متطابقتين', true); return; }
 
-  const btn = document.getElementById('submitBtn');
+  const btn = $('submitBtn'), txt = $('submitText');
   btn.disabled = true;
 
   if (LOAD_ERROR) {
-    /* الخادم غير متاح — لا تُوهم المستخدم بأن بياناته حُفظت.
-       تبقى بيانات النموذج كما هي ليعيد المحاولة دون إعادة كتابتها. */
-    showToast('تعذّر الاتصال بالخادم — لم يتم حفظ التسجيل. أعد المحاولة لاحقاً.', true);
-    btn.disabled = false;
-    document.getElementById('submitText').textContent = 'تسجيل الشركة ←';
+    /* لا نُوهم المستخدم بأن بياناته حُفظت */
+    toast('تعذّر الاتصال بالخادم — لم يتم حفظ التسجيل.', true);
+    btn.disabled = false; txt.textContent = 'تسجيل الشركة';
     return;
   }
 
   try {
-    document.getElementById('submitText').textContent = 'جارٍ إنشاء الحساب...';
-    const authRes = await fetch(`${API_URL}/auth/register`, {
-      method:'POST', headers:{'Content-Type':'application/json'},
-      body: JSON.stringify({ email, password, display_name: name }),
-      signal: AbortSignal.timeout(10000),
+    txt.textContent = 'جارٍ إنشاء الحساب...';
+    const ar = await fetch(API + '/auth/register', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ email, password: pw, display_name: name }),
+      signal: AbortSignal.timeout(10000)
     });
-    if (!authRes.ok) { const e = await authRes.json().catch(()=>({})); throw new Error(e.detail||'خطأ في إنشاء الحساب'); }
-    const authData = await authRes.json();
-    const userToken = authData.token;
+    if (!ar.ok) throw new Error((await ar.json().catch(() => ({}))).detail || 'خطأ في إنشاء الحساب');
+    const ad = await ar.json();
+    const tok = ad.token;
 
-    document.getElementById('submitText').textContent = 'جارٍ رفع الصورة...';
     let image_url = '';
-    const imgFile = document.getElementById('f-image')?.files[0];
-    if (imgFile) {
+    const f = $('f-image').files[0];
+    if (f) {
+      txt.textContent = 'جارٍ رفع الصورة...';
       try {
-        const fd = new FormData(); fd.append('file', imgFile);
-        const upRes = await fetch(`${API_URL}/upload`, { method:'POST', body:fd, headers:{'Authorization':userToken}, signal:AbortSignal.timeout(30000) });
-        if (upRes.ok) { const d = await upRes.json(); image_url = d.url || ''; }
-      } catch(e) { console.warn('[Bunyan] upload failed:', e); }
+        const fd = new FormData(); fd.append('file', f);
+        const ur = await fetch(API + '/upload', {
+          method: 'POST', body: fd, headers: { 'Authorization': tok },
+          signal: AbortSignal.timeout(30000)
+        });
+        if (ur.ok) image_url = (await ur.json()).url || '';
+      } catch (e) { /* الصورة اختيارية */ }
     }
 
-    document.getElementById('submitText').textContent = 'جارٍ تسجيل الشركة...';
-    const compRes = await fetch(`${API_URL}/company/create`, {
-      method:'POST', headers:{'Content-Type':'application/json','Authorization':userToken},
-      body: JSON.stringify({ name, city, phone, email, desc, spec: specs[0]||'مقاولات عامة', image_url }),
-      signal: AbortSignal.timeout(10000),
+    txt.textContent = 'جارٍ تسجيل الشركة...';
+    const cr = await fetch(API + '/company/create', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'Authorization': tok },
+      body: JSON.stringify({ name, city, phone, email, desc,
+                             spec: specs[0] || 'مقاولات عامة', image_url }),
+      signal: AbortSignal.timeout(10000)
     });
-    if (!compRes.ok) { const e = await compRes.json().catch(()=>({})); throw new Error(e.detail||'خطأ في تسجيل الشركة'); }
-    const compData = await compRes.json();
+    if (!cr.ok) throw new Error((await cr.json().catch(() => ({}))).detail || 'خطأ في تسجيل الشركة');
+    const cd = await cr.json();
 
-    /* B1: save with unified keys so getAuth() detects company role */
-    localStorage.setItem('project_user_token', userToken);
-    localStorage.setItem('project_user_id', String(authData.user_id || ''));
-    if (authData.display_name) localStorage.setItem('project_user_name', authData.display_name);
-    localStorage.setItem('company_id', String(compData.company_id));
-    showToast('تم تسجيل شركتك بنجاح! ✓');
+    localStorage.setItem('project_user_token', tok);
+    localStorage.setItem('project_user_id', String(ad.user_id || ''));
+    if (ad.display_name) localStorage.setItem('project_user_name', ad.display_name);
+    localStorage.setItem('company_id', String(cd.company_id));
+
+    toast('تم تسجيل شركتك بنجاح');
     closeRegModal(); resetRegForm();
-    setTimeout(() => { window.location.href = 'company_dashboard.html'; }, 1800);
+    setTimeout(() => { location.href = 'company_dashboard.html'; }, 1600);
 
   } catch (err) {
-    showToast(err.message || 'حدث خطأ، يرجى المحاولة مجدداً', true);
+    toast(err.message || 'حدث خطأ، أعد المحاولة', true);
   } finally {
-    btn.disabled = false;
-    document.getElementById('submitText').textContent = 'تسجيل الشركة ←';
+    btn.disabled = false; txt.textContent = 'تسجيل الشركة';
   }
 }
 
-/* ════════════════════════════════════════
-   MODALS
-════════════════════════════════════════ */
-function openRegModal() {
-  document.getElementById('regOverlay').classList.add('open');
-  document.body.style.overflow = 'hidden';
-}
-function closeRegModal() {
-  document.getElementById('regOverlay').classList.remove('open');
-  document.body.style.overflow = '';
-}
+/* تصدير ما تستدعيه السمات inline */
+Object.assign(window, { setFilter, applyFilters, syncSearch, retryLoad,
+                        openRegModal, closeRegModal, ovClick, submitCompany });
 
-function openProfileModal(companyId) {
-  /* For real (numeric) companies: navigate to profile page */
-  const strId = String(companyId);
-  if (!strId.startsWith('s') && !strId.startsWith('local')) {
-    window.location.href = `company_profile.html?id=${companyId}`;
-    return;
-  }
-  /* Demo/offline fallback: show quick modal */
-  const c = companies.find(x => x.id === strId);
-  if (!c) return;
+/* ══ الإقلاع ══ */
+loadCategories();
+loadCompanies();
+loadProjects();
+loadPlans();
+loadStats();
 
-  document.getElementById('profileName').textContent  = c.name;
-  document.getElementById('profileSpec').textContent  = c.spec + ' — ' + c.city;
-  document.getElementById('profileDesc').textContent  = c.desc || 'لا توجد نبذة متاحة.';
-  const logoWrap = document.getElementById('profileLogoWrap');
-  const logoImg  = document.getElementById('profileLogo');
-  if (c.image_url) { logoImg.src = c.image_url; logoImg.alt = c.name; logoWrap.style.display='flex'; }
-  else             { logoWrap.style.display = 'none'; }
-  document.getElementById('profileProjects').textContent = c.projects;
-  document.getElementById('profileRating').textContent   = c.rating.toFixed(1);
-  document.getElementById('profileYear').textContent     = c.year;
-  document.getElementById('profilePhone').textContent    = c.phone || '—';
-  const emailRow = document.getElementById('profileEmailRow');
-  if (c.email) { document.getElementById('profileEmail').textContent = c.email; emailRow.style.display='flex'; }
-  else         { emailRow.style.display = 'none'; }
-  document.getElementById('whatsappBtn').onclick = () => {
-    const num = c.phone.replace(/\D/g,'');
-    window.open(`https://wa.me/${num}`, '_blank');
-  };
-  document.getElementById('profileFullLink').href = `company_profile.html?id=${companyId}`;
-  document.getElementById('profileOverlay').classList.add('open');
-  document.body.style.overflow = 'hidden';
-}
-
-function closeProfileModal() {
-  document.getElementById('profileOverlay').classList.remove('open');
-  document.body.style.overflow = '';
-}
-
-function handleOverlayClick(e, id) {
-  if (e.target.id === id) {
-    id === 'regOverlay' ? closeRegModal() : closeProfileModal();
-  }
-}
-
-/* ════════════════════════════════════════
-   HELPERS
-════════════════════════════════════════ */
-function toggleSpec(el) { el.classList.toggle('active'); }
-
-function resetRegForm() {
-  ['f-name','f-year','f-phone','f-email','f-desc','f-password','f-password2'].forEach(id => {
-    const el = document.getElementById(id);
-    if (el) { el.value = ''; el.classList.remove('error'); }
-  });
-  const fc = document.getElementById('f-city');  if (fc) fc.value = '';
-  const fs = document.getElementById('f-size');  if (fs) fs.value = '';
-  document.querySelectorAll('.spec-chip.active').forEach(e => e.classList.remove('active'));
-  const imgInput = document.getElementById('f-image');
-  if (imgInput) imgInput.value = '';
-  const preview = document.getElementById('f-image-preview');
-  if (preview) preview.style.display = 'none';
-}
-
-function showToast(msg, isError = false) {
-  const t = document.getElementById('toast');
-  document.getElementById('toastMsg').textContent = msg;
-  t.className = 'toast' + (isError ? ' error' : '') + ' show';
-  setTimeout(() => t.classList.remove('show'), 4000);
-}
-
-function animateCounter(el, target, duration) {
-  if (!el) return;
-  let current = 0;
-  const step = Math.ceil(target / (duration / 16));
-  const timer = setInterval(() => {
-    current = Math.min(current + step, target);
-    el.textContent = current;
-    if (current >= target) clearInterval(timer);
-  }, 16);
-}
-
-/* ════════════════════════════════════════
-   THEME TOGGLE
-════════════════════════════════════════ */
-function toggleTheme() {
-  const cur = document.documentElement.getAttribute('data-theme') || 'light';
-  const next = cur === 'light' ? 'dark' : 'light';
-  document.documentElement.setAttribute('data-theme', next);
-  localStorage.setItem('bn-theme', next);
-  document.getElementById('themeBtn').textContent = next === 'dark' ? '☀️' : '🌙';
-}
-
-/* ════════════════════════════════════════
-   INIT
-════════════════════════════════════════ */
-document.addEventListener('DOMContentLoaded', () => {
-  /* Sync theme button icon */
-  const t = localStorage.getItem('bn-theme') || 'light';
-  const tb = document.getElementById('themeBtn');
-  if (tb) tb.textContent = t === 'dark' ? '☀️' : '🌙';
-
-  loadCategories();
-  loadCompanies();
-  loadLiveStats();
-  loadLatestProjects();
-  loadPlans();
-});
-
-document.addEventListener('keydown', e => {
-  if (e.key === 'Escape') { closeRegModal(); closeProfileModal(); }
-});
-
-/* PWA */
 if ('serviceWorker' in navigator) {
-  window.addEventListener('load', () => {
-    navigator.serviceWorker.register('/service-worker.js').catch(() => {});
-  });
+  window.addEventListener('load', () => navigator.serviceWorker.register('/service-worker.js').catch(() => {}));
 }
-</script>
-
-<!-- Unified Nav + Footer -->
-<script src="auth-core.js"></script>
-<script src="auth-ui.js"></script>
-<script src="bunyan-nav.js?v=11c"></script>
-<script>
-/* ── B3: Role Guard — إظهار/إخفاء العناصر حسب الدور ── */
-(function applyRoleGuard() {
-  const auth = window.BunyanNav ? BunyanNav.getAuth() : { role: 'guest' };
-  const role = auth.role;
-
-  /* ─── COMPANY role ─────────────────────────────── */
-  if (role === 'company') {
-    /* 1. Hide "سجل شركتك" — already registered */
-    document.querySelectorAll('[onclick*="openRegModal"]').forEach(el => el.style.display = 'none');
-    /* 2. Replace hero with dashboard shortcuts */
-    const heroActions = document.querySelector('.bn-hero-actions');
-    if (heroActions) {
-      heroActions.innerHTML = `
-        <a href="company_dashboard.html" class="btn-primary">📊 لوحة شركتك</a>
-        <a href="company_dashboard.html#projects" class="btn-secondary">🏗 إضافة مشروع</a>`;
-    }
-    /* 3. Hide "اطلب مشروع" CTA — companies don't request projects as clients */
-    document.querySelectorAll('a[href="projects.html"]').forEach(el => {
-      if (el.textContent.trim().includes('اطلب') || el.textContent.trim().includes('مشروع')) el.style.display = 'none';
-    });
-    document.querySelectorAll('[onclick*="projects.html"]').forEach(el => el.style.display = 'none');
-    /* 4. Hide "طلب مشروع" request banner */
-    const reqBanner = document.querySelector('.bn-req');
-    if (reqBanner) reqBanner.style.display = 'none';
-  }
-
-  /* ─── ADMIN role ───────────────────────────────── */
-  if (role === 'admin') {
-    document.querySelectorAll('[onclick*="openRegModal"]').forEach(el => el.style.display = 'none');
-    const heroActions = document.querySelector('.bn-hero-actions');
-    if (heroActions) {
-      heroActions.innerHTML = `<a href="admin.html" class="btn-primary">⚙️ لوحة الإدارة</a>`;
-    }
-    /* Hide request banner for admin */
-    const reqBanner = document.querySelector('.bn-req');
-    if (reqBanner) reqBanner.style.display = 'none';
-  }
-
-  /* ─── USER role ────────────────────────────────── */
-  if (role === 'user') {
-    /* Hide "سجل شركتك" — already has a user account */
-    document.querySelectorAll('[onclick*="openRegModal"]').forEach(el => el.style.display = 'none');
-    /* Keep "اطلب مشروع" visible — user CAN post projects */
-  }
-
-  /* ─── GUEST role — show all CTAs (default state) ─ */
-  /* No changes needed — all buttons visible by default */
 })();
 </script>
 </body>
