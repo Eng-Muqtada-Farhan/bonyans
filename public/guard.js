@@ -47,6 +47,11 @@
     return null;
   }
 
+  /* تُصدَّر للصفحات العامّة التي تحتاج معرفة الدور دون أن تُحرَس:
+     صفحة تعرض زر «أضف مشروعك» تحتاج أن تعرف إن كان للزائر جلسة.
+     لا تُغيّر سلوك الحارس نفسه. */
+  window.BunyanGuard = { role: currentRole, token: get, home: HOME };
+
   function go(url) { location.replace(url); }
 
   var need = (document.currentScript && document.currentScript.dataset.require) || '';

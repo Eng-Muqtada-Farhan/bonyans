@@ -5,18 +5,25 @@
  *
  * سبب وجودها: نسختان من منطق الفلترة تفترقان حتماً، فيُصلَح كل
  * عطب مرتين — ويُنسى مرة. هذه هي النسخة الوحيدة، وتستعملها
- * index.html و companies.html معاً.
+ * index.html و companies.html و projects.html معاً.
  *
- * تحتوي:
- *   · حالة الفلتر (مدينة · تخصص · بحث) ومزامنتها مع عنوان URL
- *   · صفّ المدن المستقل وشرائح التخصص بأسهم وتلاشٍ
- *   · العدّادات المتقاطعة — عدّاد المدينة يحترم التخصص والعكس
- *   · الجلب من /companies بمعاملات الفلتر وترقيم الصفحات
- *   · صفوف الشركات الغنية، وحالتَي الفراغ والخطأ (مميّزتان)
+ * تحتوي (محايدة للمجال):
+ *   · حالة الفلتر (بُعدان + بحث) ومزامنتها مع عنوان URL
+ *   · صفّ أول مستقل وشرائح البُعد الثاني بأسهم وتلاشٍ
+ *   · العدّادات المتقاطعة — عدّاد الأول يحترم الثاني والعكس
+ *   · الجلب بمعاملات الفلتر وترقيم الصفحات والعودة للصفحة ١
+ *   · حالتا الفراغ والخطأ (مميّزتان) والهيكل العظمي
+ *
+ * ما يختلف بين المجالات محصور في جدول DOMAINS أدناه: المسار،
+ * أسماء المعاملات، التطبيع، وقالب العنصر. لا شيء آخر.
  *
  * الاستعمال:
- *   const F = BunyanFilters.create({ onResults, perPage });
+ *   const F = BunyanFilters.create({ onResults, perPage });            // شركات
+ *   const F = BunyanFilters.create({ domain:'projects', onResults });  // مشاريع
  *   F.init();
+ *
+ * تنبيه — رجعية التوافق: كل إعداد جديد اختياري، والافتراض 'companies'
+ * بسلوك مطابق حرفياً لما قبل التوسعة.
  */
 (function () {
   'use strict';
@@ -31,7 +38,9 @@
     chevE:    '<path d="M9 6l6 6-6 6"/>',
     offline:  '<path d="M3 3l18 18"/><path d="M5.5 12.5a9 9 0 0 1 3.2-2.1M2 8.8A14 14 0 0 1 6 6.3M18.5 6.3A14 14 0 0 1 22 8.8M15.4 10.5a9 9 0 0 1 3.1 2"/><circle cx="12" cy="18" r="1"/>',
     filterOff:'<path d="M3 5h18l-7 8v6l-4 2v-8z"/><path d="M3 3l18 18"/>',
-    empty:    '<rect x="3" y="5" width="18" height="15" rx="2"/><path d="M3 10h18M8 15h8"/>'
+    empty:    '<rect x="3" y="5" width="18" height="15" rx="2"/><path d="M3 10h18M8 15h8"/>',
+    bid:      '<path d="M4 20h16"/><path d="M6 16V9M10 16V5M14 16v-8M18 16v-4"/>',
+    tag:      '<path d="M3 12.5V4.5A1.5 1.5 0 0 1 4.5 3h8L21 11.5 13.5 19z"/><circle cx="7.5" cy="7.5" r="1.3"/>'
   };
   function svg(d, s) {
     return '<svg viewBox="0 0 24 24" width="' + (s || 14) + '" height="' + (s || 14) +
@@ -137,6 +146,39 @@
   background:linear-gradient(90deg,transparent,var(--bn-glass),transparent);
   animation:bnf-sweep 1.4s infinite}
 @keyframes bnf-sweep{to{transform:translateX(300%)}}
+
+/* بطاقات المشاريع — الميزانية أبرز عنصر */
+.bnf-cards{display:grid;grid-template-columns:repeat(auto-fill,minmax(280px,1fr));
+  gap:var(--bn-s3)}
+.bnf-card{display:flex;flex-direction:column;gap:var(--bn-s3);padding:var(--bn-s5);
+  border-radius:var(--bn-r-lg);text-decoration:none;color:inherit;min-height:44px;
+  transition:border-color var(--bn-fast),transform var(--bn-fast)}
+.bnf-card:hover{border-color:var(--bn-ac-line);transform:translateY(-2px)}
+.bnf-ctop{display:flex;align-items:center;justify-content:space-between;gap:var(--bn-s3)}
+.bnf-badge{display:inline-flex;align-items:center;gap:5px;padding:4px 10px;
+  border-radius:var(--bn-r-pill);font:var(--bn-t-cap);
+  background:var(--bn-ac-bg);color:var(--bn-ac);border:1px solid var(--bn-ac-line)}
+.bnf-badge-off{background:transparent;color:var(--bn-ink-3);border-color:var(--bn-line)}
+.bnf-bids{display:inline-flex;align-items:center;gap:5px;font:var(--bn-t-cap);
+  color:var(--bn-ink-3);font-variant-numeric:tabular-nums}
+.bnf-ct{font:600 15.5px/1.5 var(--bn-font);margin:0;color:var(--bn-ink);
+  display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden}
+/* الميزانية: أكبر خط وأقوى لون في البطاقة */
+.bnf-bud{display:flex;align-items:baseline;gap:7px;flex-wrap:wrap;margin-block-start:auto}
+.bnf-bud-n{font:700 20px/1.2 var(--bn-mono);color:var(--bn-ac);
+  font-variant-numeric:tabular-nums;letter-spacing:-.01em;direction:ltr}
+.bnf-bud-c{font:var(--bn-t-cap);color:var(--bn-ink-3)}
+.bnf-bud-open{font:500 15px/1.3 var(--bn-font);color:var(--bn-ink-3)}
+.bnf-cm{display:flex;align-items:center;gap:var(--bn-s4);flex-wrap:wrap;
+  padding-block-start:var(--bn-s3);border-block-start:1px solid var(--bn-line-soft);
+  font:var(--bn-t-cap);color:var(--bn-ink-2)}
+.bnf-cm i{display:inline-flex;align-items:center;gap:5px;font-style:normal;min-width:0}
+.bnf-cm i span{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.bnf-skelcard{height:172px;border-radius:var(--bn-r-lg);background:var(--bn-glass-tint);
+  border:1px solid var(--bn-line-soft);position:relative;overflow:hidden}
+.bnf-skelcard::after{content:"";position:absolute;inset:0;transform:translateX(-100%);
+  background:linear-gradient(90deg,transparent,var(--bn-glass),transparent);
+  animation:bnf-sweep 1.4s infinite}
 `;
 
   function injectCSS() {
@@ -161,13 +203,25 @@
   }
   function score(c) { return c.review_count > 0 ? (c.review_avg || 0) : c.rating; }
 
+  /* wa.me يطلب الصيغة الدولية. الأرقام العراقية تُدخَل محلياً
+     (07XXXXXXXXX) فتُحوَّل إلى 9647XXXXXXXXX، ورقمٌ غير صالح
+     يُرجع null فلا يُبنى له زر. نفس منطق company_profile.html. */
+  function waNumber(p) {
+    var d = String(p || '').replace(/[^\d]/g, '');
+    if (d.slice(0, 4) === '0096') d = d.slice(2);
+    if (d.slice(0, 3) === '964') d = d.slice(3);
+    else if (d.charAt(0) === '0')  d = d.slice(1);
+    return /^7\d{9}$/.test(d) ? '964' + d : null;
+  }
+
   /* صفّ شركة غني — نفس النمط في كل صفحة */
   function rowHTML(c) {
     var av = c.image_url
       ? '<div class="bnf-av"><img src="' + esc(c.image_url) + '" alt="" loading="lazy"></div>'
       : '<div class="bnf-av">' + esc(initials(c.name)) + '</div>';
-    var wa = c.phone
-      ? '<a class="bnf-wa" href="https://wa.me/' + esc(String(c.phone).replace(/[^\d]/g, '')) +
+    var waN = waNumber(c.phone);
+    var wa = waN
+      ? '<a class="bnf-wa" href="https://wa.me/' + waN +
         '" target="_blank" rel="noopener" aria-label="واتساب ' + esc(c.name) + '">' + svg(IC.wa, 19) + '</a>'
       : '';
     return '<div class="bnf-row bn-solid">' + av +
@@ -187,12 +241,103 @@
       '</div></div>';
   }
 
+  /* ── المشاريع ─────────────────────────────────────────────── */
+
+  /* تطبيع المشروع. كل حقل هنا يقابل عموداً في جدول projects؛
+     bids_count محسوب في نفس استعلام الخادم من project_bids
+     فهو عدد حقيقي لا تقدير (§٥·٥). */
+  function normalizeProject(p) {
+    return {
+      id: String(p.id), title: p.title || '—',
+      category: p.category || '', city: p.city || '',
+      budget_min: p.budget_min != null ? Number(p.budget_min) : null,
+      budget_max: p.budget_max != null ? Number(p.budget_max) : null,
+      status: p.status || 'published',
+      bids_count: Number(p.bids_count) || 0
+    };
+  }
+
+  /* لا عمود عملة في جدول projects. نموذج نشر المشروع يسمّي الحقل
+     «الميزانية (دينار)»، فالوحدة اصطلاح قائم في التطبيق نستعمله
+     كما هو — لا نخترع عملة ولا نُخفي الوحدة. */
+  var PSTATUS = { published: 'مفتوح للعروض', contracted: 'مُتعاقَد عليه' };
+
+  function budgetHTML(p) {
+    var f = function (n) { return Number(n).toLocaleString('en-US'); };
+    var txt = null;
+    if (p.budget_min != null && p.budget_max != null) txt = f(p.budget_min) + ' – ' + f(p.budget_max);
+    else if (p.budget_min != null) txt = f(p.budget_min) + '+';
+    else if (p.budget_max != null) txt = '≤ ' + f(p.budget_max);
+    /* لا رقم في القاعدة ← لا رقم على الشاشة، ولا تقدير بديل */
+    if (txt === null) return '<div class="bnf-bud"><span class="bnf-bud-open">الميزانية غير محدَّدة</span></div>';
+    return '<div class="bnf-bud"><span class="bnf-bud-n">' + esc(txt) + '</span>' +
+           '<span class="bnf-bud-c">دينار</span></div>';
+  }
+
+  function cardHTML(p) {
+    var open = p.status === 'published';
+    return '<a class="bnf-card bn-solid" href="project_details.html?id=' + esc(p.id) + '">' +
+      '<div class="bnf-ctop">' +
+        '<span class="bnf-badge' + (open ? '' : ' bnf-badge-off') + '">' +
+          esc(PSTATUS[p.status] || p.status) + '</span>' +
+        '<span class="bnf-bids">' + svg(IC.bid, 12) + p.bids_count +
+          (p.bids_count === 1 ? ' عرض' : ' عروض') + '</span>' +
+      '</div>' +
+      '<h3 class="bnf-ct">' + esc(p.title) + '</h3>' +
+      budgetHTML(p) +
+      '<div class="bnf-cm">' +
+        (p.city ? '<i>' + svg(IC.pin, 12) + '<span>' + esc(p.city) + '</span></i>' : '') +
+        (p.category ? '<i>' + svg(IC.tag, 12) + '<span>' + esc(p.category) + '</span></i>' : '') +
+      '</div></a>';
+  }
+
+  /* ══════════════════════════════════════════════════════════
+     جدول المجالات — كل ما يختلف بين الشركات والمشاريع.
+     ما ليس هنا مشترك، فلا نسخة ثانية منه.
+     ══════════════════════════════════════════════════════════ */
+  var DOMAINS = {
+    companies: {
+      endpoint: '/companies',
+      dim2Key:  'spec',              /* اسمه في الخادم وفي عنوان URL */
+      search:   true,
+      normalize: normalize,
+      itemHTML:  rowHTML,
+      listClass: 'bnf-rows',
+      dim2Of:   function (c) { return c.spec; },
+      hidden:   function (c) { return c.status === 'rejected'; },
+      L: { dim1: 'المدينة', dim1All: 'كل المدن', dim2All: 'الكل',
+           prev: 'تخصصات سابقة', next: 'تخصصات تالية',
+           emptyFiltered: 'لا توجد شركات بهذا الفلتر',
+           emptyAll: 'لا توجد شركات بعد',
+           errorD: 'لم نتمكّن من تحميل قائمة الشركات. تحقّق من اتصالك ثم أعد المحاولة.' }
+    },
+    projects: {
+      endpoint: '/projects',
+      dim2Key:  'category',
+      /* /projects لا يدعم q — عنصرٌ يتظاهر بالعمل مرفوض */
+      search:   false,
+      normalize: normalizeProject,
+      itemHTML:  cardHTML,
+      listClass: 'bnf-cards',
+      dim2Of:   function (p) { return p.category; },
+      hidden:   function () { return false; },
+      L: { dim1: 'المدينة', dim1All: 'كل المدن', dim2All: 'الكل',
+           prev: 'تخصصات سابقة', next: 'تخصصات تالية',
+           emptyFiltered: 'لا توجد مشاريع بهذا الفلتر',
+           emptyAll: 'لا توجد مشاريع منشورة بعد',
+           errorD: 'لم نتمكّن من تحميل سوق المشاريع. تحقّق من اتصالك ثم أعد المحاولة.' }
+    }
+  };
+
   /* ══════════════════════════════════════════════════════════ */
   function create(opts) {
     opts = opts || {};
     var API      = opts.api || '';
     var PER_PAGE = opts.perPage || 24;
     var mountSel = opts.mount || '#bnfMount';
+    var D        = DOMAINS[opts.domain || 'companies'];   /* الافتراض: شركات */
+    var K        = D.dim2Key;                             /* 'spec' | 'category' */
+    var L        = D.L;
 
     var S = { city: '', spec: 'all', q: '' };
     var facets = [], items = [], total = 0, pages = 0, page = 1;
@@ -203,31 +348,31 @@
     function toURL(push) {
       var p = new URLSearchParams();
       if (S.city) p.set('city', S.city);
-      if (S.spec !== 'all') p.set('spec', S.spec);
-      if (S.q) p.set('q', S.q);
+      if (S.spec !== 'all') p.set(K, S.spec);
+      if (D.search && S.q) p.set('q', S.q);
       var url = location.pathname + (p.toString() ? '?' + p : '');
       try { push ? history.pushState(null, '', url) : history.replaceState(null, '', url); } catch (e) {}
     }
     function fromURL() {
       var p = new URLSearchParams(location.search);
       S.city = p.get('city') || '';
-      S.spec = p.get('spec') || 'all';
-      S.q    = p.get('q')    || '';
+      S.spec = p.get(K) || 'all';
+      S.q    = (D.search && p.get('q')) || '';
     }
 
     /* ── الجلب ── */
     function query(pg) {
       var p = new URLSearchParams({ page: String(pg), per_page: String(PER_PAGE) });
       if (S.city)         p.set('city', S.city);
-      if (S.spec !== 'all') p.set('spec', S.spec);
-      if (S.q)            p.set('q', S.q);
-      return API + '/companies?' + p;
+      if (S.spec !== 'all') p.set(K, S.spec);
+      if (D.search && S.q) p.set('q', S.q);
+      return API + D.endpoint + '?' + p;
     }
 
     async function loadFacets() {
       try {
-        var r = await fetch(API + '/companies?page=1&per_page=100', { signal: AbortSignal.timeout(12000) });
-        if (r.ok) facets = ((await r.json()).items || []).map(normalize);
+        var r = await fetch(API + D.endpoint + '?page=1&per_page=100', { signal: AbortSignal.timeout(12000) });
+        if (r.ok) facets = ((await r.json()).items || []).map(D.normalize);
       } catch (e) { facets = []; }
     }
 
@@ -237,7 +382,7 @@
         var r = await fetch(query(pg), { signal: AbortSignal.timeout(12000) });
         if (!r.ok) throw new Error('HTTP ' + r.status);
         var d = await r.json();
-        var batch = (d.items || []).map(normalize);
+        var batch = (d.items || []).map(D.normalize);
         items = append ? items.concat(batch) : batch;
         total = d.total || 0;      /* من الخادم بنفس شرط الفلتر */
         pages = d.pages || 0;
@@ -259,7 +404,7 @@
       }
     }
 
-    function hasFilters() { return !!(S.city || S.spec !== 'all' || S.q); }
+    function hasFilters() { return !!(S.city || S.spec !== 'all' || (D.search && S.q)); }
 
     /* ── بناء واجهة الفلاتر — بعد وصول البيانات لا قبلها ── */
     function build() {
@@ -267,8 +412,8 @@
       cityRow.innerHTML = ''; specRow.innerHTML = '';
       if (error) { els.sbar.classList.remove('has-start', 'has-end'); return; }
 
-      var live = facets.filter(function (c) { return c.status !== 'rejected'; });
-      var inSpec = function (c) { return S.spec === 'all' || c.spec === S.spec; };
+      var live = facets.filter(function (c) { return !D.hidden(c); });
+      var inSpec = function (c) { return S.spec === 'all' || D.dim2Of(c) === S.spec; };
       var inCity = function (c) { return !S.city || c.city === S.city; };
 
       /* عدّ متقاطع: عدّاد المدينة يحترم التخصص المختار والعكس،
@@ -278,7 +423,8 @@
         if (c.city) cityCounts[c.city] = (cityCounts[c.city] || 0) + 1;
       });
       live.filter(inCity).forEach(function (c) {
-        specCounts[c.spec] = (specCounts[c.spec] || 0) + 1;
+        var k = D.dim2Of(c);
+        if (k) specCounts[k] = (specCounts[k] || 0) + 1;
       });
 
       /* الفلتر النشط يبقى ظاهراً ولو صار عدّاده صفراً مع الفلتر
@@ -295,7 +441,7 @@
         return b;
       }
 
-      cityRow.appendChild(pill('كل المدن', live.filter(inSpec).length, !S.city,
+      cityRow.appendChild(pill(L.dim1All, live.filter(inSpec).length, !S.city,
         function () { setCity(''); }));
       Object.keys(cityCounts).sort().forEach(function (city) {
         var active = S.city === city;
@@ -303,7 +449,7 @@
           function () { setCity(city); }, cityCounts[city] === 0 && !active));
       });
 
-      specRow.appendChild(pill('الكل', live.filter(inCity).length, S.spec === 'all',
+      specRow.appendChild(pill(L.dim2All, live.filter(inCity).length, S.spec === 'all',
         function () { setSpec('all'); }));
       Object.keys(specCounts).sort(function (a, b) { return specCounts[b] - specCounts[a]; })
         .forEach(function (s) {
@@ -342,27 +488,28 @@
       if (error) {
         return '<div class="bnf-state">' + svg(IC.offline, 38) +
           '<div class="bnf-state-t">تعذّر الاتصال بالخادم</div>' +
-          '<div class="bnf-state-d">لم نتمكّن من تحميل قائمة الشركات. تحقّق من اتصالك ثم أعد المحاولة.</div>' +
+          '<div class="bnf-state-d">' + esc(L.errorD) + '</div>' +
           '<button class="bn-btn" type="button" data-bnf-retry>إعادة المحاولة</button></div>';
       }
       if (hasFilters()) {
         var bits = [];
         if (S.city) bits.push(S.city);
         if (S.spec !== 'all') bits.push(S.spec);
-        if (S.q) bits.push('«' + S.q + '»');
+        if (D.search && S.q) bits.push('«' + S.q + '»');
         return '<div class="bnf-state">' + svg(IC.filterOff, 38) +
-          '<div class="bnf-state-t">لا توجد شركات بهذا الفلتر</div>' +
+          '<div class="bnf-state-t">' + esc(L.emptyFiltered) + '</div>' +
           '<div class="bnf-state-d">لا نتائج لـ ' + esc(bits.join(' + ')) + '.</div>' +
           '<button class="bn-btn" type="button" data-bnf-clear>إزالة الفلاتر</button></div>';
       }
       return '<div class="bnf-state">' + svg(IC.empty, 38) +
-        '<div class="bnf-state-t">لا توجد شركات بعد</div></div>';
+        '<div class="bnf-state-t">' + esc(L.emptyAll) + '</div></div>';
     }
 
-    /** يرسم النتيجة في حاوية: صفوفاً أو حالة فراغ/خطأ. */
+    /** يرسم النتيجة في حاوية: عناصر المجال أو حالة فراغ/خطأ. */
     function renderInto(el) {
-      var vis = items.filter(function (c) { return c.status !== 'rejected'; });
+      var vis = items.filter(function (c) { return !D.hidden(c); });
       if (error || !vis.length) {
+        el.className = '';
         el.innerHTML = stateHTML();
         var rt = el.querySelector('[data-bnf-retry]');
         if (rt) rt.onclick = async function () {
@@ -374,8 +521,8 @@
         if (cl) cl.onclick = function () { clear(); };
         return;
       }
-      el.className = 'bnf-rows';
-      el.innerHTML = vis.map(rowHTML).join('');
+      el.className = D.listClass;
+      el.innerHTML = vis.map(D.itemHTML).join('');
     }
 
     /* ── التركيب ── */
@@ -384,14 +531,14 @@
       var host = document.querySelector(mountSel);
       host.innerHTML =
         '<div class="bnf-crow-wrap">' +
-          '<span class="bnf-lbl">المدينة</span>' +
+          '<span class="bnf-lbl">' + esc(L.dim1) + '</span>' +
           '<div class="bnf-crow" data-bnf-city>' +
             '<div class="bnf-skel"></div><div class="bnf-skel"></div><div class="bnf-skel"></div>' +
           '</div>' +
         '</div>' +
         '<div class="bnf-sbar" data-bnf-sbar>' +
-          '<button class="bnf-arrow bnf-arrow-s" type="button" data-bnf-prev aria-label="تخصصات سابقة">' + svg(IC.chevS, 18) + '</button>' +
-          '<button class="bnf-arrow bnf-arrow-e" type="button" data-bnf-next aria-label="تخصصات تالية">' + svg(IC.chevE, 18) + '</button>' +
+          '<button class="bnf-arrow bnf-arrow-s" type="button" data-bnf-prev aria-label="' + esc(L.prev) + '">' + svg(IC.chevS, 18) + '</button>' +
+          '<button class="bnf-arrow bnf-arrow-e" type="button" data-bnf-next aria-label="' + esc(L.next) + '">' + svg(IC.chevE, 18) + '</button>' +
           '<div class="bnf-srow" data-bnf-spec>' +
             '<div class="bnf-skel"></div><div class="bnf-skel"></div>' +
             '<div class="bnf-skel"></div><div class="bnf-skel"></div>' +
@@ -436,6 +583,8 @@
 
   window.BunyanFilters = {
     create: create, normalize: normalize, score: score,
-    rowHTML: rowHTML, icons: IC, svg: svg, esc: esc, initials: initials
+    rowHTML: rowHTML, icons: IC, svg: svg, esc: esc, initials: initials,
+    normalizeProject: normalizeProject, cardHTML: cardHTML,
+    budgetHTML: budgetHTML, waNumber: waNumber, projectStatus: PSTATUS
   };
 })();

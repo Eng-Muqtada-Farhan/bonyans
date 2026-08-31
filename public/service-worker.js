@@ -1,15 +1,28 @@
 /**
- * بُنيان Service Worker — Phase 10 PWA
- * Strategy: Cache-first for static assets, network-first for API
+ * بُنيان Service Worker — PWA
+ *
+ * الاستراتيجية:
+ *   الواجهات البرمجية  → الشبكة أولاً، بلا تخزين
+ *   الأصول الثابتة     → stale-while-revalidate
+ *
+ * لماذا لا cache-first: كانت الأصول تُخزَّن بلا إعادة تحقّق، فمن
+ * حمّل bn-filters.js مرة يبقى على تلك النسخة أبداً — والتخزين لا
+ * يُمسح إلا بتغيير CACHE_NAME يدوياً. أي نشر لاحق كان سيصل
+ * الزوّار الجدد وحدهم. الآن يُخدَم المخزَّن فوراً وتُجلب النسخة
+ * الجديدة في الخلفية فتظهر في التحميل التالي.
  */
 
-const CACHE_NAME  = 'bunyan-v4';
+const CACHE_NAME  = 'bunyan-v5';
 const CACHE_ASSETS = [
   '/index.html',
   '/companies.html',
   '/projects.html',
   '/project_details.html',
   '/company_profile.html',
+  '/tokens.css',
+  '/bn-filters.js',
+  '/nav-public.js',
+  '/guard.js',
   '/bunyan.css',
   '/bunyan-nav.js',
   '/manifest.json',
@@ -53,16 +66,19 @@ self.addEventListener('fetch', event => {
     return;
   }
 
-  /* Static assets → cache-first */
+  /* الأصول الثابتة → stale-while-revalidate:
+     يُخدَم المخزَّن فوراً (فالصفحة سريعة وتعمل بلا شبكة)، وتُجلب
+     النسخة الحيّة في الخلفية وتحلّ محلّه للتحميل التالي. */
   event.respondWith(
     caches.match(event.request).then(cached => {
-      if (cached) return cached;
-      return fetch(event.request).then(res => {
-        if (!res || res.status !== 200 || res.type !== 'basic') return res;
-        const clone = res.clone();
-        caches.open(CACHE_NAME).then(c => c.put(event.request, clone));
+      const fresh = fetch(event.request).then(res => {
+        if (res && res.status === 200 && res.type === 'basic') {
+          const clone = res.clone();
+          caches.open(CACHE_NAME).then(c => c.put(event.request, clone));
+        }
         return res;
-      }).catch(() => caches.match('/index.html'));
+      }).catch(() => cached || caches.match('/index.html'));
+      return cached || fresh;
     })
   );
 });

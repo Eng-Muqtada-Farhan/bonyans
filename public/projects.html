@@ -4,637 +4,427 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>سوق المشاريع — بُنيان</title>
-<meta name="description" content="سوق المشاريع في بُنيان — انشر مشروعك وتلقّ عروض من شركات المقاولات في العراق">
+<meta name="description" content="مشاريع بناء وتشييد مفتوحة للعروض في العراق — تصفّح حسب المدينة والتخصص، أو انشر مشروعك واستقبل عروض الشركات.">
+<meta property="og:title" content="سوق المشاريع — بُنيان">
+<meta property="og:description" content="مشاريع مفتوحة للعروض في العراق">
+<meta property="og:type" content="website">
 <link rel="manifest" href="manifest.json">
-<meta name="theme-color" content="#c8a96e">
+<meta name="theme-color" content="#F4F2ED" media="(prefers-color-scheme: light)">
+<meta name="theme-color" content="#15120E" media="(prefers-color-scheme: dark)">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <link rel="apple-touch-icon" href="icons/icon-192.png">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" data-bn-font
+      href="https://fonts.googleapis.com/css2?family=Tajawal:wght@300;400;500;700&display=swap">
 <link rel="stylesheet" href="tokens.css">
-<link rel="stylesheet" href="bunyan.css?v=10b2">
 <script>
-  (function(){ var t=localStorage.getItem('bn-theme')||'light'; document.documentElement.setAttribute('data-theme',t); })();
+  (function(){ var t=localStorage.getItem('bn-theme')||'light';
+    document.documentElement.setAttribute('data-theme',t); })();
 </script>
 <style>
-/* ── Page-specific styles ── */
-.proj-hero {
-  margin-top: 62px;
-  background: linear-gradient(160deg, #EDF5FF 0%, #D8ECFF 35%, #C8D8F8 70%, #D4E4FF 100%);
-  padding: 40px 18px 84px; text-align: center; position: relative; overflow: hidden;
-}
-.proj-hero::before {
-  content:''; position:absolute; inset:0; pointer-events:none;
-  background:
-    radial-gradient(ellipse 80% 70% at 50% -10%, rgba(255,255,255,0.68) 0%, transparent 62%),
-    radial-gradient(ellipse 45% 35% at 85% 80%, rgba(212,160,23,0.10) 0%, transparent 55%);
-}
-[data-theme="dark"] .proj-hero {
-  background: linear-gradient(150deg, #0A1220 0%, #0F1E38 40%, #142040 100%);
-}
-[data-theme="dark"] .proj-hero::before {
-  background: radial-gradient(ellipse 70% 55% at 50% -10%, rgba(46,84,153,0.25) 0%, transparent 62%);
-}
-.proj-hero::after {
-  content:''; position:absolute; bottom:-1px; right:0; left:0; height:56px;
-  background:var(--bg); clip-path:ellipse(55% 100% at 50% 100%); transition:background 0.4s;
-}
-.proj-hero h1 {
-  font-size: clamp(22px,4vw,36px); font-weight:900; color:var(--clay-deep);
-  margin-bottom:8px; position:relative;
-  text-shadow: 0 1px 0 rgba(255,255,255,0.8);
-}
-[data-theme="dark"] .proj-hero h1 { color:#fff; text-shadow:0 2px 16px rgba(0,0,0,0.3); }
-.proj-hero p  {
-  font-size:14px; color:var(--text-2); max-width:420px;
-  margin:0 auto 22px; position:relative;
-}
-[data-theme="dark"] .proj-hero p { color:rgba(255,255,255,0.72); }
+/* ══════════════════════════════════════════════════════════════
+   سوق المشاريع.
+   الفلاتر والبطاقات والحالات من bn-filters.js — الوحدة نفسها
+   التي تخدم الرئيسية والدليل، بإعداد domain:'projects'.
+   لا مربّع بحث ولا فلتر ميزانية: /projects لا يدعم q ولا نطاقاً،
+   وعنصرٌ يتظاهر بالعمل مرفوض (§٥·٥).
+   لا فلتر حالة: الافتراض المنشورة، وشركة لا تقدّم عرضاً على
+   مشروع متعاقَد عليه.
+   ══════════════════════════════════════════════════════════════ */
+body { margin:0; background:var(--bn-bg); color:var(--bn-ink);
+  font:var(--bn-t-body); font-family:var(--bn-font); -webkit-font-smoothing:antialiased; }
 
-/* Filter bar */
-.proj-filter-bar {
-  position:sticky; top:62px; z-index:180;
-  background:rgba(200,216,248,0.75); backdrop-filter:blur(16px);
-  border-bottom:1px solid var(--border2);
-  padding:10px 0; transition:background 0.3s;
-}
-[data-theme="dark"] .proj-filter-bar { background:rgba(8,14,28,0.75); }
-.proj-filter-inner {
-  display:flex; gap:8px; padding:0 18px;
-  max-width:960px; margin:0 auto;
-  overflow-x:auto; -webkit-overflow-scrolling:touch;
-  scrollbar-width:none; flex-wrap:nowrap;
-}
-.proj-filter-inner::-webkit-scrollbar { display:none; }
-.proj-filter-inner select, .proj-filter-inner input {
-  padding:8px 14px; border:1.5px solid var(--border);
-  border-radius:var(--r-pill); background:var(--surface);
-  color:var(--text-2); font-family:Cairo,sans-serif; font-size:13px;
-  outline:none; transition:border-color 0.2s; font-weight:600;
-}
-.proj-filter-inner select:focus, .proj-filter-inner input:focus { border-color:var(--clay); }
-.proj-filter-inner button {
-  padding:8px 16px; border-radius:var(--r-pill);
-  border:1.5px solid var(--border); background:var(--surface);
-  color:var(--text-3); font-family:Cairo,sans-serif; font-size:13px;
-  cursor:pointer; transition:all 0.18s;
-}
-.proj-filter-inner button:hover { border-color:var(--clay); color:var(--clay); }
+.wrap { max-width:1080px; margin-inline:auto; padding-inline:var(--bn-s5); }
+@media(max-width:560px){ .wrap { padding-inline:var(--bn-s4); } }
 
-/* Main */
-.proj-main { max-width:960px; margin:0 auto; padding:24px 18px 120px; }
+/* ── ترويسة ── */
+.head { padding-block:var(--bn-s10) var(--bn-s6); text-align:center; }
+.head h1 { font:var(--bn-t-h1); margin:0 0 var(--bn-s3); letter-spacing:-.01em; }
+.head p { font-size:14.5px; color:var(--bn-ink-2); margin:0 auto var(--bn-s5);
+  max-width:54ch; line-height:1.8; }
+@media(max-width:560px){ .head { padding-block:var(--bn-s8) var(--bn-s5); } }
 
-/* Project card (glass) */
-.proj-card-glass {
-  background:var(--surface); backdrop-filter:blur(16px);
-  border:1.5px solid var(--border); border-radius:var(--r);
-  padding:14px 16px; transition:all 0.2s; text-decoration:none; color:inherit; display:block;
-}
-.proj-card-glass:hover { transform:translateY(-2px); box-shadow:var(--shadow-lg); border-color:var(--clay); }
-.card-top  { display:flex; justify-content:space-between; align-items:flex-start; margin-bottom:8px; }
-.card-title2 { font-size:14px; font-weight:800; color:var(--text-1); line-height:1.4; flex:1; margin-left:8px; }
-.card-meta2 { display:flex; gap:8px; margin-bottom:8px; flex-wrap:wrap; }
-.card-meta2 span { font-size:12px; color:var(--text-3); }
-.card-budget2 { font-size:15px; color:var(--clay); font-weight:800; }
-.card-bids2   { font-size:12px; color:var(--text-3); float:left; }
-.card-desc2   { font-size:12px; color:var(--text-3); margin-top:7px; line-height:1.55; display:-webkit-box; -webkit-line-clamp:2; -webkit-box-orient:vertical; overflow:hidden; }
+/* ── تبويبان ── */
+.tabs { display:flex; gap:var(--bn-s2); justify-content:center;
+  margin-block-end:var(--bn-s5); }
+.tab { min-height:44px; padding-inline:var(--bn-s5); border-radius:var(--bn-r-pill);
+  border:1px solid var(--bn-line); background:transparent; cursor:pointer;
+  color:var(--bn-ink-2); font:400 13.5px/1 var(--bn-font);
+  transition:color var(--bn-fast), border-color var(--bn-fast), background var(--bn-fast); }
+.tab:hover { color:var(--bn-ac); border-color:var(--bn-ac-line); }
+.tab.is-on { background:var(--bn-ac-bg); border-color:var(--bn-ac-line); color:var(--bn-ac); }
+.tab[hidden] { display:none; }
 
-/* Status badges */
-.sbadge { font-size:10px; padding:3px 9px; border-radius:var(--r-pill); font-weight:700; white-space:nowrap; }
-.sbadge-published { background:rgba(46,125,94,0.12); color:var(--green); }
-.sbadge-contracted{ background:rgba(212,160,23,0.12); color:var(--sand-dark); }
-.sbadge-closed    { background:rgba(122,144,184,0.12); color:var(--text-3); }
-.sbadge-pending   { background:rgba(27,58,107,0.10); color:var(--clay); }
+/* ── صف النتائج ── */
+.res { display:flex; align-items:center; justify-content:space-between;
+  gap:var(--bn-s4); margin-block-end:var(--bn-s4); }
+.res-n { font:var(--bn-t-sm); color:var(--bn-ink-3); }
+.res-clear { display:inline-flex; align-items:center; gap:6px; min-height:44px;
+  padding-inline:var(--bn-s3); border:0; background:0; cursor:pointer;
+  color:var(--bn-ac); font:var(--bn-t-sm); font-family:var(--bn-font); }
+.res-clear:hover { text-decoration:underline; }
+.res-clear[hidden] { display:none; }
 
-/* Empty / loading */
-.proj-empty  { grid-column:1/-1; text-align:center; padding:48px 20px; color:var(--text-3); }
-.proj-empty h3 { font-size:16px; color:var(--text-1); margin-bottom:6px; }
-.proj-loading { grid-column:1/-1; text-align:center; padding:40px; color:var(--text-3); font-size:14px; }
+.more { text-align:center; margin-block-start:var(--bn-s6); }
+.more[hidden] { display:none; }
+.more-n { font:var(--bn-t-cap); color:var(--bn-ink-3); margin-block-start:var(--bn-s3); }
 
-/* Modal */
-.proj-overlay {
-  display:none; position:fixed; inset:0; z-index:400;
-  background:rgba(10,22,40,0.55); backdrop-filter:blur(4px);
-  align-items:flex-end; justify-content:center;
-}
-.proj-overlay.open { display:flex; }
-.proj-modal {
-  background:rgba(255,255,255,0.72); backdrop-filter:blur(24px);
-  border:1.5px solid rgba(255,255,255,0.82); border-radius:24px 24px 0 0; border-bottom:none;
-  padding:16px 18px 40px; width:100%; max-width:580px;
-  max-height:92vh; overflow-y:auto; animation:slideUp 0.3s ease;
-}
-[data-theme="dark"] .proj-modal { background:rgba(8,14,28,0.90); border-color:rgba(255,255,255,0.12); }
-@keyframes slideUp { from{transform:translateY(100%)} to{transform:translateY(0)} }
-.proj-modal-handle { width:36px; height:4px; background:var(--border2); border-radius:2px; margin:0 auto 14px; }
-.proj-modal h2 { font-size:17px; font-weight:800; color:var(--text-1); margin-bottom:16px; }
+.state { text-align:center; padding:var(--bn-s14) var(--bn-s5); }
+.state svg { width:38px; height:38px; stroke:var(--bn-ink-3); fill:none;
+  stroke-width:1.3; margin-block-end:var(--bn-s3); }
+.state-t { font:500 15px/1.5 var(--bn-font); color:var(--bn-ink-2); }
+.state-d { font:var(--bn-t-sm); color:var(--bn-ink-3); margin-block-start:6px;
+  max-width:42ch; margin-inline:auto; line-height:1.7; }
+.state .bn-btn { margin-block-start:var(--bn-s4); }
 
-.form-row { margin-bottom:12px; }
-.form-row label { display:block; font-size:12px; font-weight:700; color:var(--text-3); margin-bottom:5px; }
-.form-row input, .form-row select, .form-row textarea {
-  width:100%; padding:11px 14px; background:var(--bg2);
-  border:1.5px solid var(--border); border-radius:var(--r);
-  color:var(--text-1); font-family:Cairo,sans-serif; font-size:13px;
-  outline:none; direction:rtl; transition:border-color 0.2s;
-}
-.form-row input:focus, .form-row select:focus, .form-row textarea:focus { border-color:var(--clay); }
-.form-row textarea { resize:vertical; min-height:80px; }
-.form-grid2 { display:grid; grid-template-columns:1fr 1fr; gap:10px; }
-@media(max-width:480px){ .form-grid2 { grid-template-columns:1fr; } }
+/* ── نافذة نشر المشروع ── */
+.ov { position:fixed; inset:0; z-index:600; display:none;
+  align-items:flex-end; justify-content:center; background:var(--bn-scrim); }
+.ov.is-on { display:flex; }
+@media(min-width:640px){ .ov { align-items:center; } }
+.sheet { width:100%; max-width:560px; max-height:90vh; overflow-y:auto;
+  background:var(--bn-surface); border:1px solid var(--bn-line);
+  border-radius:var(--bn-r-lg) var(--bn-r-lg) 0 0; padding:var(--bn-s6) var(--bn-s5);
+  box-shadow:var(--bn-sh-3); }
+@media(min-width:640px){ .sheet { border-radius:var(--bn-r-lg); } }
+.sheet-h { display:flex; align-items:center; justify-content:space-between;
+  gap:var(--bn-s3); margin-block-end:var(--bn-s5); }
+.sheet-h h2 { font:var(--bn-t-h3); margin:0; }
+.x { width:44px; height:44px; display:grid; place-items:center; flex:none;
+  border:1px solid var(--bn-line); border-radius:50%; background:transparent;
+  color:var(--bn-ink-2); cursor:pointer; }
+.x:hover { color:var(--bn-ac); border-color:var(--bn-ac-line); }
+.fr { margin-block-end:var(--bn-s4); }
+.fr label { display:block; font:var(--bn-t-cap); color:var(--bn-ink-3);
+  margin-block-end:6px; }
+.fr input, .fr select, .fr textarea { width:100%; min-height:44px;
+  padding:11px var(--bn-s4); border:1px solid var(--bn-line);
+  border-radius:var(--bn-r); background:var(--bn-bg); color:var(--bn-ink);
+  font:400 14px/1.5 var(--bn-font); }
+.fr input:focus, .fr select:focus, .fr textarea:focus {
+  outline:none; border-color:var(--bn-ac); }
+.fr textarea { resize:vertical; min-height:88px; }
+.f2 { display:grid; grid-template-columns:1fr 1fr; gap:var(--bn-s3); }
+@media(max-width:480px){ .f2 { grid-template-columns:1fr; } }
+.msg { font:var(--bn-t-sm); border-radius:var(--bn-r); padding:11px var(--bn-s4);
+  margin-block-end:var(--bn-s4); display:none; }
+.msg.is-on { display:block; }
+.msg-err { background:var(--bn-ac-bg); color:var(--bn-ac); border:1px solid var(--bn-ac-line); }
+.msg-ok  { background:var(--bn-ac-bg); color:var(--bn-ac); border:1px solid var(--bn-ac-line); }
+.sheet .bn-btn { width:100%; }
 
-.auth-tabs2 { display:flex; gap:4px; background:var(--bg2); border-radius:var(--r); padding:4px; margin-bottom:14px; }
-.auth-tab2  { flex:1; text-align:center; padding:8px; font-size:13px; font-weight:600; color:var(--text-3); cursor:pointer; border-radius:var(--r-sm); transition:all 0.2s; }
-.auth-tab2.active { background:var(--clay); color:#fff; }
-
-.modal-msg { padding:9px 13px; border-radius:var(--r); font-size:13px; margin-bottom:12px; display:none; }
-.modal-msg.err { background:rgba(198,40,40,0.08); color:var(--red-light); border:1px solid rgba(198,40,40,0.2); display:block; }
-.modal-msg.ok  { background:rgba(46,125,94,0.08); color:var(--green); border:1px solid rgba(46,125,94,0.2); display:block; }
-
-.btn-submit2 {
-  width:100%; padding:13px; background:linear-gradient(135deg,var(--clay-deep),var(--clay));
-  color:#fff; border:none; border-radius:var(--r-pill);
-  font-family:Cairo,sans-serif; font-size:15px; font-weight:800;
-  cursor:pointer; margin-top:6px; transition:all 0.2s; box-shadow:var(--shadow-clay);
-}
-.btn-submit2:hover { transform:translateY(-1px); box-shadow:0 8px 28px rgba(27,58,107,0.4); }
-.btn-submit2:disabled { opacity:0.6; cursor:not-allowed; transform:none; }
-.btn-cancel2 {
-  width:100%; padding:11px; border:1.5px solid var(--border); border-radius:var(--r-pill);
-  background:transparent; color:var(--text-3); font-family:Cairo,sans-serif;
-  font-size:14px; cursor:pointer; margin-top:8px; transition:all 0.18s;
-}
-.btn-cancel2:hover { border-color:var(--clay); color:var(--clay); }
+/* ── التذييل ── */
+.foot { border-block-start:1px solid var(--bn-line-soft);
+  padding-block:var(--bn-s8) var(--bn-s14); margin-block-start:var(--bn-s14); }
+.foot-grid { display:grid; grid-template-columns:1.6fr 1fr 1fr; gap:var(--bn-s8); }
+@media(max-width:700px){ .foot-grid { grid-template-columns:1fr 1fr; gap:var(--bn-s6); } }
+.foot-logo { font:700 19px/1 var(--bn-font); margin-block-end:var(--bn-s3); }
+.foot-logo b { color:var(--bn-ac); }
+.foot p { font:var(--bn-t-sm); color:var(--bn-ink-3); margin:0; max-width:34ch; }
+.foot h4 { font:var(--bn-t-cap); color:var(--bn-ink-3); letter-spacing:.05em;
+  margin:0 0 var(--bn-s2); }
+.foot a { display:flex; align-items:center; min-height:44px; font:var(--bn-t-sm);
+  color:var(--bn-ink-2); text-decoration:none; }
+.foot a:hover { color:var(--bn-ac); }
+.foot-base { margin-block-start:var(--bn-s6); padding-block-start:var(--bn-s4);
+  border-block-start:1px solid var(--bn-line-soft);
+  font:var(--bn-t-cap); color:var(--bn-ink-3); text-align:center; }
 </style>
 </head>
-<body>
+<body class="bn-body">
 
-<!-- BACKGROUND ORBS -->
-<div class="bn-orbs" aria-hidden="true">
-  <div class="bn-orb bn-orb-1"></div>
-  <div class="bn-orb bn-orb-2"></div>
-</div>
+<div class="bn-backdrop" aria-hidden="true"></div>
+<div id="bn-nav"></div>
 
-<!-- NAV (injected by bunyan-nav.js) -->
+<header class="head wrap">
+  <h1>سوق المشاريع</h1>
+  <p>مشاريع مفتوحة للعروض من أصحابها مباشرة. تصفّحها حسب المدينة والتخصص، أو انشر مشروعك واستقبل عروض الشركات.</p>
+  <button class="bn-btn" type="button" id="postBtn">أضف مشروعك</button>
+</header>
 
-<!-- HERO -->
-<div class="proj-hero">
-  <div class="bn-hero-tag">🏗 سوق المشاريع</div>
-  <h1>انشر مشروعك — استقبل العروض</h1>
-  <p>تلقّ عروض أسعار من أفضل شركات المقاولات في العراق في وقت قياسي</p>
-  <div style="display:flex;gap:10px;justify-content:center;flex-wrap:wrap;position:relative">
-    <button class="btn-primary" onclick="openPostProject()">+ أضف مشروعك</button>
-    <a href="index.html" class="btn-secondary">← دليل الشركات</a>
+<div class="wrap">
+  <div class="tabs">
+    <button class="tab is-on" type="button" id="tabMarket">سوق المشاريع</button>
+    <button class="tab" type="button" id="tabMine" hidden>مشاريعي</button>
   </div>
 </div>
 
-<!-- G1: PAGE TABS -->
-<div class="pj-tabs-bar">
-  <div class="pj-tabs">
-    <button class="pj-tab active" id="tabMarket" onclick="switchTab('market')">🏗 سوق المشاريع</button>
-    <button class="pj-tab" id="tabMy" onclick="switchTab('my')" style="display:none">📂 مشاريعي</button>
-  </div>
-</div>
+<!-- ══ لوحة السوق ══ -->
+<div id="panelMarket">
+  <div class="bnf-bar"><div class="wrap" id="bnfMount"></div></div>
 
-<!-- FILTER BAR -->
-<div class="proj-filter-bar" id="marketFilterBar">
-  <div class="proj-filter-inner" data-pills-scroll>
-    <select id="filterCity" onchange="loadProjects()">
-      <option value="">📍 جميع المدن</option>
-      <option>بغداد</option><option>البصرة</option><option>أربيل</option>
-      <option>الموصل</option><option>النجف</option><option>كربلاء</option>
-      <option>السليمانية</option><option>كركوك</option><option>الحلة</option>
-      <option>الرمادي</option><option>تكريت</option><option>العمارة</option>
-    </select>
-    <select id="filterCategory" onchange="loadProjects()">
-      <option value="">🔨 جميع التخصصات</option>
-      <option>مقاولات عامة</option><option>تصميم معماري</option>
-      <option>كهرباء وأنظمة</option><option>تمديدات صحية</option>
-      <option>تشطيبات داخلية</option><option>بنية تحتية</option>
-      <option>مقاولات حكومية</option><option>أخرى</option>
-    </select>
-    <button onclick="clearFilters()">↺ إعادة تعيين</button>
-  </div>
-</div>
-
-<!-- MAIN GRID -->
-<div class="proj-main" id="panelMarket">
-  <div class="bn-proj-grid" id="grid">
-    <div class="proj-loading">⏳ جارٍ التحميل...</div>
-  </div>
-
-  <div id="projLoadMoreWrap" style="display:none; text-align:center; margin-top:20px">
-    <button id="projLoadMoreBtn" onclick="loadMoreProjects(this)"
-      style="padding:10px 22px;border:none;border-radius:12px;cursor:pointer;
-             font-family:'Cairo',sans-serif;font-size:14px;font-weight:700;
-             color:#fff;background:var(--clay,#1B3A6B)">تحميل المزيد</button>
-    <div id="projLoadMoreInfo" style="font-size:12px;color:var(--text-3);margin-top:8px"></div>
-  </div>
-</div>
-
-<!-- G1: MY PROJECTS PANEL -->
-<div class="proj-main" id="panelMy" style="display:none">
-  <div class="bn-proj-grid" id="myGrid"></div>
-</div>
-
-<!-- POST PROJECT MODAL -->
-<div class="proj-overlay" id="overlayPost" onclick="if(event.target===this)closePost()">
-  <div class="proj-modal">
-    <div class="proj-modal-handle"></div>
-    <h2>📋 نشر مشروع جديد</h2>
-    <div class="modal-msg" id="postMsg"></div>
-
-    <!-- Auth section -->
-    <div id="authSection">
-      <p style="font-size:13px;color:var(--text-3);margin-bottom:14px">يجب تسجيل الدخول أو إنشاء حساب لنشر المشروع</p>
-      <div class="auth-tabs2">
-        <div class="auth-tab2 active" onclick="switchAuthTab('login')">دخول</div>
-        <div class="auth-tab2"        onclick="switchAuthTab('register')">حساب جديد</div>
-      </div>
-      <div id="loginForm">
-        <div class="form-row"><label>البريد الإلكتروني</label><input id="loginEmail" type="email" placeholder="your@email.com" dir="ltr"></div>
-        <div class="form-row"><label>كلمة المرور</label><input id="loginPwd" type="password" dir="ltr"></div>
-        <button class="btn-submit2" onclick="doAuth('login')">دخول</button>
-      </div>
-      <div id="registerForm" style="display:none">
-        <div class="form-row"><label>الاسم الكامل</label><input id="regName" placeholder="محمد علي"></div>
-        <div class="form-row"><label>البريد الإلكتروني</label><input id="regEmail" type="email" placeholder="your@email.com" dir="ltr"></div>
-        <div class="form-row"><label>كلمة المرور (8 أحرف على الأقل)</label><input id="regPwd" type="password" dir="ltr"></div>
-        <button class="btn-submit2" onclick="doAuth('register')">إنشاء حساب</button>
-      </div>
+  <main class="wrap">
+    <div class="res">
+      <span class="res-n" id="resultCount"></span>
+      <button class="res-clear" type="button" id="clearBtn" hidden>إزالة الفلاتر</button>
     </div>
 
-    <!-- Project form -->
-    <div id="projectForm" style="display:none">
-      <div class="form-row"><label>عنوان المشروع *</label><input id="pTitle" placeholder="بناء فيلا سكنية / تشطيب مكتب..."></div>
-      <div class="form-grid2">
-        <div class="form-row"><label>التخصص المطلوب *</label>
-          <select id="pCategory">
-            <option>مقاولات عامة</option><option>تصميم معماري</option>
-            <option>كهرباء وأنظمة</option><option>تمديدات صحية</option>
-            <option>تشطيبات داخلية</option><option>بنية تحتية</option>
-            <option>مقاولات حكومية</option><option>أخرى</option>
-          </select>
-        </div>
-        <div class="form-row"><label>المدينة *</label>
-          <select id="pCity">
-            <option>بغداد</option><option>البصرة</option><option>أربيل</option>
-            <option>الموصل</option><option>النجف</option><option>كربلاء</option>
-            <option>السليمانية</option><option>كركوك</option><option>أخرى</option>
-          </select>
-        </div>
-      </div>
-      <div class="form-grid2">
-        <div class="form-row"><label>الميزانية من (دينار)</label><input id="pBudgetMin" type="number" placeholder="5,000,000" dir="ltr"></div>
-        <div class="form-row"><label>الميزانية إلى (دينار)</label><input id="pBudgetMax" type="number" placeholder="15,000,000" dir="ltr"></div>
-      </div>
-      <div class="form-row"><label>وصف المشروع</label><textarea id="pDesc" placeholder="تفاصيل المشروع، المساحة، المواصفات..."></textarea></div>
-      <div class="form-row"><label>اسم صاحب المشروع *</label><input id="pContactName" placeholder="محمد علي"></div>
-      <div class="form-grid2">
-        <div class="form-row"><label>رقم الهاتف *</label><input id="pContactPhone" placeholder="07XXXXXXXXX" dir="ltr"></div>
-        <div class="form-row"><label>البريد الإلكتروني</label><input id="pContactEmail" type="email" placeholder="اختياري" dir="ltr"></div>
-      </div>
-      <button class="btn-submit2" onclick="submitProject()">نشر المشروع</button>
+    <div id="list" class="bnf-cards">
+      <div class="bnf-skelcard"></div><div class="bnf-skelcard"></div>
+      <div class="bnf-skelcard"></div><div class="bnf-skelcard"></div>
     </div>
-    <button class="btn-cancel2" onclick="closePost()">إلغاء</button>
+
+    <div class="more" id="moreWrap" hidden>
+      <button class="bn-btn bn-btn-ghost" type="button" id="moreBtn">تحميل المزيد</button>
+      <div class="more-n" id="moreInfo"></div>
+    </div>
+  </main>
+</div>
+
+<!-- ══ لوحة مشاريعي ══ -->
+<main class="wrap" id="panelMine" hidden>
+  <div id="mineList"></div>
+</main>
+
+<!-- ══ نشر مشروع ══ -->
+<div class="ov" id="ov">
+  <div class="sheet" role="dialog" aria-modal="true" aria-labelledby="sheetT">
+    <div class="sheet-h">
+      <h2 id="sheetT">نشر مشروع جديد</h2>
+      <button class="x" type="button" id="closeBtn" aria-label="إغلاق"></button>
+    </div>
+    <div class="msg" id="msg"></div>
+    <form id="form">
+      <div class="fr"><label for="pTitle">عنوان المشروع *</label>
+        <input id="pTitle" required maxlength="120" placeholder="بناء دار سكنية / تشطيب مكتب"></div>
+      <div class="f2">
+        <div class="fr"><label for="pCategory">التخصص المطلوب *</label>
+          <select id="pCategory" required></select></div>
+        <div class="fr"><label for="pCity">المدينة *</label>
+          <select id="pCity" required></select></div>
+      </div>
+      <div class="f2">
+        <div class="fr"><label for="pMin">الميزانية من (دينار)</label>
+          <input id="pMin" type="number" min="0" step="1000" dir="ltr" inputmode="numeric"></div>
+        <div class="fr"><label for="pMax">الميزانية إلى (دينار)</label>
+          <input id="pMax" type="number" min="0" step="1000" dir="ltr" inputmode="numeric"></div>
+      </div>
+      <div class="fr"><label for="pDesc">وصف المشروع</label>
+        <textarea id="pDesc" maxlength="2000" placeholder="التفاصيل، المساحة، المواصفات"></textarea></div>
+      <div class="fr"><label for="pName">اسم صاحب المشروع *</label>
+        <input id="pName" required maxlength="80"></div>
+      <div class="f2">
+        <div class="fr"><label for="pPhone">رقم الهاتف *</label>
+          <input id="pPhone" required dir="ltr" inputmode="tel" placeholder="07XXXXXXXXX"></div>
+        <div class="fr"><label for="pEmail">البريد الإلكتروني</label>
+          <input id="pEmail" type="email" dir="ltr" placeholder="اختياري"></div>
+      </div>
+      <button class="bn-btn" type="submit" id="submitBtn">نشر المشروع</button>
+    </form>
   </div>
 </div>
 
-<div id="bn-footer-mount"></div>
+<footer class="foot">
+  <div class="wrap">
+    <div class="foot-grid">
+      <div>
+        <div class="foot-logo">بُ<b>نيان</b></div>
+        <p>منصة المقاولات الذكية في العراق — نربط أصحاب المشاريع بشركات البناء الموثوقة.</p>
+      </div>
+      <div>
+        <h4>الخدمات</h4>
+        <a href="index.html">الرئيسية</a>
+        <a href="companies.html">دليل الشركات</a>
+      </div>
+      <div>
+        <h4>الحساب</h4>
+        <a href="login.html">تسجيل الدخول</a>
+      </div>
+    </div>
+    <div class="foot-base">بُنيان — صُنع في العراق</div>
+  </div>
+</footer>
 
+<script src="guard.js"></script>
+<script src="bn-filters.js"></script>
+<script src="nav-public.js"></script>
 <script>
-const API = '';
-let USER_TOKEN = localStorage.getItem('project_user_token') || '';
-let USER_ID    = localStorage.getItem('project_user_id') || '';
+(function () {
+'use strict';
 
-function fmt(n) {
-  if (n == null) return '';
-  return Number(n).toLocaleString('ar-IQ') + ' د.ع';
+const API   = '';
+const $     = (id) => document.getElementById(id);
+const BF    = BunyanFilters;
+const esc   = BF.esc, svg = BF.svg, IC = BF.icons;
+const ROLE  = (window.BunyanGuard && window.BunyanGuard.role()) || null;
+const TOKEN = (function () {
+  try { return localStorage.getItem('project_user_token') || ''; } catch (e) { return ''; }
+})();
+
+/* ══ ١ · السوق — الوحدة المشتركة بإعداد المشاريع ══
+   نفس المنطق الذي تستعمله الرئيسية والدليل. أي إصلاح في الفلترة
+   أو الترقيم أو الحالات يصل الصفحات الثلاث معاً. */
+const BNF = BF.create({
+  domain: 'projects',
+  perPage: 12,
+  onResults(r) {
+    /* العدّاد من total الذي يحسبه الخادم بشرط الفلتر نفسه */
+    $('resultCount').textContent = r.error ? ''
+      : (r.hasFilters ? r.total + ' نتيجة' : r.total + ' مشروع');
+    $('clearBtn').hidden = !r.hasFilters || r.error;
+
+    BNF.renderInto($('list'));
+
+    $('moreWrap').hidden = !r.hasMore;
+    if (r.hasMore) $('moreInfo').textContent = 'عُرض ' + r.items.length + ' من ' + r.total;
+  }
+});
+$('clearBtn').onclick = () => BNF.clear();
+$('moreBtn').onclick = async function () {
+  this.disabled = true;
+  const label = this.textContent;
+  this.textContent = 'جارٍ التحميل...';
+  await BNF.loadMore();
+  this.disabled = false;
+  this.textContent = label;
+};
+BNF.init();
+
+/* ══ ٢ · التبويبان ══ */
+function showTab(which) {
+  const mine = which === 'mine';
+  $('panelMarket').hidden = mine;
+  $('panelMine').hidden   = !mine;
+  $('tabMarket').classList.toggle('is-on', !mine);
+  $('tabMine').classList.toggle('is-on', mine);
+  if (mine) loadMine();
 }
-function budgetText(min, max) {
-  if (min && max) return `${fmt(min)} — ${fmt(max)}`;
-  if (min) return `من ${fmt(min)}`;
-  if (max) return `حتى ${fmt(max)}`;
-  return 'السعر مفتوح';
-}
-function statusLabel(s) {
-  return {published:'مفتوح',contracted:'تم الاختيار',closed:'مغلق',cancelled:'ملغي',pending:'قيد المراجعة'}[s] || s;
-}
-function statusClass(s) {
-  return {published:'sbadge-published',contracted:'sbadge-contracted',closed:'sbadge-closed',pending:'sbadge-pending'}[s] || 'sbadge-closed';
-}
-function esc(s) {
-  return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
-}
+$('tabMarket').onclick = () => showTab('market');
+$('tabMine').onclick   = () => showTab('mine');
+if (ROLE === 'user') $('tabMine').hidden = false;
 
-const PROJ_PER_PAGE = 20;
-let PROJ_PAGE = 1;
-let PROJ_TOTAL_PAGES = 0;
-let PROJ_TOTAL = 0;
-let PROJ_LOADED = [];
-
-async function loadProjects({ append = false } = {}) {
-  const city     = document.getElementById('filterCity').value;
-  const category = document.getElementById('filterCategory').value;
-  if (!append) PROJ_PAGE = 1;
-
-  let url = `/projects?page=${PROJ_PAGE}&per_page=${PROJ_PER_PAGE}&`;
-  if (city)     url += `city=${encodeURIComponent(city)}&`;
-  if (category) url += `category=${encodeURIComponent(category)}&`;
-
-  const grid = document.getElementById('grid');
-  if (!append) grid.innerHTML = '<div class="proj-loading">⏳ جارٍ التحميل...</div>';
-
+/* ══ ٣ · مشاريعي — من /my/projects بالرمز ══ */
+let mineLoaded = false;
+async function loadMine() {
+  if (mineLoaded) return;
+  const el = $('mineList');
+  el.className = '';
+  el.innerHTML = '<div class="bnf-cards"><div class="bnf-skelcard"></div><div class="bnf-skelcard"></div></div>';
   try {
-    const r = await fetch(url);
-    if (!r.ok) throw new Error(`HTTP ${r.status}`);
-    /* الـ API يُعيد {items, page, per_page, total, pages} */
-    const data = await r.json();
-    const batch = data.items || [];
-    PROJ_LOADED = append ? PROJ_LOADED.concat(batch) : batch;
-    PROJ_TOTAL_PAGES = data.pages || 0;
-    PROJ_TOTAL = data.total || 0;
-    renderProjects(PROJ_LOADED);
-    updateProjLoadMore();
-  } catch(e) {
-    if (!append) {
-      PROJ_LOADED = []; PROJ_TOTAL_PAGES = 0; PROJ_TOTAL = 0;
-      grid.innerHTML = '<div class="proj-empty"><h3>خطأ في التحميل</h3><p>تأكد من الاتصال بالإنترنت</p></div>';
-    }
-    updateProjLoadMore();
-  }
-}
-
-function updateProjLoadMore() {
-  const wrap = document.getElementById('projLoadMoreWrap');
-  if (!wrap) return;
-  const more = PROJ_PAGE < PROJ_TOTAL_PAGES;
-  wrap.style.display = more ? 'block' : 'none';
-  if (more) {
-    document.getElementById('projLoadMoreInfo').textContent =
-      `عُرض ${PROJ_LOADED.length} من ${PROJ_TOTAL}`;
-  }
-}
-
-async function loadMoreProjects(btn) {
-  if (PROJ_PAGE >= PROJ_TOTAL_PAGES) return;
-  btn.disabled = true;
-  btn.textContent = 'جارٍ التحميل...';
-  PROJ_PAGE += 1;
-  await loadProjects({ append: true });
-  btn.disabled = false;
-  btn.textContent = 'تحميل المزيد';
-}
-
-function renderProjects(list) {
-  const grid = document.getElementById('grid');
-  if (!list.length) {
-    grid.innerHTML = '<div class="proj-empty"><h3>لا توجد مشاريع حالياً</h3><p>كن أول من ينشر مشروعه!</p></div>';
-    return;
-  }
-  grid.innerHTML = list.map(p => `
-    <a class="proj-card-glass" href="project_details.html?id=${p.id}">
-      <div class="card-top">
-        <div class="card-title2">${esc(p.title)}</div>
-        <span class="sbadge ${statusClass(p.status)}">${statusLabel(p.status)}</span>
-      </div>
-      <div class="card-meta2">
-        <span>📍 ${esc(p.city)}</span>
-        <span>🔨 ${esc(p.category)}</span>
-      </div>
-      <div style="display:flex;justify-content:space-between;align-items:center">
-        <div class="card-budget2">${budgetText(p.budget_min, p.budget_max)}</div>
-        <div class="card-bids2">💬 ${p.bids_count||p.bid_count||0} عرض</div>
-      </div>
-      ${p.description ? `<div class="card-desc2">${esc(p.description)}</div>` : ''}
-    </a>
-  `).join('');
-}
-
-function clearFilters() {
-  document.getElementById('filterCity').value = '';
-  document.getElementById('filterCategory').value = '';
-  loadProjects();
-}
-
-/* ── G1: Tab system ── */
-var _marketLoaded = false;
-var _myProjectsCache = null;
-
-function isAuthUser() {
-  if (!window.authCore) return false;
-  return window.authCore.getAuthState().role === 'user';
-}
-
-function switchTab(tab) {
-  var isMarket = tab === 'market';
-  document.getElementById('tabMarket').classList.toggle('active', isMarket);
-  document.getElementById('tabMy').classList.toggle('active', !isMarket);
-  document.getElementById('panelMarket').style.display = isMarket ? '' : 'none';
-  document.getElementById('panelMy').style.display = isMarket ? 'none' : '';
-  var fb = document.getElementById('marketFilterBar');
-  if (fb) fb.style.display = isMarket ? '' : 'none';
-  history.replaceState(null, '', isMarket ? location.pathname : location.pathname + '#my');
-  if (isMarket && !_marketLoaded) { _marketLoaded = true; loadProjects(); }
-  else if (!isMarket) { loadMyProjects(); }
-}
-
-function updateTabVisibility() {
-  var tab = document.getElementById('tabMy');
-  if (!tab) return;
-  tab.style.display = isAuthUser() ? '' : 'none';
-}
-
-function formatDate(str) {
-  if (!str) return '';
-  try {
-    return new Date(str).toLocaleDateString('ar-IQ', { year:'numeric', month:'short', day:'numeric' });
-  } catch(e) { return String(str).substring(0, 10); }
-}
-
-async function loadMyProjects(forceRefresh) {
-  USER_TOKEN = localStorage.getItem('project_user_token') || '';
-  USER_ID    = localStorage.getItem('project_user_id') || '';
-  var grid = document.getElementById('myGrid');
-  if (!isAuthUser()) {
-    grid.innerHTML = '<div class="proj-empty pj-state"><div class="pj-empty-icon">🔒</div><h3>يجب تسجيل الدخول</h3><p>يرجى تسجيل الدخول لعرض مشاريعك</p><button class="btn-primary" onclick="openPostProject()" style="margin-top:14px">تسجيل الدخول</button></div>';
-    return;
-  }
-  if (!forceRefresh && _myProjectsCache !== null) {
-    renderMyProjects(_myProjectsCache);
-    return;
-  }
-  grid.innerHTML = '<div class="proj-loading">⏳ جارٍ تحميل مشاريعك...</div>';
-  try {
-    var r = await fetch('/my/projects', { headers: { 'Authorization': USER_TOKEN } });
-    if (r.status === 401) {
-      USER_TOKEN = ''; USER_ID = '';
-      localStorage.removeItem('project_user_token');
-      localStorage.removeItem('project_user_id');
-      _myProjectsCache = null;
-      updateTabVisibility();
-      switchTab('market');
-      openPostProject();
+    const r = await fetch(API + '/my/projects', {
+      headers: { Authorization: 'Bearer ' + TOKEN },
+      signal: AbortSignal.timeout(12000)
+    });
+    if (!r.ok) throw new Error('HTTP ' + r.status);
+    const d = await r.json();
+    const list = (Array.isArray(d) ? d : (d.items || [])).map(BF.normalizeProject);
+    mineLoaded = true;
+    if (!list.length) {
+      el.className = '';
+      el.innerHTML = '<div class="state">' + svg(IC.empty, 38) +
+        '<div class="state-t">لم تنشر مشروعاً بعد</div>' +
+        '<div class="state-d">انشر مشروعك لتصلك عروض من شركات المقاولات.</div>' +
+        '<button class="bn-btn" type="button" data-post>أضف مشروعك</button></div>';
+      el.querySelector('[data-post]').onclick = openPost;
       return;
     }
-    if (!r.ok) throw new Error('server');
-    var projects = await r.json();
-    _myProjectsCache = projects;
-    renderMyProjects(projects);
-  } catch(e) {
-    grid.innerHTML = '<div class="proj-empty pj-state"><h3>حدث خطأ أثناء التحميل</h3><p>تأكد من الاتصال بالإنترنت وحاول مجدداً</p><button class="btn-primary" onclick="loadMyProjects(true)" style="margin-top:14px">إعادة المحاولة</button></div>';
+    el.className = 'bnf-cards';
+    el.innerHTML = list.map(BF.cardHTML).join('');
+  } catch (e) {
+    el.className = '';
+    el.innerHTML = '<div class="state">' + svg(IC.offline, 38) +
+      '<div class="state-t">تعذّر تحميل مشاريعك</div>' +
+      '<div class="state-d">تحقّق من اتصالك ثم أعد المحاولة.</div>' +
+      '<button class="bn-btn" type="button" data-retry>إعادة المحاولة</button></div>';
+    el.querySelector('[data-retry]').onclick = () => { mineLoaded = false; loadMine(); };
   }
 }
 
-function renderMyProjects(list) {
-  var grid = document.getElementById('myGrid');
-  if (!list.length) {
-    grid.innerHTML = '<div class="proj-empty pj-state"><div class="pj-empty-icon">📋</div><h3>ليس لديك مشاريع بعد</h3><p>ابدأ بنشر مشروعك الأول وتلقّ عروضاً من أفضل الشركات</p><button class="btn-primary" onclick="openPostProject()" style="margin-top:14px">انشر مشروعك الأول</button></div>';
-    return;
-  }
-  grid.innerHTML = list.map(function(p) {
-    return `<div class="pj-my-card">
-      <div class="pj-my-card-top">
-        <div class="card-title2">${esc(p.title)}</div>
-        <span class="sbadge ${statusClass(p.status)}">${statusLabel(p.status)}</span>
-      </div>
-      <div class="card-meta2">
-        <span>📍 ${esc(p.city)}</span>
-        <span>🔨 ${esc(p.category)}</span>
-        <span>📅 ${formatDate(p.created_at)}</span>
-      </div>
-      <div class="pj-my-card-footer">
-        <div class="card-budget2">${budgetText(p.budget_min, p.budget_max)}</div>
-        <div class="pj-my-bids"><span class="pj-bids-badge">${p.bids_count || 0}</span> عرض</div>
-      </div>
-      <a class="pj-my-details-btn" href="project_details.html?id=${p.id}">عرض التفاصيل ←</a>
-    </div>`;
-  }).join('');
-}
-
-/* ── B3: Block company from posting project as client ── */
-function isCompanyAccount() {
-  return !!(localStorage.getItem('COMPANY_TOKEN') ||
-            (localStorage.getItem('project_user_token') && localStorage.getItem('company_id')));
-}
-
-/* ── Auth + Post Project ── */
-function openPostProject() {
-  document.getElementById('overlayPost').classList.add('open');
-  document.getElementById('postMsg').className = 'modal-msg';
-  document.getElementById('postMsg').textContent = '';
-
-  /* B3: Company accounts cannot post client projects */
-  if (isCompanyAccount()) {
-    document.getElementById('authSection').style.display = 'none';
-    document.getElementById('projectForm').style.display = 'none';
-    const msg = document.getElementById('postMsg');
-    msg.textContent = 'حساب الشركات لا يمكنه نشر مشاريع كعميل. يمكنك تقديم عروض على المشاريع من لوحة شركتك.';
-    msg.className = 'modal-msg err';
-    return;
-  }
-
-  if (USER_TOKEN) {
-    document.getElementById('authSection').style.display = 'none';
-    document.getElementById('projectForm').style.display = 'block';
-  } else {
-    document.getElementById('authSection').style.display = 'block';
-    document.getElementById('projectForm').style.display = 'none';
-  }
-}
-function closePost() { document.getElementById('overlayPost').classList.remove('open'); }
-
-function switchAuthTab(tab) {
-  document.querySelectorAll('.auth-tab2').forEach((t,i) => t.classList.toggle('active', (tab==='login'?i===0:i===1)));
-  document.getElementById('loginForm').style.display    = tab === 'login'    ? 'block' : 'none';
-  document.getElementById('registerForm').style.display = tab === 'register' ? 'block' : 'none';
-}
-
-function setMsg(txt, type) {
-  const el = document.getElementById('postMsg');
-  el.textContent = txt;
-  el.className = 'modal-msg ' + type;
-}
-
-async function doAuth(mode) {
-  setMsg('', '');
-  let body, url;
-  if (mode === 'login') {
-    body = { email: document.getElementById('loginEmail').value, password: document.getElementById('loginPwd').value };
-    url = `/auth/login`;
-  } else {
-    body = { email: document.getElementById('regEmail').value, password: document.getElementById('regPwd').value, display_name: document.getElementById('regName').value };
-    url = `/auth/register`;
-  }
-  try {
-    const r = await fetch(url, { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify(body) });
-    const d = await r.json();
-    if (!r.ok) { setMsg(d.detail || 'خطأ في المصادقة', 'err'); return; }
-    USER_TOKEN = d.token; USER_ID = d.user_id;
-    localStorage.setItem('project_user_token', USER_TOKEN);
-    localStorage.setItem('project_user_id', String(USER_ID));
-    if (d.display_name) localStorage.setItem('project_user_name', d.display_name);
-    /* B1: save company_id so getAuth() can detect company role */
-    if (d.company_id) {
-      localStorage.setItem('company_id', String(d.company_id));
-    } else {
-      localStorage.removeItem('company_id');
+/* ══ ٤ · نشر مشروع ══
+   لا نموذج دخول هنا: login.html هو سطح الدخول الوحيد بعد الخطوة ٣.
+   نسخة ثانية منه تفترق عنه وتضاعف سطح الخطأ. */
+function openPost() {
+  if (ROLE !== 'user') {
+    if (ROLE === 'company' || ROLE === 'admin') {
+      /* الخادم يمنع أعضاء الشركات من نشر مشاريع العملاء (main.py) */
+      alertMsg('حسابك حساب ' + (ROLE === 'admin' ? 'إدارة' : 'شركة') +
+               ' — نشر المشاريع لأصحاب المشاريع.', 'err');
+      $('ov').classList.add('is-on');
+      $('form').hidden = true;
+      return;
     }
-    document.getElementById('authSection').style.display = 'none';
-    document.getElementById('projectForm').style.display = 'block';
-    setMsg('تم تسجيل الدخول بنجاح', 'ok');
-    updateTabVisibility();
-  } catch(e) { setMsg('خطأ في الاتصال', 'err'); }
+    const back = location.pathname + location.search;
+    location.href = 'login.html?role=client&next=' + encodeURIComponent(back);
+    return;
+  }
+  $('form').hidden = false;
+  $('msg').className = 'msg';
+  $('ov').classList.add('is-on');
+  $('pTitle').focus();
+}
+function closePost() { $('ov').classList.remove('is-on'); }
+function alertMsg(t, kind) {
+  const m = $('msg');
+  m.textContent = t;
+  m.className = 'msg is-on msg-' + (kind === 'ok' ? 'ok' : 'err');
 }
 
-async function submitProject() {
-  setMsg('', '');
-  const title = document.getElementById('pTitle').value.trim();
-  const contactName  = document.getElementById('pContactName').value.trim();
-  const contactPhone = document.getElementById('pContactPhone').value.trim();
-  if (!title || !contactName || !contactPhone) { setMsg('يرجى ملء الحقول المطلوبة (*)','err'); return; }
-  const body = {
-    title, category: document.getElementById('pCategory').value,
-    city: document.getElementById('pCity').value, country: 'IQ',
-    budget_min: document.getElementById('pBudgetMin').value ? Number(document.getElementById('pBudgetMin').value) : null,
-    budget_max: document.getElementById('pBudgetMax').value ? Number(document.getElementById('pBudgetMax').value) : null,
-    description: document.getElementById('pDesc').value.trim(),
-    contact_name: contactName, contact_phone: contactPhone,
-    contact_email: document.getElementById('pContactEmail').value.trim() || null,
-  };
+$('postBtn').onclick  = openPost;
+$('closeBtn').onclick = closePost;
+$('closeBtn').innerHTML = svg('<path d="M18 6L6 18M6 6l12 12"/>', 18);
+$('ov').addEventListener('click', (e) => { if (e.target === $('ov')) closePost(); });
+document.addEventListener('keydown', (e) => { if (e.key === 'Escape') closePost(); });
+
+/* خيارات النموذج من نفس مصادر البيانات الحقيقية */
+(async function fillOptions() {
+  const cities = ['بغداد','البصرة','أربيل','الموصل','النجف','كربلاء','السليمانية',
+                  'دهوك','كركوك','الأنبار','بابل','ذي قار','ديالى','واسط',
+                  'ميسان','المثنى','القادسية','صلاح الدين'];
+  $('pCity').innerHTML = '<option value="">اختر المدينة</option>' +
+    cities.map(c => '<option>' + esc(c) + '</option>').join('');
   try {
-    const r = await fetch(`/projects`, {
-      method:'POST', headers:{'Content-Type':'application/json','Authorization':USER_TOKEN},
-      body: JSON.stringify(body),
+    const r = await fetch(API + '/categories', { signal: AbortSignal.timeout(8000) });
+    const cats = r.ok ? await r.json() : [];
+    $('pCategory').innerHTML = '<option value="">اختر التخصص</option>' +
+      cats.map(c => '<option>' + esc(c.name_ar) + '</option>').join('');
+  } catch (e) {
+    $('pCategory').innerHTML = '<option value="">تعذّر تحميل التخصصات</option>';
+  }
+})();
+
+$('form').onsubmit = async function (e) {
+  e.preventDefault();
+  const btn = $('submitBtn');
+  const min = $('pMin').value ? Number($('pMin').value) : null;
+  const max = $('pMax').value ? Number($('pMax').value) : null;
+  if (min != null && max != null && min > max) {
+    alertMsg('الحد الأدنى للميزانية أكبر من الحد الأعلى.', 'err'); return;
+  }
+  btn.disabled = true; btn.textContent = 'جارٍ النشر...';
+  try {
+    const r = await fetch(API + '/projects', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', Authorization: 'Bearer ' + TOKEN },
+      body: JSON.stringify({
+        title: $('pTitle').value.trim(), category: $('pCategory').value,
+        city: $('pCity').value, country: 'IQ',
+        budget_min: min, budget_max: max,
+        description: $('pDesc').value.trim() || null,
+        contact_name: $('pName').value.trim(),
+        contact_phone: $('pPhone').value.trim(),
+        contact_email: $('pEmail').value.trim() || null
+      })
     });
-    const d = await r.json();
-    if (!r.ok) { setMsg(d.detail || 'حدث خطأ', 'err'); return; }
-    setMsg('تم نشر المشروع بنجاح! ✓', 'ok');
-    setTimeout(() => { closePost(); loadProjects(); window.location.href = `project_details.html?id=${d.id}`; }, 1200);
-  } catch(e) { setMsg('خطأ في الاتصال', 'err'); }
-}
+    if (r.status === 401) { alertMsg('انتهت جلستك — سجّل الدخول مجدداً.', 'err'); return; }
+    if (r.status === 403) { alertMsg('حسابك لا يسمح بنشر مشاريع العملاء.', 'err'); return; }
+    if (r.status === 429) { alertMsg('محاولات كثيرة — انتظر قبل المحاولة مجدداً.', 'err'); return; }
+    if (!r.ok)            { alertMsg('تعذّر الاتصال بالخادم — أعد المحاولة.', 'err'); return; }
+    alertMsg('نُشر مشروعك. ستصلك عروض الشركات.', 'ok');
+    this.reset();
+    mineLoaded = false;
+    setTimeout(() => { closePost(); BNF.clear(); }, 1400);
+  } catch (err) {
+    alertMsg('تعذّر الاتصال بالخادم — أعد المحاولة.', 'err');
+  } finally {
+    btn.disabled = false; btn.textContent = 'نشر المشروع';
+  }
+};
 
-document.addEventListener('keydown', e => { if(e.key==='Escape') closePost(); });
-
-if ('serviceWorker' in navigator) navigator.serviceWorker.register('/service-worker.js').catch(()=>{});
-
-updateTabVisibility();
-if (location.hash === '#my' && isAuthUser()) {
-  switchTab('my');
-} else {
-  switchTab('market');
+if ('serviceWorker' in navigator) {
+  window.addEventListener('load', () => navigator.serviceWorker.register('/service-worker.js').catch(() => {}));
 }
-if (!window._pjHashListenerAdded) {
-  window._pjHashListenerAdded = true;
-  window.addEventListener('hashchange', function() {
-    if (location.hash === '#my') {
-      if (isAuthUser()) { switchTab('my'); }
-      else { history.replaceState(null, '', location.pathname); switchTab('market'); }
-    } else {
-      switchTab('market');
-    }
-  });
-}
+})();
 </script>
-<script src="auth-core.js"></script>
-<script src="auth-ui.js"></script>
-<script src="bunyan-nav.js"></script>
 </body>
 </html>
