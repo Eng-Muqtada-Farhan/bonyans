@@ -1,0 +1,5 @@
+# أدوات التطوير والاختبار — ليست لازمة للتشغيل في الإنتاج.
+#   pip install -r requirements-dev.txt
+#   pytest
+pytest==9.1.1
+httpx==0.28.1

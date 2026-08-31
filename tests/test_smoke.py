@@ -1,0 +1,257 @@
+"""
+عشرون اختبار دخان — بُنيان
+
+تغطّي: الدخول بالأدوار الثلاثة · رمز مزوّر ومنتهٍ · حرّاس الأسطح
+(٩ حالات) · /companies و /projects بالفلاتر والترقيم · دورة حياة
+الشركة (إنشاء · اعتماد · رفض) · حدّ المعدّل.
+"""
+import time
+
+import pytest
+from jose import jwt as _jose_jwt
+from sqlalchemy import text
+
+import main
+from conftest import SMOKE_ADMIN_PASSWORD, SMOKE_PREFIX, _wipe_rate_limits
+
+PAGE = {"sec-fetch-dest": "document"}
+
+
+def bearer(tok):
+    return {"Authorization": f"Bearer {tok}"}
+
+
+# ══════════════════════════════════════════════════════════════
+# ١–٣ · الدخول بالأدوار الثلاثة
+# ══════════════════════════════════════════════════════════════
+
+def test_01_admin_login(client, admin_token):
+    """المدير يدخل ويأخذ رمزاً وكعكة جلسة بعمر ٢٤ ساعة."""
+    _wipe_rate_limits()
+    r = client.post("/login", json={"username": main.ADMIN_USERNAME,
+                                    "password": SMOKE_ADMIN_PASSWORD})
+    assert r.status_code == 200
+    assert r.json()["token"]
+    cookie = r.headers.get("set-cookie", "")
+    assert main.SESSION_COOKIE in cookie
+    assert "HttpOnly" in cookie and "SameSite=lax" in cookie
+    assert f"Max-Age={int(main.ADMIN_TTL.total_seconds())}" in cookie
+
+
+def test_02_company_login(client, company_token):
+    """حساب الشركة يدخل ويأخذ رمزاً من نوع company."""
+    payload = _jose_jwt.decode(company_token, main.JWT_SECRET, algorithms=[main.ALGORITHM])
+    assert payload["type"] == "company"
+    assert payload["company_id"]
+
+
+def test_03_user_login(client, user_token):
+    """صاحب المشروع يدخل ويأخذ رمزاً من نوع user."""
+    payload = _jose_jwt.decode(user_token, main.JWT_SECRET, algorithms=[main.ALGORITHM])
+    assert payload["type"] == "user"
+    assert payload["user_id"]
+
+
+def test_04_wrong_password_is_401(client):
+    """كلمة مرور خاطئة ترجع ٤٠١ لا ٢٠٠ ولا ٥٠٠."""
+    _wipe_rate_limits()
+    r = client.post("/login", json={"username": main.ADMIN_USERNAME,
+                                    "password": "definitely-not-the-password"})
+    assert r.status_code == 401
+
+
+# ══════════════════════════════════════════════════════════════
+# ٥–٦ · رمز مزوّر · رمز منتهٍ
+# ══════════════════════════════════════════════════════════════
+
+def test_05_forged_token_rejected(client):
+    """رمز موقَّع بمفتاح آخر يُرفض — التوقيع لا الشكل هو الحَكَم."""
+    forged = _jose_jwt.encode(
+        {"sub": "user:5", "type": "user", "user_id": 5, "exp": int(time.time()) + 3600},
+        "not-the-real-secret", algorithm=main.ALGORITHM)
+    r = client.get("/my/projects", headers=bearer(forged))
+    assert r.status_code == 401
+
+
+def test_06_expired_token_rejected(client):
+    """رمز صحيح التوقيع لكنه منتهٍ يُرفض."""
+    expired = _jose_jwt.encode(
+        {"sub": "user:5", "type": "user", "user_id": 5, "exp": int(time.time()) - 60},
+        main.JWT_SECRET, algorithm=main.ALGORITHM)
+    r = client.get("/my/projects", headers=bearer(expired))
+    assert r.status_code == 401
+
+
+# ══════════════════════════════════════════════════════════════
+# ٧–١٥ · الحرّاس: ثلاثة أدوار × ثلاثة أسطح
+# ══════════════════════════════════════════════════════════════
+
+SURFACES = {"/app/index.html": "company",
+            "/me/index.html": "user",
+            "/admin/index.html": "admin"}
+
+
+def _visit(client, surface, token):
+    """
+    زيارة صفحة بجلسة محدَّدة — أو بلا جلسة.
+
+    TestClient يحتفظ بالكعكات بين الطلبات، فبلا مسحٍ صريح تتسرّب
+    جلسة اختبارٍ سابق إلى اختبار «بلا جلسة» فيمرّ وهو كاذب.
+    """
+    client.cookies.clear()
+    if token:
+        client.cookies.set(main.SESSION_COOKIE, token)
+    try:
+        return client.get(surface, headers=PAGE, follow_redirects=False)
+    finally:
+        client.cookies.clear()
+
+
+@pytest.mark.parametrize("surface,need", list(SURFACES.items()))
+def test_07_09_own_surface_allowed(client, surface, need,
+                                   admin_token, company_token, user_token):
+    """كل دور يدخل سطحه — ٢٠٠ لا تحويل."""
+    tok = {"admin": admin_token, "company": company_token, "user": user_token}[need]
+    r = _visit(client, surface, tok)
+    assert r.status_code == 200, f"{need} مُنع من سطحه {surface}"
+
+
+@pytest.mark.parametrize("surface", list(SURFACES))
+def test_10_12_no_session_redirects_to_login(client, surface):
+    """بلا جلسة: تحويل إلى صفحة الدخول لا ٢٠٠ ولا ٥٠٠."""
+    r = _visit(client, surface, None)
+    assert r.status_code == 302
+    assert r.headers["location"].startswith("/login.html")
+
+
+@pytest.mark.parametrize("surface,need", [("/app/index.html", "company"),
+                                          ("/me/index.html", "user"),
+                                          ("/admin/index.html", "admin")])
+def test_13_15_wrong_role_goes_to_own_home(client, surface, need,
+                                           admin_token, company_token, user_token):
+    """دور دخل سطحاً ليس له يُعاد إلى سطحه هو، لا إلى الرئيسية."""
+    others = {"admin": admin_token, "company": company_token, "user": user_token}
+    del others[need]
+    for role, tok in others.items():
+        r = _visit(client, surface, tok)
+        assert r.status_code == 302, f"{role} لم يُحوَّل عن {surface}"
+        assert r.headers["location"] == main._ROLE_HOME[role]
+
+
+def test_16_guard_does_not_break_admin_api(client, admin_token):
+    """
+    الحارس يحرس الصفحات لا الواجهات البرمجية.
+    بلا هذا الفصل ترجع مسارات /admin/* تحويلاً ٣٠٢ بدل ٤٠١/٢٠٠.
+    """
+    r = client.get("/admin/project-requests", headers=bearer(admin_token))
+    assert r.status_code == 200
+    assert client.get("/admin/project-requests").status_code == 401
+
+
+# ══════════════════════════════════════════════════════════════
+# ١٧–١٨ · القوائم: الفلاتر والترقيم
+# ══════════════════════════════════════════════════════════════
+
+def test_17_companies_filters_and_pagination(client):
+    """/companies يرقّم ويفلتر، والفلتران يتقاطعان، وtotal يتبع الشرط."""
+    r = client.get("/companies", params={"page": 1, "per_page": 3})
+    assert r.status_code == 200
+    d = r.json()
+    assert set(d) >= {"items", "page", "per_page", "total", "pages"}
+    assert len(d["items"]) <= 3
+    assert d["page"] == 1 and d["per_page"] == 3
+
+    city = client.get("/companies", params={"city": "بغداد", "per_page": 100}).json()
+    assert city["total"] <= d["total"]
+    assert all(c["city"] == "بغداد" for c in city["items"])
+
+    both = client.get("/companies", params={"city": "بغداد", "spec": "مقاولات عامة",
+                                            "per_page": 100}).json()
+    assert both["total"] <= city["total"]
+    assert all(c["city"] == "بغداد" and c["spec"] == "مقاولات عامة"
+               for c in both["items"])
+
+    # الصفحة الثانية لا تكرّر الأولى
+    p1 = client.get("/companies", params={"page": 1, "per_page": 2}).json()["items"]
+    p2 = client.get("/companies", params={"page": 2, "per_page": 2}).json()["items"]
+    assert not ({c["id"] for c in p1} & {c["id"] for c in p2})
+
+
+def test_18_projects_filters_and_defaults(client):
+    """/projects يعرض المنشورة افتراضاً، ويفلتر بالمدينة والتخصص."""
+    d = client.get("/projects", params={"per_page": 100}).json()
+    assert all(p["status"] == "published" for p in d["items"])
+    assert all(isinstance(p["bids_count"], int) for p in d["items"])
+
+    contracted = client.get("/projects", params={"status": "contracted",
+                                                 "per_page": 100}).json()
+    assert all(p["status"] == "contracted" for p in contracted["items"])
+
+    if d["items"]:
+        p = d["items"][0]
+        one = client.get("/projects", params={"city": p["city"],
+                                              "category": p["category"],
+                                              "per_page": 100}).json()
+        assert one["total"] >= 1
+        assert all(x["city"] == p["city"] and x["category"] == p["category"]
+                   for x in one["items"])
+
+
+# ══════════════════════════════════════════════════════════════
+# ١٩ · دورة حياة الشركة: إنشاء · اعتماد · رفض
+# ══════════════════════════════════════════════════════════════
+
+def test_19_company_lifecycle(client, admin_token, user_token):
+    """إنشاء يتطلّب إدارة، ويبدأ pending، ثم approved ثم rejected."""
+    body = {"name": SMOKE_PREFIX + "شركة دخان", "city": "بغداد",
+            "phone": "07000000099", "spec": "مقاولات عامة",
+            "desc": "صف اختبار دخان — يُحذف تلقائياً."}
+
+    assert client.post("/companies", json=body).status_code == 401
+    assert client.post("/companies", json=body,
+                       headers=bearer(user_token)).status_code == 401
+
+    r = client.post("/companies", json=body, headers=bearer(admin_token))
+    assert r.status_code == 200, r.text
+    cid = r.json()["id"]
+
+    with main.SessionLocal() as db:
+        row = db.execute(text("SELECT status, verified FROM companies WHERE id=:i"),
+                         {"i": cid}).fetchone()
+    assert row[0] == "pending"
+
+    # شركة قيد المراجعة لا تظهر في الدليل العام
+    listed = client.get("/companies", params={"per_page": 100}).json()["items"]
+    assert cid not in {c["id"] for c in listed}
+
+    a = client.put(f"/companies/{cid}/approve", headers=bearer(admin_token))
+    assert a.status_code == 200 and a.json()["status"] == "approved"
+    assert a.json()["verified"] is True
+    listed = client.get("/companies", params={"per_page": 100}).json()["items"]
+    assert cid in {c["id"] for c in listed}
+
+    j = client.put(f"/companies/{cid}/reject", headers=bearer(admin_token))
+    assert j.status_code == 200 and j.json()["status"] == "rejected"
+    assert j.json()["verified"] is False
+
+    with main.SessionLocal() as db:
+        db.execute(text("DELETE FROM companies WHERE id=:i"), {"i": cid})
+        db.commit()
+
+
+# ══════════════════════════════════════════════════════════════
+# ٢٠ · حدّ المعدّل — خمس محاولات ثم ٤٢٩
+# ══════════════════════════════════════════════════════════════
+
+def test_20_rate_limit_blocks_sixth_login(client):
+    """
+    خمس محاولات مسموحة ثم ٤٢٩ — ولا يُخلط الحجب بعطل قاعدة البيانات
+    الذي يرفع ٥٠٣.
+    """
+    _wipe_rate_limits()
+    codes = [client.post("/login", json={"username": main.ADMIN_USERNAME,
+                                         "password": "wrong"}).status_code
+             for _ in range(6)]
+    assert codes[:5] == [401] * 5, codes
+    assert codes[5] == 429, codes
+    _wipe_rate_limits()
