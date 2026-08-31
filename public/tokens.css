@@ -213,7 +213,9 @@
 /* ── الأزرار ─────────────────────────────────────────────────── */
 .bn-btn {
   display: inline-flex; align-items: center; justify-content: center; gap: var(--bn-s2);
-  border: 0; padding: 13px var(--bn-s5); border-radius: var(--bn-r);
+  /* 44 بكسل حدّ أدنى — شرط متجرَي التطبيقات (§٦). الحشو وحده
+     كان يعطي 43، والفرق بكسل واحد يسقط الفحص. */
+  border: 0; min-height: 44px; padding: 12px var(--bn-s5); border-radius: var(--bn-r);
   font: 500 14px/1 var(--bn-font); cursor: pointer;
   color: var(--bn-ac-on);
   background: linear-gradient(150deg, var(--bn-ac-2), var(--bn-ac));
@@ -238,7 +240,8 @@
 
 .bn-btn-danger { background: var(--bn-err); box-shadow: none; color: #FFF; }
 
-.bn-btn-sm { padding: 8px var(--bn-s4); font-size: 12.5px; border-radius: var(--bn-r-sm); }
+.bn-btn-sm { min-height: 44px; padding: 8px var(--bn-s4); font-size: 12.5px;
+             border-radius: var(--bn-r-sm); }
 .bn-btn-block { width: 100%; }
 
 

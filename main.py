@@ -2943,6 +2943,34 @@ def admin_list_reviews(request: Request, status: Optional[str] = None):
     return [dict(r) for r in rows]
 
 
+@app.put("/admin/subscription-plans/{plan_id}/recommended")
+def set_plan_recommended(plan_id: int, payload: dict, request: Request):
+    """
+    مفتاح «توصيتنا» على باقة. توصية واحدة فقط في كل وقت.
+
+    شارة رأي منسوبة إلى المنصّة، لا إحصاء. تُستبدَل بإحصاء حقيقي
+    حين يوجد مشتركون فعليون (DESIGN.md §٥·٥).
+    """
+    require_admin(request)
+    on = bool(payload.get("is_recommended", True))
+    with SessionLocal() as db:
+        row = db.execute(
+            text("SELECT id FROM subscription_plans WHERE id=:id"), {"id": plan_id}
+        ).first()
+        if not row:
+            raise HTTPException(status_code=404, detail="الباقة غير موجودة")
+        if on:
+            db.execute(text("UPDATE subscription_plans SET is_recommended=FALSE"))
+        db.execute(
+            text("UPDATE subscription_plans SET is_recommended=:v WHERE id=:id"),
+            {"v": on, "id": plan_id},
+        )
+        write_audit_log(db, "admin", ADMIN_USERNAME,
+                        f"plan_recommended:{plan_id}:{on}", request)
+        db.commit()
+    return {"ok": True, "plan_id": plan_id, "is_recommended": on}
+
+
 @app.get("/admin/users")
 def admin_list_users(request: Request):
     require_admin(request)

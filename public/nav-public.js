@@ -63,7 +63,7 @@
   display:flex;align-items:center;gap:var(--bn-s4);padding-inline:var(--bn-s5);
   font-family:var(--bn-font);border-block-end:1px solid var(--bn-glass-line)}
 .bnv-logo{display:inline-flex;align-items:center;gap:8px;text-decoration:none;
-  color:var(--bn-ink);font:700 19px/1 var(--bn-font);flex:none}
+  color:var(--bn-ink);font:700 19px/1 var(--bn-font);flex:none;min-height:44px}
 .bnv-logo b{color:var(--bn-ac);font-weight:700}
 .bnv-links{display:flex;align-items:center;gap:2px;flex:1}
 .bnv-link{display:inline-flex;align-items:center;gap:7px;min-height:44px;

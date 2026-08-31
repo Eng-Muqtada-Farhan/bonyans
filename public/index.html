@@ -25,10 +25,10 @@
 </script>
 <style>
 /* ══════════════════════════════════════════════════════════════
-   الصفحة الرئيسية — مبنية على tokens.css وحده.
-   لا قيمة لونية خام هنا: كل لون من رمز، وإلا انكسر الوضع الليلي.
-   الزجاج للأسطح الثابتة فقط (الشريط والنوافذ)؛ بطاقات القوائم
-   تستعمل .bn-solid — عشرون بطاقة زجاجية تقتل التمرير (§٣).
+   الصفحة الرئيسية — على tokens.css وحده. لا قيمة لونية خام.
+   الزجاج للأسطح الثابتة فقط؛ بطاقات القوائم .bn-solid (§٣).
+   كل حقل معروض يقابله عمود حقيقي (§٥·٥).
+   كل عنصر تفاعلي 44×44 بكسل حداً أدنى (§٦).
    ══════════════════════════════════════════════════════════════ */
 body { margin:0; background:var(--bn-bg); color:var(--bn-ink);
   font:var(--bn-t-body); font-family:var(--bn-font); -webkit-font-smoothing:antialiased; }
@@ -37,7 +37,7 @@ body { margin:0; background:var(--bn-bg); color:var(--bn-ink);
 @media(max-width:560px){ .wrap { padding-inline:var(--bn-s4); } }
 
 /* ── البطل ─────────────────────────────────────────────────── */
-.hero { padding-block:var(--bn-s14) var(--bn-s10); text-align:center; position:relative; }
+.hero { padding-block:var(--bn-s14) var(--bn-s10); text-align:center; }
 .hero-tag { display:inline-flex; align-items:center; gap:7px;
   font:var(--bn-t-cap); color:var(--bn-ac); background:var(--bn-ac-bg);
   border:1px solid var(--bn-ac-line); border-radius:var(--bn-r-pill);
@@ -47,40 +47,69 @@ body { margin:0; background:var(--bn-bg); color:var(--bn-ink);
 .hero h1 em { font-style:normal; color:var(--bn-ac); }
 .hero-sub { font-size:15px; color:var(--bn-ink-2); max-width:52ch;
   margin:0 auto var(--bn-s8); line-height:1.8; }
-
 .hero-search { display:flex; gap:var(--bn-s2); max-width:540px; margin:0 auto var(--bn-s5); }
-.hero-search .bn-input { flex:1; border-radius:var(--bn-r-pill); padding-inline:var(--bn-s4); }
-.hero-search .bn-btn { border-radius:var(--bn-r-pill); flex:none; }
-
+.hero-search .bn-input { flex:1; border-radius:var(--bn-r-pill); padding-inline:var(--bn-s4); min-height:48px; }
+.hero-search .bn-btn { border-radius:var(--bn-r-pill); flex:none; min-height:48px; }
 .hero-actions { display:flex; gap:var(--bn-s3); justify-content:center;
   flex-wrap:wrap; margin-block-end:var(--bn-s10); }
 
 .stats { display:grid; grid-template-columns:repeat(4,1fr); gap:var(--bn-s3);
   max-width:640px; margin-inline:auto; }
 .stat { padding:var(--bn-s4) var(--bn-s2); border-radius:var(--bn-r-lg); text-align:center; }
-.stat-n { font:700 26px/1.1 var(--bn-font); color:var(--bn-ac);
-  font-family:var(--bn-mono); font-variant-numeric:tabular-nums; }
+.stat-n { font:700 26px/1.1 var(--bn-mono); color:var(--bn-ac); font-variant-numeric:tabular-nums; }
 .stat-l { font:var(--bn-t-cap); color:var(--bn-ink-3); margin-block-start:5px; }
 @media(max-width:560px){
   .stats { grid-template-columns:repeat(2,1fr); }
   .hero { padding-block:var(--bn-s10) var(--bn-s8); }
 }
 
-/* ── شريط الفلاتر ──────────────────────────────────────────── */
+/* ── شريط الفلاتر ──────────────────────────────────────────────
+   سهمان يظهران فقط عند وجود ما يُمرَّر، وتلاشٍ عند الحافة التي
+   خلفها محتوى مخفي — إشارة أن ثمّة المزيد. */
 .filters { position:sticky; inset-block-start:60px; z-index:200;
   background:var(--bn-bg); border-block:1px solid var(--bn-line-soft);
   padding-block:var(--bn-s3); margin-block-end:var(--bn-s8); }
-.filters-row { display:flex; gap:var(--bn-s2); overflow-x:auto;
+.fbar { position:relative; }
+.fbar::before, .fbar::after { content:""; position:absolute; inset-block:0;
+  width:44px; pointer-events:none; z-index:2; opacity:0;
+  transition:opacity var(--bn-fast); }
+.fbar::before { inset-inline-start:0;
+  background:linear-gradient(to left, transparent, var(--bn-bg)); }
+.fbar::after  { inset-inline-end:0;
+  background:linear-gradient(to right, transparent, var(--bn-bg)); }
+.fbar.has-start::before { opacity:1; }
+.fbar.has-end::after    { opacity:1; }
+
+.farrow { position:absolute; inset-block-start:50%; transform:translateY(-50%);
+  width:44px; height:44px; z-index:3; display:none; align-items:center;
+  justify-content:center; border:1px solid var(--bn-line);
+  border-radius:50%; background:var(--bn-surface); color:var(--bn-ink-2);
+  cursor:pointer; box-shadow:var(--bn-sh-1);
+  transition:color var(--bn-fast), border-color var(--bn-fast); }
+.farrow:hover { color:var(--bn-ac); border-color:var(--bn-ac-line); }
+.farrow-s { inset-inline-start:-6px; }
+.farrow-e { inset-inline-end:-6px; }
+.fbar.has-start .farrow-s { display:flex; }
+.fbar.has-end   .farrow-e { display:flex; }
+
+.frow { display:flex; gap:var(--bn-s2); overflow-x:auto; scroll-behavior:smooth;
   scrollbar-width:none; -webkit-overflow-scrolling:touch; }
-.filters-row::-webkit-scrollbar { display:none; }
-.pill { flex:none; display:inline-flex; align-items:center; gap:6px;
-  min-height:38px; padding-inline:var(--bn-s4); border-radius:var(--bn-r-pill);
+.frow::-webkit-scrollbar { display:none; }
+.pill { flex:none; display:inline-flex; align-items:center; gap:7px;
+  min-height:44px; padding-inline:var(--bn-s4); border-radius:var(--bn-r-pill);
   border:1px solid var(--bn-line); background:transparent; cursor:pointer;
   color:var(--bn-ink-2); font:400 13px/1 var(--bn-font); white-space:nowrap;
   transition:border-color var(--bn-fast), color var(--bn-fast), background var(--bn-fast); }
-.pill:hover { border-color:var(--bn-ac-line); color:var(--bn-ac); }
+.pill:hover:not([disabled]) { border-color:var(--bn-ac-line); color:var(--bn-ac); }
 .pill.is-on { background:var(--bn-ac); color:var(--bn-ac-on); border-color:transparent; }
-.pill-city { flex:none; min-height:38px; padding-inline:var(--bn-s3);
+.pill[disabled] { opacity:.42; cursor:not-allowed; }
+.pill-n { font:500 11px/1 var(--bn-mono); font-variant-numeric:tabular-nums;
+  opacity:.72; }
+.pill.is-on .pill-n { opacity:.9; }
+.pill-skel { flex:none; width:104px; height:44px; border-radius:var(--bn-r-pill);
+  background:var(--bn-glass-tint); border:1px solid var(--bn-line-soft); }
+
+.fcity { flex:none; min-height:44px; padding-inline:var(--bn-s4);
   border:1px solid var(--bn-line); border-radius:var(--bn-r-pill);
   background:transparent; color:var(--bn-ink-2);
   font:400 13px/1 var(--bn-font); cursor:pointer; }
@@ -92,8 +121,10 @@ body { margin:0; background:var(--bn-bg); color:var(--bn-ink);
 .sec-t { font:var(--bn-t-h2); margin:0; display:flex; align-items:center; gap:9px; }
 .sec-t::before { content:""; width:5px; height:5px; border-radius:50%;
   background:var(--bn-ac); flex:none; }
-.sec-link { font:var(--bn-t-sm); color:var(--bn-ac); text-decoration:none; white-space:nowrap; }
+.sec-link { display:inline-flex; align-items:center; min-height:44px;
+  font:var(--bn-t-sm); color:var(--bn-ac); text-decoration:none; white-space:nowrap; }
 .sec-link:hover { text-decoration:underline; }
+.sec-note { font:var(--bn-t-cap); color:var(--bn-ink-3); }
 
 /* ── لافتة الدعوة ──────────────────────────────────────────── */
 .cta-band { display:flex; align-items:center; justify-content:space-between;
@@ -103,65 +134,107 @@ body { margin:0; background:var(--bn-bg); color:var(--bn-ink);
 .cta-band h3 { font:var(--bn-t-h3); margin:0 0 5px; }
 .cta-band p { font:var(--bn-t-sm); color:var(--bn-ink-2); margin:0; max-width:46ch; }
 
-/* ── بطاقة شركة ────────────────────────────────────────────── */
-.grid { display:grid; grid-template-columns:repeat(auto-fill,minmax(268px,1fr));
-  gap:var(--bn-s3); }
-.card { display:flex; gap:var(--bn-s3); padding:var(--bn-s4);
-  border-radius:var(--bn-r-lg); text-decoration:none; color:inherit;
-  transition:transform var(--bn-mid), box-shadow var(--bn-mid), border-color var(--bn-mid); }
-.card:hover { transform:translateY(-2px); box-shadow:var(--bn-sh-2);
-  border-color:var(--bn-ac-line); }
-.card-av { width:48px; height:48px; border-radius:var(--bn-r); flex:none;
-  display:grid; place-items:center; overflow:hidden;
-  background:var(--bn-ac-bg); color:var(--bn-ac);
-  font:500 15px/1 var(--bn-font); border:1px solid var(--bn-ac-line); }
-.card-av img { width:100%; height:100%; object-fit:cover; }
-.card-body { min-width:0; flex:1; }
-.card-name { font:500 14.5px/1.4 var(--bn-font); display:flex;
-  align-items:center; gap:6px; margin-block-end:3px; }
-.card-name span { overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
-.card-meta { font:var(--bn-t-cap); color:var(--bn-ink-3);
-  display:flex; align-items:center; gap:10px; flex-wrap:wrap; margin-block-end:8px; }
-.card-meta i { display:inline-flex; align-items:center; gap:4px; font-style:normal; }
-.card-foot { display:flex; align-items:center; justify-content:space-between; gap:var(--bn-s2); }
-.rating { display:inline-flex; align-items:center; gap:4px;
-  font:500 12.5px/1 var(--bn-font); color:var(--bn-ac);
-  font-family:var(--bn-mono); font-variant-numeric:tabular-nums; }
-
-/* ── شريط الشركات المميزة ──────────────────────────────────── */
+/* ── ١ · البطاقة البصرية — «مميزة» ─────────────────────────────
+   تعرض الصورة إن وُجدت، ومربّع الحرف إن لم توجد. لا تدرّج مزخرف
+   يتظاهر بأنه صورة (§٥·٥). */
 .rail { display:flex; gap:var(--bn-s3); overflow-x:auto; scrollbar-width:none;
   -webkit-overflow-scrolling:touch; padding-block-end:var(--bn-s2); }
 .rail::-webkit-scrollbar { display:none; }
-.rail .fcard { flex:0 0 232px; padding:var(--bn-s5) var(--bn-s4); text-align:center;
-  border-radius:var(--bn-r-lg); text-decoration:none; color:inherit;
+.fcard { flex:0 0 216px; border-radius:var(--bn-r-lg); overflow:hidden;
+  text-decoration:none; color:inherit; display:block;
   transition:transform var(--bn-mid), box-shadow var(--bn-mid); }
-.rail .fcard:hover { transform:translateY(-2px); box-shadow:var(--bn-sh-2); }
-.fcard-av { width:54px; height:54px; border-radius:var(--bn-r); margin-inline:auto;
-  margin-block-end:var(--bn-s3); display:grid; place-items:center; overflow:hidden;
-  background:var(--bn-ac); color:var(--bn-ac-on); font:500 17px/1 var(--bn-font); }
-.fcard-av img { width:100%; height:100%; object-fit:cover; }
-.fcard-n { font:500 14px/1.4 var(--bn-font); margin-block-end:3px; }
-.fcard-s { font:var(--bn-t-cap); color:var(--bn-ink-3); }
+.fcard:hover { transform:translateY(-3px); box-shadow:var(--bn-sh-2); }
+.fcard-top { height:118px; display:grid; place-items:center; overflow:hidden;
+  background:var(--bn-ac-bg); border-block-end:1px solid var(--bn-line-soft); }
+.fcard-top img { width:100%; height:100%; object-fit:cover; }
+.fcard-mono { font:700 34px/1 var(--bn-font); color:var(--bn-ac); }
+.fcard-b { padding:var(--bn-s4); }
+.fcard-n { font:500 14px/1.4 var(--bn-font); display:flex; align-items:center;
+  gap:6px; margin-block-end:5px; }
+.fcard-n span { overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+.fcard-m { font:var(--bn-t-cap); color:var(--bn-ink-3);
+  display:flex; align-items:center; justify-content:space-between; gap:8px; }
 
-/* ── مشروع ─────────────────────────────────────────────────── */
+/* ── ٢ · الصف الأفقي الغني — «جميع الشركات» ────────────────── */
+.rows { display:flex; flex-direction:column; gap:var(--bn-s2); }
+.row { display:flex; align-items:center; gap:var(--bn-s4);
+  padding:var(--bn-s3) var(--bn-s4); border-radius:var(--bn-r-lg);
+  transition:border-color var(--bn-mid), box-shadow var(--bn-mid); }
+.row:hover { border-color:var(--bn-ac-line); box-shadow:var(--bn-sh-1); }
+.row-av { width:52px; height:52px; border-radius:var(--bn-r); flex:none;
+  display:grid; place-items:center; overflow:hidden;
+  background:var(--bn-ac-bg); color:var(--bn-ac); border:1px solid var(--bn-ac-line);
+  font:500 17px/1 var(--bn-font); }
+.row-av img { width:100%; height:100%; object-fit:cover; }
+.row-b { flex:1; min-width:0; }
+.row-n { font:500 15px/1.4 var(--bn-font); display:flex; align-items:center;
+  gap:7px; margin-block-end:4px; }
+.row-n > span { overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+.row-m { font:var(--bn-t-cap); color:var(--bn-ink-3); display:flex;
+  align-items:center; gap:var(--bn-s3); flex-wrap:wrap; }
+.row-m i { display:inline-flex; align-items:center; gap:4px; font-style:normal; }
+.row-r { display:inline-flex; align-items:center; gap:4px; color:var(--bn-ac);
+  font:500 13px/1 var(--bn-mono); font-variant-numeric:tabular-nums; flex:none; }
+.row-a { display:flex; align-items:center; gap:var(--bn-s2); flex:none; }
+.wa { width:44px; height:44px; display:inline-flex; align-items:center;
+  justify-content:center; border-radius:var(--bn-r-sm); flex:none;
+  border:1px solid var(--bn-line); color:var(--bn-ink-2); text-decoration:none;
+  transition:color var(--bn-fast), border-color var(--bn-fast); }
+.wa:hover { color:var(--bn-ac); border-color:var(--bn-ac-line); }
+@media(max-width:640px){
+  .row { flex-wrap:wrap; }
+  .row-a { width:100%; justify-content:flex-end; }
+  .row-a .bn-btn { flex:1; }
+}
+
+/* ── ٣ · المشروع — الميزانية أبرز عنصر ────────────────────── */
+.pgrid { display:grid; grid-template-columns:repeat(auto-fill,minmax(268px,1fr));
+  gap:var(--bn-s3); }
 .pcard { display:block; padding:var(--bn-s4); border-radius:var(--bn-r-lg);
-  text-decoration:none; color:inherit; transition:border-color var(--bn-mid), box-shadow var(--bn-mid); }
+  text-decoration:none; color:inherit;
+  transition:border-color var(--bn-mid), box-shadow var(--bn-mid); }
 .pcard:hover { border-color:var(--bn-ac-line); box-shadow:var(--bn-sh-1); }
+.pcard-b { font:700 21px/1.1 var(--bn-mono); color:var(--bn-ac);
+  font-variant-numeric:tabular-nums; margin-block-end:3px; }
+.pcard-bu { font:var(--bn-t-cap); color:var(--bn-ink-3); margin-block-end:var(--bn-s3); }
 .pcard-t { font:500 14px/1.45 var(--bn-font); margin-block-end:7px; }
-.pcard-m { font:var(--bn-t-cap); color:var(--bn-ink-3); display:flex; gap:10px;
-  flex-wrap:wrap; margin-block-end:9px; }
-.pcard-b { font:500 14px/1 var(--bn-font); color:var(--bn-ac);
-  font-family:var(--bn-mono); font-variant-numeric:tabular-nums; }
+.pcard-f { display:flex; align-items:center; justify-content:space-between;
+  gap:var(--bn-s2); font:var(--bn-t-cap); color:var(--bn-ink-3); }
+.pcard-f i { display:inline-flex; align-items:center; gap:4px; font-style:normal; }
+.bids { display:inline-flex; align-items:center; gap:5px; color:var(--bn-ac);
+  background:var(--bn-ac-bg); border:1px solid var(--bn-ac-line);
+  border-radius:var(--bn-r-pill); padding:3px 10px;
+  font:500 11px/1.5 var(--bn-font); }
 
-/* ── الباقات ───────────────────────────────────────────────── */
-.plans { display:grid; grid-template-columns:repeat(auto-fit,minmax(200px,1fr)); gap:var(--bn-s3); }
-.plan { padding:var(--bn-s5); border-radius:var(--bn-r-lg); text-align:center; }
-.plan.is-best { border-color:var(--bn-ac-line); background:var(--bn-ac-bg); }
-.plan-n { font:500 13px/1 var(--bn-font); color:var(--bn-ink-2);
-  letter-spacing:.06em; margin-block-end:var(--bn-s3); }
-.plan-p { font:700 30px/1 var(--bn-font); color:var(--bn-ac);
-  font-family:var(--bn-mono); font-variant-numeric:tabular-nums; }
-.plan-u { font:var(--bn-t-cap); color:var(--bn-ink-3); margin-block-start:6px; }
+/* ── ٤ · مقارنة الباقات ────────────────────────────────────── */
+.plans { display:grid; grid-template-columns:repeat(auto-fit,minmax(196px,1fr));
+  gap:var(--bn-s3); align-items:start; }
+.plan { border-radius:var(--bn-r-lg); padding:var(--bn-s5) var(--bn-s4);
+  position:relative; }
+.plan.is-rec { background:var(--bn-ac); color:var(--bn-ac-on);
+  border-color:transparent; box-shadow:var(--bn-sh-ac); }
+@media(min-width:760px){ .plan.is-rec { transform:translateY(-10px); } }
+.plan-badge { position:absolute; inset-block-start:-11px; inset-inline-start:50%;
+  transform:translateX(50%); background:var(--bn-ink); color:var(--bn-bg);
+  border-radius:var(--bn-r-pill); padding:4px 12px;
+  font:500 10.5px/1.5 var(--bn-font); white-space:nowrap; }
+.plan-n { font:500 13px/1 var(--bn-font); letter-spacing:.06em;
+  color:var(--bn-ink-2); margin-block-end:var(--bn-s3); }
+.plan.is-rec .plan-n { color:var(--bn-ac-on); opacity:.85; }
+.plan-p { font:700 30px/1 var(--bn-mono); color:var(--bn-ac);
+  font-variant-numeric:tabular-nums; }
+.plan.is-rec .plan-p { color:var(--bn-ac-on); }
+.plan-u { font:var(--bn-t-cap); color:var(--bn-ink-3); margin-block-end:var(--bn-s4); }
+.plan.is-rec .plan-u { color:var(--bn-ac-on); opacity:.75; }
+.plan-f { list-style:none; margin:0; padding:0; border-block-start:1px solid var(--bn-line-soft);
+  padding-block-start:var(--bn-s3); display:flex; flex-direction:column; gap:9px; }
+.plan.is-rec .plan-f { border-color:color-mix(in srgb, var(--bn-ac-on) 22%, transparent); }
+.plan-f li { display:flex; align-items:center; gap:8px;
+  font:var(--bn-t-cap); color:var(--bn-ink-2); }
+.plan.is-rec .plan-f li { color:var(--bn-ac-on); }
+.plan-f svg { flex:none; }
+.plan-f .no { color:var(--bn-ink-3); }
+.plan.is-rec .plan-f .no { color:var(--bn-ac-on); opacity:.55; }
 
 /* ── الحالات ───────────────────────────────────────────────── */
 .state { grid-column:1/-1; text-align:center; padding:var(--bn-s14) var(--bn-s5); }
@@ -169,9 +242,9 @@ body { margin:0; background:var(--bn-bg); color:var(--bn-ink);
   stroke-width:1.3; margin-block-end:var(--bn-s3); }
 .state-t { font:500 15px/1.5 var(--bn-font); color:var(--bn-ink-2); }
 .state-d { font:var(--bn-t-sm); color:var(--bn-ink-3); margin-block-start:6px;
-  max-width:40ch; margin-inline:auto; }
+  max-width:42ch; margin-inline:auto; }
 .state .bn-btn { margin-block-start:var(--bn-s4); }
-.skel { height:82px; border-radius:var(--bn-r-lg); background:var(--bn-glass-tint);
+.skel { height:76px; border-radius:var(--bn-r-lg); background:var(--bn-glass-tint);
   border:1px solid var(--bn-line-soft); position:relative; overflow:hidden; }
 .skel::after { content:""; position:absolute; inset:0; transform:translateX(-100%);
   background:linear-gradient(90deg,transparent,var(--bn-glass),transparent);
@@ -187,11 +260,11 @@ body { margin:0; background:var(--bn-bg); color:var(--bn-ink);
 .foot-logo b { color:var(--bn-ac); }
 .foot p { font:var(--bn-t-sm); color:var(--bn-ink-3); margin:0; max-width:34ch; }
 .foot h4 { font:var(--bn-t-cap); color:var(--bn-ink-3); letter-spacing:.05em;
-  margin:0 0 var(--bn-s3); }
-.foot a { display:block; font:var(--bn-t-sm); color:var(--bn-ink-2);
-  text-decoration:none; min-height:32px; }
+  margin:0 0 var(--bn-s2); }
+.foot a { display:flex; align-items:center; min-height:44px; font:var(--bn-t-sm);
+  color:var(--bn-ink-2); text-decoration:none; }
 .foot a:hover { color:var(--bn-ac); }
-.foot-base { margin-block-start:var(--bn-s8); padding-block-start:var(--bn-s4);
+.foot-base { margin-block-start:var(--bn-s6); padding-block-start:var(--bn-s4);
   border-block-start:1px solid var(--bn-line-soft);
   font:var(--bn-t-cap); color:var(--bn-ink-3); text-align:center; }
 
@@ -210,10 +283,11 @@ body { margin:0; background:var(--bn-bg); color:var(--bn-ink);
 .f-row { display:grid; grid-template-columns:1fr 1fr; gap:var(--bn-s3); }
 @media(max-width:520px){ .f-row { grid-template-columns:1fr; } }
 .chips { display:flex; flex-wrap:wrap; gap:7px; }
-.chip { min-height:36px; padding-inline:var(--bn-s3); border-radius:var(--bn-r-pill);
+.chip { min-height:44px; padding-inline:var(--bn-s4); border-radius:var(--bn-r-pill);
   border:1px solid var(--bn-line); background:transparent; cursor:pointer;
   color:var(--bn-ink-2); font:400 12.5px/1 var(--bn-font); }
 .chip.is-on { background:var(--bn-ac); color:var(--bn-ac-on); border-color:transparent; }
+.bn-input { min-height:44px; }
 
 /* ── التنبيه ───────────────────────────────────────────────── */
 .toast { position:fixed; inset-block-end:var(--bn-s6); inset-inline:0;
@@ -232,7 +306,6 @@ body { margin:0; background:var(--bn-bg); color:var(--bn-ink);
 <div class="bn-backdrop" aria-hidden="true"></div>
 <div id="bn-nav"></div>
 
-<!-- ══ البطل ══ -->
 <header class="hero wrap">
   <span class="hero-tag" id="heroTag"></span>
   <h1>ابنِ ثقةً مع <em>الشركات الموثوقة</em></h1>
@@ -259,21 +332,22 @@ body { margin:0; background:var(--bn-bg); color:var(--bn-ink);
   </div>
 </header>
 
-<!-- ══ الفلاتر ══ -->
+<!-- الفلاتر — تُبنى بعد وصول البيانات، وهيكل تحميل في الأثناء -->
 <div class="filters">
-  <div class="wrap filters-row" id="filterRow">
-    <button class="pill is-on" type="button" onclick="setFilter('all',this)">الكل</button>
-    <select class="pill-city" id="filterCity" onchange="applyFilters()" aria-label="المدينة">
-      <option value="">كل المدن</option>
-      <option>بغداد</option><option>البصرة</option><option>أربيل</option>
-      <option>الموصل</option><option>النجف</option><option>كربلاء</option>
-    </select>
+  <div class="wrap">
+    <div class="fbar" id="fbar">
+      <button class="farrow farrow-s" type="button" id="fPrev" aria-label="فلاتر سابقة"></button>
+      <button class="farrow farrow-e" type="button" id="fNext" aria-label="فلاتر تالية"></button>
+      <div class="frow" id="frow">
+        <div class="pill-skel"></div><div class="pill-skel"></div>
+        <div class="pill-skel"></div><div class="pill-skel"></div>
+      </div>
+    </div>
   </div>
 </div>
 
 <main class="wrap">
 
-  <!-- دعوة -->
   <section class="cta-band">
     <div>
       <h3>لديك مشروع بناء؟</h3>
@@ -282,37 +356,32 @@ body { margin:0; background:var(--bn-bg); color:var(--bn-ink);
     <a class="bn-btn" href="projects.html">اطرح مشروعك</a>
   </section>
 
-  <!-- مميزة -->
-  <section class="sec">
+  <section class="sec" id="secFeatured" hidden>
     <div class="sec-head">
       <h2 class="sec-t">شركات مميزة</h2>
-      <a class="sec-link" href="companies.html">عرض الكل</a>
+      <span class="sec-note" id="featNote"></span>
     </div>
     <div class="rail" id="featured"></div>
   </section>
 
-  <!-- كل الشركات -->
   <section class="sec">
     <div class="sec-head">
       <h2 class="sec-t">جميع الشركات</h2>
-      <span class="sec-link" id="resultCount" style="color:var(--bn-ink-3)"></span>
+      <span class="sec-note" id="resultCount"></span>
     </div>
-    <div class="grid" id="companiesGrid">
-      <div class="skel"></div><div class="skel"></div><div class="skel"></div>
+    <div class="rows" id="companiesGrid">
       <div class="skel"></div><div class="skel"></div><div class="skel"></div>
     </div>
   </section>
 
-  <!-- مشاريع -->
   <section class="sec">
     <div class="sec-head">
       <h2 class="sec-t">أحدث المشاريع</h2>
       <a class="sec-link" href="projects.html">كل المشاريع</a>
     </div>
-    <div class="grid" id="projectsMini"></div>
+    <div class="pgrid" id="projectsMini"></div>
   </section>
 
-  <!-- باقات -->
   <section class="sec">
     <div class="sec-head"><h2 class="sec-t">باقات الاشتراك</h2></div>
     <div class="plans" id="plansGrid"></div>
@@ -320,7 +389,6 @@ body { margin:0; background:var(--bn-bg); color:var(--bn-ink);
 
 </main>
 
-<!-- ══ التذييل ══ -->
 <footer class="foot">
   <div class="wrap">
     <div class="foot-grid">
@@ -343,75 +411,37 @@ body { margin:0; background:var(--bn-bg); color:var(--bn-ink);
   </div>
 </footer>
 
-<!-- ══ نافذة تسجيل الشركة ══ -->
 <div class="ov" id="regOverlay" onclick="ovClick(event,'regOverlay')">
   <div class="sheet bn-glass">
     <div class="sheet-h"></div>
     <h2>سجّل شركتك</h2>
-
     <div class="f-row">
-      <div class="bn-field">
-        <label for="f-name">اسم الشركة</label>
-        <div class="bn-input"><input id="f-name" required></div>
-      </div>
-      <div class="bn-field">
-        <label for="f-city">المدينة</label>
-        <div class="bn-input">
-          <select id="f-city" required>
-            <option value="">اختر</option>
-            <option>بغداد</option><option>البصرة</option><option>أربيل</option>
-            <option>الموصل</option><option>النجف</option><option>كربلاء</option>
-          </select>
-        </div>
-      </div>
+      <div class="bn-field"><label for="f-name">اسم الشركة</label>
+        <div class="bn-input"><input id="f-name" required></div></div>
+      <div class="bn-field"><label for="f-city">المدينة</label>
+        <div class="bn-input"><select id="f-city" required><option value="">اختر</option></select></div></div>
     </div>
-
     <div class="f-row">
-      <div class="bn-field">
-        <label for="f-phone">الهاتف</label>
-        <div class="bn-input"><input id="f-phone" dir="ltr" inputmode="tel" required></div>
-      </div>
-      <div class="bn-field">
-        <label for="f-email">البريد الإلكتروني</label>
-        <div class="bn-input"><input id="f-email" type="email" dir="ltr" required></div>
-      </div>
+      <div class="bn-field"><label for="f-phone">الهاتف</label>
+        <div class="bn-input"><input id="f-phone" dir="ltr" inputmode="tel" required></div></div>
+      <div class="bn-field"><label for="f-email">البريد الإلكتروني</label>
+        <div class="bn-input"><input id="f-email" type="email" dir="ltr" required></div></div>
     </div>
-
     <div class="f-row">
-      <div class="bn-field">
-        <label for="f-password">كلمة المرور</label>
-        <div class="bn-input"><input id="f-password" type="password" required></div>
-      </div>
-      <div class="bn-field">
-        <label for="f-password2">تأكيد كلمة المرور</label>
-        <div class="bn-input"><input id="f-password2" type="password" required></div>
-      </div>
+      <div class="bn-field"><label for="f-password">كلمة المرور</label>
+        <div class="bn-input"><input id="f-password" type="password" required></div></div>
+      <div class="bn-field"><label for="f-password2">تأكيد كلمة المرور</label>
+        <div class="bn-input"><input id="f-password2" type="password" required></div></div>
     </div>
-
-    <div class="bn-field">
-      <label>التخصصات</label>
-      <div class="chips" id="specChips"></div>
-    </div>
-
-    <div class="bn-field">
-      <label for="f-desc">نبذة عن الشركة</label>
-      <div class="bn-input"><textarea id="f-desc" rows="3"></textarea></div>
-    </div>
-
-    <div class="bn-field">
-      <label for="f-image">شعار الشركة (اختياري)</label>
-      <div class="bn-input"><input id="f-image" type="file" accept="image/*"></div>
-    </div>
-
+    <div class="bn-field"><label>التخصصات</label><div class="chips" id="specChips"></div></div>
+    <div class="bn-field"><label for="f-desc">نبذة عن الشركة</label>
+      <div class="bn-input"><textarea id="f-desc" rows="3"></textarea></div></div>
+    <div class="bn-field"><label for="f-image">شعار الشركة (اختياري)</label>
+      <div class="bn-input"><input id="f-image" type="file" accept="image/*"></div></div>
     <button class="bn-btn bn-btn-block" type="button" id="submitBtn" onclick="submitCompany()">
       <span id="submitText">تسجيل الشركة</span>
     </button>
   </div>
-</div>
-
-<!-- ══ نافذة الملف السريع ══ -->
-<div class="ov" id="profOverlay" onclick="ovClick(event,'profOverlay')">
-  <div class="sheet bn-glass" id="profBody"></div>
 </div>
 
 <div class="toast" id="toast"><span id="toastMsg"></span></div>
@@ -423,21 +453,23 @@ body { margin:0; background:var(--bn-bg); color:var(--bn-ink);
 
 const API = '';
 let LOAD_ERROR = false;
-let companies = [], filtered = [], PAGE = 1, PAGES = 0, TOTAL = 0;
-let specFilter = 'all';
-let searchQ = '';
+let companies = [], filtered = [], TOTAL = 0;
+let PLANS = [];
+let specFilter = 'all', searchQ = '';
 
-/* ── الأيقونات — SVG لا إيموجي.
-   الإيموجي يتغيّر شكله بين المنصّات ولا يرث لون النص،
-   فلا يمكن ضبطه على النظام اللوني ولا على الوضع الليلي. ── */
+/* أيقونات SVG — ترث currentColor، بخلاف الإيموجي (§٥·٥ و§٢) */
 const IC = {
   spark:   '<path d="M12 3l1.9 5.6L19.5 10l-5.6 1.4L12 17l-1.9-5.6L4.5 10l5.6-1.4z"/>',
   building:'<rect x="4" y="3" width="16" height="18" rx="1.5"/><path d="M9 8h2M13 8h2M9 12h2M13 12h2M9 16h2M13 16h2"/>',
   pin:     '<path d="M12 21s7-5.6 7-11a7 7 0 1 0-14 0c0 5.4 7 11 7 11z"/><circle cx="12" cy="10" r="2.5"/>',
   star:    '<path d="M12 3.7l2.5 5.1 5.6.8-4 3.9 1 5.6-5.1-2.7-5.1 2.7 1-5.6-4-3.9 5.6-.8z"/>',
   check:   '<path d="M20 6L9 17l-5-5"/>',
-  phone:   '<path d="M21 16.5v3a2 2 0 0 1-2.2 2 19.8 19.8 0 0 1-8.6-3.1 19.5 19.5 0 0 1-6-6A19.8 19.8 0 0 1 1.1 3.7 2 2 0 0 1 3.1 1.5h3a2 2 0 0 1 2 1.7c.1 1 .4 1.9.7 2.8a2 2 0 0 1-.5 2.1L7.1 9.3a16 16 0 0 0 6 6l1.2-1.2a2 2 0 0 1 2.1-.5c.9.3 1.8.6 2.8.7a2 2 0 0 1 1.8 2z"/>',
+  x:       '<path d="M18 6L6 18M6 6l12 12"/>',
   folder:  '<path d="M3 7.5A1.5 1.5 0 0 1 4.5 6h4l2 2.5h9A1.5 1.5 0 0 1 21 10v8a1.5 1.5 0 0 1-1.5 1.5h-15A1.5 1.5 0 0 1 3 18z"/>',
+  wa:      '<path d="M21 11.5a8.4 8.4 0 0 1-12.3 7.5L3.5 20.5l1.6-5A8.5 8.5 0 1 1 21 11.5z"/><path d="M8.9 8.4c.2-.5.4-.5.6-.5h.5c.2 0 .4 0 .6.5l.7 1.6c.1.2 0 .4-.1.5l-.4.5c-.1.2-.2.3-.1.5a5 5 0 0 0 2.3 2.2c.2.1.4.1.5-.1l.4-.5c.2-.2.3-.2.5-.1l1.6.8c.2.1.3.2.3.4a1.6 1.6 0 0 1-1.1 1.3c-.4.1-1 .2-2.6-.5a8.6 8.6 0 0 1-3.6-3.4c-.6-1.1-.6-1.8-.5-2.2a1.8 1.8 0 0 1 .4-1z"/>',
+  chevS:   '<path d="M15 6l-6 6 6 6"/>',
+  chevE:   '<path d="M9 6l6 6-6 6"/>',
+  bid:     '<path d="M4 8h16l-1.2 11.2a1.5 1.5 0 0 1-1.5 1.3H6.7a1.5 1.5 0 0 1-1.5-1.3z"/><path d="M8.5 8V6a3.5 3.5 0 0 1 7 0v2"/>',
   offline: '<path d="M3 3l18 18"/><path d="M5.5 12.5a9 9 0 0 1 3.2-2.1M2 8.8A14 14 0 0 1 6 6.3M18.5 6.3A14 14 0 0 1 22 8.8M15.4 10.5a9 9 0 0 1 3.1 2"/><circle cx="12" cy="18" r="1"/>',
   empty:   '<rect x="3" y="5" width="18" height="15" rx="2"/><path d="M3 10h18M8 15h8"/>'
 };
@@ -445,51 +477,30 @@ const svg = (d, s) => '<svg viewBox="0 0 24 24" width="' + (s||14) + '" height="
   '" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" ' +
   'stroke-linejoin="round" aria-hidden="true">' + d + '</svg>';
 
-const $  = (id) => document.getElementById(id);
+const $ = (id) => document.getElementById(id);
 const esc = (s) => String(s == null ? '' : s)
   .replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+const initials = (n) => n.split(/\s+/).slice(0,2).map(w => w[0] || '').join('');
 
-/* أيقونات النصوص الثابتة */
-$('heroTag').innerHTML  = svg(IC.spark, 13) + 'منصة المقاولات الأولى في العراق';
-$('regCta').innerHTML   = svg(IC.building, 15) + ' سجّل شركتك';
-$('projCta').innerHTML  = svg(IC.folder, 15) + ' اطلب عروضاً لمشروعك';
-
-/* ══ التصنيفات ══ */
-async function loadCategories() {
-  try {
-    const r = await fetch(API + '/categories');
-    if (!r.ok) return;
-    const cats = await r.json();
-    const row = $('filterRow');
-    const city = $('filterCity');
-    cats.slice(0, 12).forEach(c => {
-      const b = document.createElement('button');
-      b.type = 'button'; b.className = 'pill'; b.textContent = c.name_ar;
-      b.onclick = () => setFilter(c.name_ar, b);
-      row.insertBefore(b, city);
-    });
-    const chips = $('specChips');
-    cats.slice(0, 10).forEach(c => {
-      const b = document.createElement('button');
-      b.type = 'button'; b.className = 'chip'; b.textContent = c.name_ar;
-      b.onclick = () => b.classList.toggle('is-on');
-      chips.appendChild(b);
-    });
-  } catch (e) { /* الفلاتر تحسين لا شرط */ }
-}
+$('heroTag').innerHTML = svg(IC.spark, 13) + 'منصة المقاولات الأولى في العراق';
+$('regCta').innerHTML  = svg(IC.building, 15) + ' سجّل شركتك';
+$('projCta').innerHTML = svg(IC.folder, 15) + ' اطلب عروضاً لمشروعك';
+$('fPrev').innerHTML   = svg(IC.chevS, 18);
+$('fNext').innerHTML   = svg(IC.chevE, 18);
 
 /* ══ الشركات ══ */
 function normalize(c) {
   return {
     id: String(c.id), name: c.name || '—', spec: c.spec || 'مقاولات عامة',
-    city: c.city || '—', rating: Number(c.rating) || 0,
+    city: c.city || '', rating: Number(c.rating) || 0,
     verified: Boolean(c.verified), status: c.status || 'pending',
     image_url: c.image_url || '', phone: c.phone || '',
     review_count: Number(c.review_count) || 0,
     review_avg: c.review_avg != null ? Number(c.review_avg) : null,
-    plan_key: c.plan_key || c.subscription_plan || 'starter'
+    plan: c.subscription_plan || 'starter'
   };
 }
+const score = (c) => (c.review_count > 0 ? (c.review_avg || 0) : c.rating);
 
 async function loadCompanies() {
   try {
@@ -499,41 +510,91 @@ async function loadCompanies() {
     companies = (d.items || []).map(normalize);
     TOTAL = d.total || companies.length;
     LOAD_ERROR = false;
-  } catch (e) {
-    /* لا بيانات بديلة — حالة خطأ صريحة */
-    companies = []; TOTAL = 0; LOAD_ERROR = true;
-  }
+  } catch (e) { companies = []; TOTAL = 0; LOAD_ERROR = true; }
+  buildFilters();      /* بعد وصول البيانات — لا وميض ثم مسح */
   applyFilters();
   renderFeatured();
 }
 
-function applyFilters() {
-  const city = $('filterCity').value;
-  filtered = companies.filter(c => {
-    if (specFilter !== 'all' && !c.spec.includes(specFilter)) return false;
-    if (city && c.city !== city) return false;
-    if (searchQ) {
-      const q = searchQ.toLowerCase();
-      if (!(c.name + ' ' + c.spec + ' ' + c.city).toLowerCase().includes(q)) return false;
-    }
-    return true;
+/* ══ ١ · الفلاتر — تُبنى من البيانات الحقيقية ══ */
+function buildFilters() {
+  const row = $('frow');
+  row.innerHTML = '';
+  if (LOAD_ERROR) { $('fbar').classList.remove('has-start','has-end'); return; }
+
+  const live = companies.filter(c => c.status !== 'rejected');
+
+  /* المدن الحقيقية من البيانات — «كل المدن» أولاً ومحدَّدة */
+  const cities = [...new Set(live.map(c => c.city).filter(Boolean))].sort();
+  const sel = document.createElement('select');
+  sel.className = 'fcity'; sel.id = 'filterCity';
+  sel.setAttribute('aria-label', 'المدينة');
+  sel.innerHTML = '<option value="">كل المدن</option>' +
+    cities.map(c => '<option>' + esc(c) + '</option>').join('');
+  sel.onchange = applyFilters;
+
+  /* التخصصات مع عدّاد حقيقي — والفارغ منها معطَّل */
+  const counts = {};
+  live.forEach(c => { counts[c.spec] = (counts[c.spec] || 0) + 1; });
+  const specs = Object.keys(counts).sort((a, b) => counts[b] - counts[a]);
+
+  const all = document.createElement('button');
+  all.type = 'button';
+  all.className = 'pill' + (specFilter === 'all' ? ' is-on' : '');
+  all.innerHTML = 'الكل <span class="pill-n">' + live.length + '</span>';
+  all.onclick = () => setFilter('all', all);
+  row.appendChild(all);
+
+  specs.forEach(s => {
+    const n = counts[s];
+    const b = document.createElement('button');
+    b.type = 'button';
+    b.className = 'pill' + (specFilter === s ? ' is-on' : '');
+    b.innerHTML = esc(s) + ' <span class="pill-n">' + n + '</span>';
+    if (!n) b.disabled = true;
+    b.onclick = () => setFilter(s, b);
+    row.appendChild(b);
   });
-  renderCards();
+
+  row.appendChild(sel);
+  syncArrows();
 }
 
-function setFilter(val, el) {
-  specFilter = val;
-  document.querySelectorAll('#filterRow .pill').forEach(p => p.classList.remove('is-on'));
+function syncArrows() {
+  const row = $('frow'), bar = $('fbar');
+  const max = row.scrollWidth - row.clientWidth;
+  if (max <= 4) { bar.classList.remove('has-start', 'has-end'); return; }
+  /* RTL: scrollLeft سالب أو موجب حسب المتصفّح — استعمل القيمة المطلقة */
+  const pos = Math.abs(row.scrollLeft);
+  bar.classList.toggle('has-end', pos < max - 4);
+  bar.classList.toggle('has-start', pos > 4);
+}
+$('frow').addEventListener('scroll', syncArrows, { passive: true });
+window.addEventListener('resize', syncArrows);
+$('fPrev').onclick = () => { $('frow').scrollBy({ left:  240, behavior: 'smooth' }); };
+$('fNext').onclick = () => { $('frow').scrollBy({ left: -240, behavior: 'smooth' }); };
+
+function applyFilters() {
+  const sel = $('filterCity');
+  const city = sel ? sel.value : '';
+  filtered = companies.filter(c => {
+    if (specFilter !== 'all' && c.spec !== specFilter) return false;
+    if (city && c.city !== city) return false;
+    if (searchQ && !(c.name + ' ' + c.spec + ' ' + c.city).toLowerCase().includes(searchQ.toLowerCase())) return false;
+    return true;
+  });
+  renderRows();
+}
+function setFilter(v, el) {
+  specFilter = v;
+  document.querySelectorAll('#frow .pill').forEach(p => p.classList.remove('is-on'));
   el.classList.add('is-on');
   applyFilters();
 }
 function syncSearch(v) { searchQ = (v || '').trim(); applyFilters(); }
 
-function initials(n) {
-  return n.split(/\s+/).slice(0, 2).map(w => w[0] || '').join('');
-}
-
-function renderCards() {
+/* ══ ٢ · صفوف الشركات ══ */
+function renderRows() {
   const g = $('companiesGrid');
 
   if (LOAD_ERROR) {
@@ -551,96 +612,142 @@ function renderCards() {
   if (!vis.length) {
     g.innerHTML = '<div class="state">' + svg(IC.empty, 38) +
       '<div class="state-t">لا توجد شركات تطابق البحث</div>' +
-      '<div class="state-d">جرّب تغيير التخصص أو المدينة.</div></div>';
+      '<div class="state-d">جرّب تخصصاً آخر أو مدينة أخرى.</div></div>';
     return;
   }
 
   g.innerHTML = vis.map(c => {
     const av = c.image_url
-      ? '<div class="card-av"><img src="' + esc(c.image_url) + '" alt="" loading="lazy"></div>'
-      : '<div class="card-av">' + esc(initials(c.name)) + '</div>';
-    const score = c.review_count > 0 ? (c.review_avg || 0) : c.rating;
-    return '<a class="card bn-solid" href="company_profile.html?id=' + esc(c.id) + '">' + av +
-      '<div class="card-body">' +
-        '<div class="card-name"><span>' + esc(c.name) + '</span>' +
+      ? '<div class="row-av"><img src="' + esc(c.image_url) + '" alt="" loading="lazy"></div>'
+      : '<div class="row-av">' + esc(initials(c.name)) + '</div>';
+    const wa = c.phone
+      ? '<a class="wa" href="https://wa.me/' + esc(c.phone.replace(/[^\d]/g, '')) +
+        '" target="_blank" rel="noopener" aria-label="واتساب ' + esc(c.name) + '">' + svg(IC.wa, 19) + '</a>'
+      : '';
+    return '<div class="row bn-solid">' + av +
+      '<div class="row-b">' +
+        '<div class="row-n"><span>' + esc(c.name) + '</span>' +
           (c.verified ? '<span class="bn-badge bn-badge-verified">' + svg(IC.check, 10) + 'موثّقة</span>' : '') +
         '</div>' +
-        '<div class="card-meta">' +
-          '<i>' + svg(IC.pin, 12) + esc(c.city) + '</i>' +
+        '<div class="row-m">' +
+          (c.city ? '<i>' + svg(IC.pin, 12) + esc(c.city) + '</i>' : '') +
           '<i>' + esc(c.spec) + '</i>' +
-        '</div>' +
-        '<div class="card-foot">' +
-          '<span class="rating">' + svg(IC.star, 12) + score.toFixed(1) +
+          '<span class="row-r">' + svg(IC.star, 12) + score(c).toFixed(1) +
             (c.review_count ? ' (' + c.review_count + ')' : '') + '</span>' +
-          (c.phone ? '<span class="card-meta" style="margin:0">' + svg(IC.phone, 12) + '</span>' : '') +
         '</div>' +
-      '</div></a>';
+      '</div>' +
+      '<div class="row-a">' +
+        '<a class="bn-btn bn-btn-sm" href="company_profile.html?id=' + esc(c.id) + '">عرض الملف</a>' + wa +
+      '</div></div>';
   }).join('');
 }
 
+/* ══ ٣ · مميزة — verified + التقييم + باقة تمنح الظهور المميز ══ */
 function renderFeatured() {
-  const el = $('featured');
-  if (LOAD_ERROR) { el.innerHTML = '<div class="state-d">تعذّر الاتصال بالخادم</div>'; return; }
+  const sec = $('secFeatured'), el = $('featured');
+  if (LOAD_ERROR) { sec.hidden = true; return; }
+
+  /* أي الباقات تمنح الظهور المميز — من جدول الباقات الحقيقي */
+  const featPlans = new Set(PLANS.filter(p => p.is_featured).map(p => p.code));
+
   const top = companies
-    .filter(c => c.status === 'approved')
-    .sort((a, b) => (b.review_avg || b.rating) - (a.review_avg || a.rating))
+    .filter(c => c.status === 'approved' && c.verified && featPlans.has(c.plan))
+    .sort((a, b) => score(b) - score(a))
     .slice(0, 8);
-  if (!top.length) { el.innerHTML = '<div class="state-d">لا توجد شركات مميزة بعد</div>'; return; }
+
+  if (!top.length) { sec.hidden = true; return; }
+  sec.hidden = false;
+  $('featNote').textContent = 'موثّقة · الأعلى تقييماً';
+
   el.innerHTML = top.map(c => {
-    const av = c.image_url
-      ? '<div class="fcard-av"><img src="' + esc(c.image_url) + '" alt="" loading="lazy"></div>'
-      : '<div class="fcard-av">' + esc(initials(c.name)) + '</div>';
-    return '<a class="fcard bn-solid" href="company_profile.html?id=' + esc(c.id) + '">' + av +
-      '<div class="fcard-n">' + esc(c.name) + '</div>' +
-      '<div class="fcard-s">' + esc(c.city) + ' · ' + esc(c.spec) + '</div></a>';
+    /* الصورة إن وُجدت، ومربّع الحرف إن لم توجد — لا بديل مزخرف */
+    const top_ = c.image_url
+      ? '<div class="fcard-top"><img src="' + esc(c.image_url) + '" alt="" loading="lazy"></div>'
+      : '<div class="fcard-top"><span class="fcard-mono">' + esc(initials(c.name)) + '</span></div>';
+    return '<a class="fcard bn-solid" href="company_profile.html?id=' + esc(c.id) + '">' + top_ +
+      '<div class="fcard-b">' +
+        '<div class="fcard-n"><span>' + esc(c.name) + '</span>' +
+          svg(IC.check, 11) + '</div>' +
+        '<div class="fcard-m"><span>' + esc(c.city) + '</span>' +
+          '<span class="row-r">' + svg(IC.star, 11) + score(c).toFixed(1) + '</span></div>' +
+      '</div></a>';
   }).join('');
 }
 
 async function retryLoad(btn) {
   if (btn) { btn.disabled = true; btn.textContent = 'جارٍ المحاولة...'; }
+  await loadPlans();
   await loadCompanies();
   loadStats();
   if (btn) { btn.disabled = false; btn.textContent = 'إعادة المحاولة'; }
 }
 
-/* ══ المشاريع ══ */
+/* ══ ٤ · المشاريع — الميزانية أبرز، وعدد العروض حقيقي ══ */
 async function loadProjects() {
   const el = $('projectsMini');
   try {
     const r = await fetch(API + '/projects?page=1&per_page=6', { signal: AbortSignal.timeout(8000) });
     if (!r.ok) throw new Error();
     const list = (await r.json()).items || [];
-    if (!list.length) { el.innerHTML = '<div class="state-d">لا توجد مشاريع منشورة بعد</div>'; return; }
+    if (!list.length) {
+      el.innerHTML = '<div class="state">' + svg(IC.empty, 38) +
+        '<div class="state-t">لا توجد مشاريع منشورة بعد</div></div>';
+      return;
+    }
     el.innerHTML = list.map(p => {
-      const b = p.budget_min && p.budget_max
-        ? Number(p.budget_min).toLocaleString('en') + ' – ' + Number(p.budget_max).toLocaleString('en') + ' $'
-        : 'غير محدّدة';
+      const has = p.budget_min && p.budget_max;
+      const b = has
+        ? Number(p.budget_min).toLocaleString('en') + ' – ' + Number(p.budget_max).toLocaleString('en')
+        : '—';
+      /* bids_count محسوب من project_bids — قيمة حقيقية لا تقدير */
+      const bids = (p.bids_count != null)
+        ? '<span class="bids">' + svg(IC.bid, 11) + p.bids_count + ' عرض</span>' : '';
       return '<a class="pcard bn-solid" href="project_details.html?id=' + esc(p.id) + '">' +
+        '<div class="pcard-b">' + b + '</div>' +
+        '<div class="pcard-bu">' + (has ? 'دولار — الميزانية المتوقّعة' : 'الميزانية غير محدّدة') + '</div>' +
         '<div class="pcard-t">' + esc(p.title) + '</div>' +
-        '<div class="pcard-m"><i>' + svg(IC.pin, 11) + ' ' + esc(p.city) + '</i>' +
-          '<i>' + esc(p.category) + '</i></div>' +
-        '<div class="pcard-b">' + b + '</div></a>';
+        '<div class="pcard-f"><i>' + svg(IC.pin, 11) + esc(p.city) + '</i>' + bids + '</div></a>';
     }).join('');
-  } catch (e) { el.innerHTML = '<div class="state-d">تعذّر تحميل المشاريع</div>'; }
+  } catch (e) {
+    el.innerHTML = '<div class="state"><div class="state-t">تعذّر تحميل المشاريع</div></div>';
+  }
 }
 
-/* ══ الباقات ══ */
+/* ══ ٥ · مقارنة الباقات — المزايا من أعمدة حقيقية ══ */
 async function loadPlans() {
   const el = $('plansGrid');
   try {
     const r = await fetch(API + '/subscription/plans');
     if (!r.ok) throw new Error();
-    const plans = await r.json();
-    el.innerHTML = plans.map(p =>
-      '<div class="plan bn-solid' + (p.code === 'featured' ? ' is-best' : '') + '">' +
+    PLANS = await r.json();
+    const lim = (v) => v === -1 ? 'بلا حدّ' : v;
+    el.innerHTML = PLANS.map(p => {
+      const rec = !!p.is_recommended;
+      const feats = [
+        [true,                       lim(p.max_images) + ' صورة'],
+        [true,                       lim(p.max_project_leads) + ' طلب مشروع'],
+        [p.search_priority > 0,      'أولوية في نتائج البحث'],
+        [!!p.is_verified,            'شارة التوثيق'],
+        [!!p.is_featured,            'ظهور في «شركات مميزة»']
+      ];
+      return '<div class="plan bn-solid' + (rec ? ' is-rec' : '') + '">' +
+        /* «توصيتنا» — رأي منسوب إلى المنصّة من عمود is_recommended،
+           لا إحصاء مختلَق عن مشتركين (§٥·٥) */
+        (rec ? '<span class="plan-badge">توصيتنا</span>' : '') +
         '<div class="plan-n">' + esc(p.name) + '</div>' +
         '<div class="plan-p">' + (Number(p.monthly_price) || 0) + '</div>' +
-        '<div class="plan-u">دولار / شهرياً</div></div>'
-    ).join('');
-  } catch (e) { el.innerHTML = '<div class="state-d">تعذّر تحميل الباقات</div>'; }
+        '<div class="plan-u">دولار / شهرياً</div>' +
+        '<ul class="plan-f">' + feats.map(([on, txt]) =>
+          '<li' + (on ? '' : ' class="no"') + '>' +
+          svg(on ? IC.check : IC.x, 13) + '<span>' + txt + '</span></li>').join('') +
+        '</ul></div>';
+    }).join('');
+  } catch (e) {
+    el.innerHTML = '<div class="state"><div class="state-t">تعذّر تحميل الباقات</div></div>';
+  }
 }
 
-/* ══ الإحصاءات — من /stats وحده، لا تُشتق من المعروض ══ */
+/* ══ الإحصاءات — من /stats وحده ══ */
 async function loadStats() {
   try {
     const r = await fetch(API + '/stats');
@@ -650,7 +757,7 @@ async function loadStats() {
     if (s.projects)  count($('statProjects'),  s.projects);
     if (s.avg_rating > 0) $('statRating').textContent = Number(s.avg_rating).toFixed(1);
     if (s.reviews > 0)    $('statReviews').textContent = s.reviews + '+';
-  } catch (e) { /* تبقى — */ }
+  } catch (e) {}
 }
 function count(el, target) {
   if (!el) return;
@@ -663,20 +770,42 @@ function count(el, target) {
   }, 24);
 }
 
+/* ══ التصنيفات — لنموذج التسجيل ومدن النموذج ══ */
+async function loadCategories() {
+  try {
+    const r = await fetch(API + '/categories');
+    if (!r.ok) return;
+    const cats = await r.json();
+    const chips = $('specChips');
+    cats.slice(0, 10).forEach(c => {
+      const b = document.createElement('button');
+      b.type = 'button'; b.className = 'chip'; b.textContent = c.name_ar;
+      b.onclick = () => b.classList.toggle('is-on');
+      chips.appendChild(b);
+    });
+  } catch (e) {}
+}
+
 /* ══ النوافذ ══ */
-function openRegModal()  { $('regOverlay').classList.add('is-open'); }
+function openRegModal() {
+  /* مدن النموذج من المدن الحقيقية الموجودة */
+  const sel = $('f-city');
+  if (sel && sel.options.length <= 1) {
+    const cities = [...new Set(companies.map(c => c.city).filter(Boolean))].sort();
+    cities.forEach(c => sel.add(new Option(c, c)));
+  }
+  $('regOverlay').classList.add('is-open');
+}
 function closeRegModal() { $('regOverlay').classList.remove('is-open'); }
-function ovClick(e, id)  { if (e.target.id === id) $(id).classList.remove('is-open'); }
+function ovClick(e, id) { if (e.target.id === id) $(id).classList.remove('is-open'); }
 document.addEventListener('keydown', e => {
   if (e.key === 'Escape') document.querySelectorAll('.ov.is-open').forEach(o => o.classList.remove('is-open'));
 });
-
 function resetRegForm() {
   ['f-name','f-city','f-phone','f-email','f-password','f-password2','f-desc']
     .forEach(id => { const el = $(id); if (el) el.value = ''; });
   document.querySelectorAll('#specChips .chip.is-on').forEach(c => c.classList.remove('is-on'));
 }
-
 function toast(msg, isErr) {
   const t = $('toast');
   $('toastMsg').textContent = msg;
@@ -684,7 +813,6 @@ function toast(msg, isErr) {
   setTimeout(() => t.classList.remove('is-on'), 4000);
 }
 
-/* ══ تسجيل الشركة ══ */
 async function submitCompany() {
   const name = $('f-name').value.trim(), city = $('f-city').value;
   const phone = $('f-phone').value.trim(), email = $('f-email').value.trim();
@@ -699,14 +827,13 @@ async function submitCompany() {
     if (!v) { w.classList.add('is-error'); ok = false; } else { w.classList.remove('is-error'); }
   });
   if (!ok) { toast('يرجى ملء جميع الحقول المطلوبة', true); return; }
-  if (pw.length < 8)  { toast('كلمة المرور يجب أن تكون 8 أحرف على الأقل', true); return; }
-  if (pw !== pw2)     { toast('كلمتا المرور غير متطابقتين', true); return; }
+  if (pw.length < 8) { toast('كلمة المرور يجب أن تكون 8 أحرف على الأقل', true); return; }
+  if (pw !== pw2)    { toast('كلمتا المرور غير متطابقتين', true); return; }
 
   const btn = $('submitBtn'), txt = $('submitText');
   btn.disabled = true;
 
   if (LOAD_ERROR) {
-    /* لا نُوهم المستخدم بأن بياناته حُفظت */
     toast('تعذّر الاتصال بالخادم — لم يتم حفظ التسجيل.', true);
     btn.disabled = false; txt.textContent = 'تسجيل الشركة';
     return;
@@ -720,8 +847,7 @@ async function submitCompany() {
       signal: AbortSignal.timeout(10000)
     });
     if (!ar.ok) throw new Error((await ar.json().catch(() => ({}))).detail || 'خطأ في إنشاء الحساب');
-    const ad = await ar.json();
-    const tok = ad.token;
+    const ad = await ar.json(); const tok = ad.token;
 
     let image_url = '';
     const f = $('f-image').files[0];
@@ -734,7 +860,7 @@ async function submitCompany() {
           signal: AbortSignal.timeout(30000)
         });
         if (ur.ok) image_url = (await ur.json()).url || '';
-      } catch (e) { /* الصورة اختيارية */ }
+      } catch (e) {}
     }
 
     txt.textContent = 'جارٍ تسجيل الشركة...';
@@ -756,7 +882,6 @@ async function submitCompany() {
     toast('تم تسجيل شركتك بنجاح');
     closeRegModal(); resetRegForm();
     setTimeout(() => { location.href = 'company_dashboard.html'; }, 1600);
-
   } catch (err) {
     toast(err.message || 'حدث خطأ، أعد المحاولة', true);
   } finally {
@@ -764,16 +889,17 @@ async function submitCompany() {
   }
 }
 
-/* تصدير ما تستدعيه السمات inline */
 Object.assign(window, { setFilter, applyFilters, syncSearch, retryLoad,
                         openRegModal, closeRegModal, ovClick, submitCompany });
 
-/* ══ الإقلاع ══ */
-loadCategories();
-loadCompanies();
-loadProjects();
-loadPlans();
-loadStats();
+/* الباقات أولاً — معيار «مميزة» يعتمد عليها */
+(async function boot() {
+  await loadPlans();
+  await loadCompanies();
+  loadCategories();
+  loadProjects();
+  loadStats();
+})();
 
 if ('serviceWorker' in navigator) {
   window.addEventListener('load', () => navigator.serviceWorker.register('/service-worker.js').catch(() => {}));
