@@ -6,9 +6,15 @@
     python seed_dev.py --status   # يعرض ما هو مزروع الآن
 
 كل صف مزروع يحمل علامة تجعله قابلاً للحذف الكامل:
-  الشركات والمشاريع : phone / contact_phone = '07XX-TEST'
-  الحسابات          : email ينتهي بـ '@seed.test'
-  التقييمات         : client_name يبدأ بـ 'عميل اختبار'
+  الشركات   : name يبدأ بـ 'شركة اختبار'
+  المشاريع  : contact_name = 'عميل اختبار'
+  الحسابات  : email ينتهي بـ '@seed.test'
+  التقييمات : client_name يبدأ بـ 'عميل اختبار'
+
+الهواتف صالحة الصيغة (07000000001…07000000012) لا نصّاً مثل
+'07XX-TEST': رقم غير صالح يعطّل زر واتساب في صفحة الشركة فلا
+يُختبَر أهم مسار تجاري. الأصفار المتتالية تُبقيها واضحة الاصطناع،
+والعلامة صارت اسم الشركة لا هاتفها.
 
 الأسماء كلها صريحة الاختبارية («شركة اختبار ١») ولا تشبه شركات
 حقيقية — لئلا نكرّر خطأ FALLBACK_DATA حيث ظهرت بيانات مختلَقة
@@ -28,9 +34,12 @@ from sqlalchemy import create_engine, text
 load_dotenv()
 
 # ── علامات البذر ──────────────────────────────────────────────────────────────
-SEED_PHONE  = "07XX-TEST"
-SEED_DOMAIN = "@seed.test"
-SEED_CLIENT = "عميل اختبار"
+SEED_NAME    = "شركة اختبار"          # علامة الشركات — بديل الهاتف
+SEED_DOMAIN  = "@seed.test"
+SEED_CLIENT  = "عميل اختبار"          # علامة المشاريع والتقييمات
+SEED_PROJ_PH = "07000000000"          # هاتف المشاريع — صالح الصيغة
+def seed_phone(i: int) -> str:        # 07000000001 … 07000000012
+    return "0700000" + f"{i + 1:04d}"
 
 # ── حساب الشركة الذي يسجّل به المستخدم الدخول ────────────────────────────────
 LOGIN_EMAIL    = "company@seed.test"
@@ -63,10 +72,10 @@ def get_engine():
 def clear(engine) -> None:
     """يحذف كل ما زرعه هذا السكربت — بالترتيب العكسي للتبعيات."""
     with engine.begin() as db:
-        p = {"ph": SEED_PHONE, "dom": f"%{SEED_DOMAIN}", "cl": f"{SEED_CLIENT}%"}
+        p = {"nm": f"{SEED_NAME}%", "dom": f"%{SEED_DOMAIN}", "cl": f"{SEED_CLIENT}%"}
 
-        company_ids = "(SELECT id FROM companies WHERE phone = :ph)"
-        project_ids = "(SELECT id FROM projects  WHERE contact_phone = :ph)"
+        company_ids = "(SELECT id FROM companies WHERE name LIKE :nm)"
+        project_ids = "(SELECT id FROM projects  WHERE contact_name LIKE :cl)"
         user_ids    = "(SELECT id FROM users     WHERE email LIKE :dom)"
 
         steps = [
@@ -92,8 +101,8 @@ def clear(engine) -> None:
             ("company_subscriptions", f"DELETE FROM company_subscriptions WHERE company_id IN {company_ids}"),
             ("subscription_requests", f"DELETE FROM subscription_requests WHERE company_id IN {company_ids}"),
             ("company_users",  "DELETE FROM company_users WHERE email LIKE :dom"),
-            ("projects",       "DELETE FROM projects  WHERE contact_phone = :ph"),
-            ("companies",      "DELETE FROM companies WHERE phone = :ph"),
+            ("projects",       "DELETE FROM projects  WHERE contact_name LIKE :cl"),
+            ("companies",      "DELETE FROM companies WHERE name LIKE :nm"),
             ("users",          "DELETE FROM users     WHERE email LIKE :dom"),
         ]
         total = 0
@@ -107,10 +116,10 @@ def clear(engine) -> None:
 
 def status(engine) -> None:
     with engine.connect() as db:
-        p = {"ph": SEED_PHONE, "dom": f"%{SEED_DOMAIN}", "cl": f"{SEED_CLIENT}%"}
+        p = {"nm": f"{SEED_NAME}%", "dom": f"%{SEED_DOMAIN}", "cl": f"{SEED_CLIENT}%"}
         rows = [
-            ("شركات مزروعة",  "SELECT COUNT(*) FROM companies WHERE phone = :ph"),
-            ("مشاريع مزروعة", "SELECT COUNT(*) FROM projects WHERE contact_phone = :ph"),
+            ("شركات مزروعة",  "SELECT COUNT(*) FROM companies WHERE name LIKE :nm"),
+            ("مشاريع مزروعة", "SELECT COUNT(*) FROM projects WHERE contact_name LIKE :cl"),
             ("حسابات شركات",  "SELECT COUNT(*) FROM company_users WHERE email LIKE :dom"),
             ("مستخدمون",      "SELECT COUNT(*) FROM users WHERE email LIKE :dom"),
             ("تقييمات",       "SELECT COUNT(*) FROM reviews WHERE client_name LIKE :cl"),
@@ -147,7 +156,7 @@ def seed(engine) -> None:
             """), {
                 "name":     f"شركة اختبار {AR_NUM[i]}",
                 "city":     CITIES[i % len(CITIES)],
-                "phone":    SEED_PHONE,
+                "phone":    seed_phone(i),
                 "spec":     SPECS[i % len(SPECS)],
                 "descr":    f"شركة بيانات اختبارية رقم {AR_NUM[i]} — للتطوير المحلي فقط، ليست شركة حقيقية.",
                 "email":    f"company{i+1}{SEED_DOMAIN}",
@@ -178,7 +187,7 @@ def seed(engine) -> None:
             VALUES (:email, :ph, :name, 'local', :pwh, TRUE, FALSE, TRUE, :now, :now)
             RETURNING id
         """), {
-            "email": f"client{SEED_DOMAIN}", "ph": SEED_PHONE,
+            "email": f"client{SEED_DOMAIN}", "ph": SEED_PROJ_PH,
             "name": "عميل اختبار — صاحب مشاريع", "pwh": pw_hash, "now": now,
         }).scalar()
 
@@ -205,7 +214,7 @@ def seed(engine) -> None:
             """), {
                 "t": title, "cat": cat, "city": city, "bmin": bmin, "bmax": bmax,
                 "descr": f"وصف اختباري للمشروع «{title}» — بيانات تطوير محلي فقط.",
-                "cname": "عميل اختبار", "phone": SEED_PHONE,
+                "cname": SEED_CLIENT, "phone": SEED_PROJ_PH,
                 "cemail": f"client{SEED_DOMAIN}",
                 "status": "published" if i < 4 else "contracted",
                 "uid": client_uid,
@@ -330,8 +339,8 @@ def main() -> int:
     else:
         with engine.connect() as db:
             existing = db.execute(
-                text("SELECT COUNT(*) FROM companies WHERE phone = :ph"),
-                {"ph": SEED_PHONE},
+                text("SELECT COUNT(*) FROM companies WHERE name LIKE :nm"),
+                {"nm": f"{SEED_NAME}%"},
             ).scalar()
         if existing:
             print(f"⚠️  يوجد {existing} شركة مزروعة مسبقاً. نظّفها أولاً:")
