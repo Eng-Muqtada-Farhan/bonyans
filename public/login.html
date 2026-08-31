@@ -313,11 +313,13 @@ body{
         body: JSON.stringify({ email: email, password: pass })
       });
 
-      if (res.status === 401) { msg('البريد أو كلمة المرور غير صحيحة.'); return; }
+      /* رسالة واحدة لكل الأسباب تدفع المستخدم لتكرار المحاولة فيزيد
+         الحجب على نفسه. كل سبب رسالته، وكل 5xx لا 503 وحدها. */
+      if (res.status === 401) { msg('البريد أو كلمة المرور غير صحيحة'); return; }
       if (res.status === 403) { msg('هذا الحساب موقوف. تواصل مع الدعم.'); return; }
-      if (res.status === 429) { msg('محاولات كثيرة. حاول بعد ١٠ دقائق.'); return; }
-      if (res.status === 503) { msg('الخدمة غير متاحة مؤقتاً. حاول بعد قليل.'); return; }
-      if (!res.ok)            { msg('تعذّر الدخول (رمز ' + res.status + '). حاول مرة أخرى.'); return; }
+      if (res.status === 429) { msg('محاولات كثيرة — انتظر ١٠ دقائق قبل المحاولة مجدداً'); return; }
+      if (res.status >= 500)  { msg('تعذّر الاتصال بالخادم — أعد المحاولة'); return; }
+      if (!res.ok)            { msg('تعذّر الدخول (رمز ' + res.status + ') — أعد المحاولة'); return; }
 
       var d = await res.json();
       if (!d.token) { msg('استجابة غير متوقّعة من الخادم.'); return; }
@@ -341,7 +343,7 @@ body{
       location.replace(next && next.charAt(0) === '/' && next.indexOf('//') !== 0 ? next : c.dest);
 
     } catch (err) {
-      msg('تعذّر الاتصال بالخادم. تحقّق من اتصالك ثم أعد المحاولة.');
+      msg('تعذّر الاتصال بالخادم — أعد المحاولة');
     } finally {
       btn.disabled = false;
       btn.textContent = c.submit;

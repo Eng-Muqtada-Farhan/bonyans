@@ -311,6 +311,10 @@ body { font-family: 'Cairo', sans-serif; }
   <h2>🔒 لوحة الإدارة</h2>
   <input id="user" placeholder="اسم المستخدم" autocomplete="username">
   <input id="pass" type="password" placeholder="كلمة المرور" autocomplete="current-password">
+  <div id="loginMsg" role="alert" aria-live="polite"
+       style="display:none;margin:10px 0 0;padding:10px 13px;border-radius:10px;
+              font-size:13px;line-height:1.6;background:var(--bn-err-bg);
+              color:var(--bn-err);border:1px solid var(--bn-err-line)"></div>
   <button class="adm-login-btn" onclick="login()">دخول</button>
 </div>
 
@@ -463,23 +467,62 @@ document.getElementById('editImage').addEventListener('change', () => {
 });
 
 /* ── Auth ── */
+function loginMsg(text) {
+  const el = document.getElementById('loginMsg');
+  el.textContent = text;
+  el.style.display = text ? 'block' : 'none';
+}
+
 async function login() {
-  const username = document.getElementById('user').value;
+  const username = document.getElementById('user').value.trim();
   const password = document.getElementById('pass').value;
-  const res = await fetch(`${API_URL}/login`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ username, password }),
-  });
-  const data = await res.json();
-  if (data.token) {
+  const btn = document.querySelector('.adm-login-btn');
+  loginMsg('');
+
+  if (!username || !password) { loginMsg('أدخل اسم المستخدم وكلمة المرور.'); return; }
+
+  btn.disabled = true;
+  const label = btn.textContent;
+  btn.textContent = 'جارٍ التحقّق...';
+
+  try {
+    const res = await fetch(`${API_URL}/login`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ username, password }),
+    });
+
+    /* رسالة واحدة لكل الأسباب تدفع المستخدم لتكرار المحاولة،
+       فيزيد الحجب على نفسه. كل سبب رسالته. */
+    if (res.status === 401) {
+      loginMsg('اسم المستخدم أو كلمة المرور غير صحيحة'); return;
+    }
+    if (res.status === 429) {
+      loginMsg('محاولات كثيرة — انتظر قبل المحاولة مجدداً'); return;
+    }
+    if (res.status >= 500) {
+      loginMsg('تعذّر الاتصال بالخادم — أعد المحاولة'); return;
+    }
+    if (!res.ok) {
+      loginMsg(`تعذّر الدخول (رمز ${res.status}) — أعد المحاولة`); return;
+    }
+
+    const data = await res.json();
+    if (!data.token) { loginMsg('استجابة غير متوقّعة من الخادم'); return; }
+
     TOKEN = data.token;
+    try { localStorage.setItem('admin_token', data.token); } catch (e) {}
     document.getElementById('loginBox').style.display = 'none';
     document.getElementById('panel').style.display = 'block';
     loadCompanies();
     loadCategories();
-  } else {
-    alert('خطأ في تسجيل الدخول');
+
+  } catch (e) {
+    /* انقطاع الشبكة قبل وصول أي استجابة */
+    loginMsg('تعذّر الاتصال بالخادم — أعد المحاولة');
+  } finally {
+    btn.disabled = false;
+    btn.textContent = label;
   }
 }
 
