@@ -63,62 +63,6 @@ body { margin:0; background:var(--bn-bg); color:var(--bn-ink);
   .hero { padding-block:var(--bn-s10) var(--bn-s8); }
 }
 
-/* ── شريط الفلاتر ──────────────────────────────────────────────
-   سهمان يظهران فقط عند وجود ما يُمرَّر، وتلاشٍ عند الحافة التي
-   خلفها محتوى مخفي — إشارة أن ثمّة المزيد. */
-.filters { position:sticky; inset-block-start:60px; z-index:200;
-  background:var(--bn-bg); border-block:1px solid var(--bn-line-soft);
-  padding-block:var(--bn-s3); margin-block-end:var(--bn-s8); }
-.fbar { position:relative; }
-.fbar::before, .fbar::after { content:""; position:absolute; inset-block:0;
-  width:44px; pointer-events:none; z-index:2; opacity:0;
-  transition:opacity var(--bn-fast); }
-.fbar::before { inset-inline-start:0;
-  background:linear-gradient(to left, transparent, var(--bn-bg)); }
-.fbar::after  { inset-inline-end:0;
-  background:linear-gradient(to right, transparent, var(--bn-bg)); }
-.fbar.has-start::before { opacity:1; }
-.fbar.has-end::after    { opacity:1; }
-
-.farrow { position:absolute; inset-block-start:50%; transform:translateY(-50%);
-  width:44px; height:44px; z-index:3; display:none; align-items:center;
-  justify-content:center; border:1px solid var(--bn-line);
-  border-radius:50%; background:var(--bn-surface); color:var(--bn-ink-2);
-  cursor:pointer; box-shadow:var(--bn-sh-1);
-  transition:color var(--bn-fast), border-color var(--bn-fast); }
-.farrow:hover { color:var(--bn-ac); border-color:var(--bn-ac-line); }
-.farrow-s { inset-inline-start:-6px; }
-.farrow-e { inset-inline-end:-6px; }
-.fbar.has-start .farrow-s { display:flex; }
-.fbar.has-end   .farrow-e { display:flex; }
-
-.frow { display:flex; gap:var(--bn-s2); overflow-x:auto; scroll-behavior:smooth;
-  scrollbar-width:none; -webkit-overflow-scrolling:touch; }
-.frow::-webkit-scrollbar { display:none; }
-.pill { flex:none; display:inline-flex; align-items:center; gap:7px;
-  min-height:44px; padding-inline:var(--bn-s4); border-radius:var(--bn-r-pill);
-  border:1px solid var(--bn-line); background:transparent; cursor:pointer;
-  color:var(--bn-ink-2); font:400 13px/1 var(--bn-font); white-space:nowrap;
-  transition:border-color var(--bn-fast), color var(--bn-fast), background var(--bn-fast); }
-.pill:hover:not([disabled]) { border-color:var(--bn-ac-line); color:var(--bn-ac); }
-.pill.is-on { background:var(--bn-ac); color:var(--bn-ac-on); border-color:transparent; }
-.pill[disabled] { opacity:.42; cursor:not-allowed; }
-.pill-n { font:500 11px/1 var(--bn-mono); font-variant-numeric:tabular-nums;
-  opacity:.72; }
-.pill.is-on .pill-n { opacity:.9; }
-.pill-skel { flex:none; width:104px; height:44px; border-radius:var(--bn-r-pill);
-  background:var(--bn-glass-tint); border:1px solid var(--bn-line-soft); }
-
-/* صفّ المدن — نطاق لا فئة، ففصله عن شرائح التخصص مقصود */
-.crow-wrap { display:flex; align-items:center; gap:var(--bn-s3);
-  margin-block-end:var(--bn-s2); }
-.frow-lbl { flex:none; font:var(--bn-t-cap); color:var(--bn-ink-3);
-  letter-spacing:.04em; }
-.crow { display:flex; gap:var(--bn-s2); overflow-x:auto; flex:1;
-  scrollbar-width:none; -webkit-overflow-scrolling:touch; }
-.crow::-webkit-scrollbar { display:none; }
-@media(max-width:560px){ .crow-wrap { flex-direction:column; align-items:stretch; gap:6px; } }
-
 /* ── العناوين ──────────────────────────────────────────────── */
 .sec { margin-block-end:var(--bn-s10); }
 .sec-head { display:flex; align-items:baseline; justify-content:space-between;
@@ -159,38 +103,6 @@ body { margin:0; background:var(--bn-bg); color:var(--bn-ink);
 .fcard-n span { overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
 .fcard-m { font:var(--bn-t-cap); color:var(--bn-ink-3);
   display:flex; align-items:center; justify-content:space-between; gap:8px; }
-
-/* ── ٢ · الصف الأفقي الغني — «جميع الشركات» ────────────────── */
-.rows { display:flex; flex-direction:column; gap:var(--bn-s2); }
-.row { display:flex; align-items:center; gap:var(--bn-s4);
-  padding:var(--bn-s3) var(--bn-s4); border-radius:var(--bn-r-lg);
-  transition:border-color var(--bn-mid), box-shadow var(--bn-mid); }
-.row:hover { border-color:var(--bn-ac-line); box-shadow:var(--bn-sh-1); }
-.row-av { width:52px; height:52px; border-radius:var(--bn-r); flex:none;
-  display:grid; place-items:center; overflow:hidden;
-  background:var(--bn-ac-bg); color:var(--bn-ac); border:1px solid var(--bn-ac-line);
-  font:500 17px/1 var(--bn-font); }
-.row-av img { width:100%; height:100%; object-fit:cover; }
-.row-b { flex:1; min-width:0; }
-.row-n { font:500 15px/1.4 var(--bn-font); display:flex; align-items:center;
-  gap:7px; margin-block-end:4px; }
-.row-n > span { overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
-.row-m { font:var(--bn-t-cap); color:var(--bn-ink-3); display:flex;
-  align-items:center; gap:var(--bn-s3); flex-wrap:wrap; }
-.row-m i { display:inline-flex; align-items:center; gap:4px; font-style:normal; }
-.row-r { display:inline-flex; align-items:center; gap:4px; color:var(--bn-ac);
-  font:500 13px/1 var(--bn-mono); font-variant-numeric:tabular-nums; flex:none; }
-.row-a { display:flex; align-items:center; gap:var(--bn-s2); flex:none; }
-.wa { width:44px; height:44px; display:inline-flex; align-items:center;
-  justify-content:center; border-radius:var(--bn-r-sm); flex:none;
-  border:1px solid var(--bn-line); color:var(--bn-ink-2); text-decoration:none;
-  transition:color var(--bn-fast), border-color var(--bn-fast); }
-.wa:hover { color:var(--bn-ac); border-color:var(--bn-ac-line); }
-@media(max-width:640px){
-  .row { flex-wrap:wrap; }
-  .row-a { width:100%; justify-content:flex-end; }
-  .row-a .bn-btn { flex:1; }
-}
 
 /* ── ٣ · المشروع — الميزانية أبرز عنصر ────────────────────── */
 .pgrid { display:grid; grid-template-columns:repeat(auto-fill,minmax(268px,1fr));
@@ -337,26 +249,7 @@ body { margin:0; background:var(--bn-bg); color:var(--bn-ink);
   </div>
 </header>
 
-<!-- الفلاتر — تُبنى بعد وصول البيانات، وهيكل تحميل في الأثناء.
-     المدينة نطاق لا فئة، فلها صفّها المستقل فوق شرائح التخصص. -->
-<div class="filters">
-  <div class="wrap">
-    <div class="crow-wrap">
-      <span class="frow-lbl">المدينة</span>
-      <div class="crow" id="cityRow">
-        <div class="pill-skel"></div><div class="pill-skel"></div><div class="pill-skel"></div>
-      </div>
-    </div>
-    <div class="fbar" id="fbar">
-      <button class="farrow farrow-s" type="button" id="fPrev" aria-label="تخصصات سابقة"></button>
-      <button class="farrow farrow-e" type="button" id="fNext" aria-label="تخصصات تالية"></button>
-      <div class="frow" id="frow">
-        <div class="pill-skel"></div><div class="pill-skel"></div>
-        <div class="pill-skel"></div><div class="pill-skel"></div>
-      </div>
-    </div>
-  </div>
-</div>
+<div class="bnf-bar"><div class="wrap" id="bnfMount"></div></div>
 
 <main class="wrap">
 
@@ -458,6 +351,7 @@ body { margin:0; background:var(--bn-bg); color:var(--bn-ink);
 
 <div class="toast" id="toast"><span id="toastMsg"></span></div>
 
+<script src="bn-filters.js"></script>
 <script src="nav-public.js"></script>
 <script>
 (function () {
@@ -481,8 +375,6 @@ const IC = {
   x:       '<path d="M18 6L6 18M6 6l12 12"/>',
   folder:  '<path d="M3 7.5A1.5 1.5 0 0 1 4.5 6h4l2 2.5h9A1.5 1.5 0 0 1 21 10v8a1.5 1.5 0 0 1-1.5 1.5h-15A1.5 1.5 0 0 1 3 18z"/>',
   wa:      '<path d="M21 11.5a8.4 8.4 0 0 1-12.3 7.5L3.5 20.5l1.6-5A8.5 8.5 0 1 1 21 11.5z"/><path d="M8.9 8.4c.2-.5.4-.5.6-.5h.5c.2 0 .4 0 .6.5l.7 1.6c.1.2 0 .4-.1.5l-.4.5c-.1.2-.2.3-.1.5a5 5 0 0 0 2.3 2.2c.2.1.4.1.5-.1l.4-.5c.2-.2.3-.2.5-.1l1.6.8c.2.1.3.2.3.4a1.6 1.6 0 0 1-1.1 1.3c-.4.1-1 .2-2.6-.5a8.6 8.6 0 0 1-3.6-3.4c-.6-1.1-.6-1.8-.5-2.2a1.8 1.8 0 0 1 .4-1z"/>',
-  chevS:   '<path d="M15 6l-6 6 6 6"/>',
-  chevE:   '<path d="M9 6l6 6-6 6"/>',
   bid:     '<path d="M4 8h16l-1.2 11.2a1.5 1.5 0 0 1-1.5 1.3H6.7a1.5 1.5 0 0 1-1.5-1.3z"/><path d="M8.5 8V6a3.5 3.5 0 0 1 7 0v2"/>',
   offline: '<path d="M3 3l18 18"/><path d="M5.5 12.5a9 9 0 0 1 3.2-2.1M2 8.8A14 14 0 0 1 6 6.3M18.5 6.3A14 14 0 0 1 22 8.8M15.4 10.5a9 9 0 0 1 3.1 2"/><circle cx="12" cy="18" r="1"/>',
   empty:   '<rect x="3" y="5" width="18" height="15" rx="2"/><path d="M3 10h18M8 15h8"/>',
@@ -500,8 +392,6 @@ const initials = (n) => n.split(/\s+/).slice(0,2).map(w => w[0] || '').join('');
 $('heroTag').innerHTML = svg(IC.spark, 13) + 'منصة المقاولات الأولى في العراق';
 $('regCta').innerHTML  = svg(IC.building, 15) + ' سجّل شركتك';
 $('projCta').innerHTML = svg(IC.folder, 15) + ' اطلب عروضاً لمشروعك';
-$('fPrev').innerHTML   = svg(IC.chevS, 18);
-$('fNext').innerHTML   = svg(IC.chevE, 18);
 
 /* ══ الشركات ══ */
 function normalize(c) {
@@ -517,195 +407,20 @@ function normalize(c) {
 }
 const score = (c) => (c.review_count > 0 ? (c.review_avg || 0) : c.rating);
 
-/* ══ عنوان URL يعكس الفلتر — للرجوع وللمشاركة ══ */
-function stateToURL(push) {
-  const p = new URLSearchParams();
-  if (F.city)          p.set('city', F.city);
-  if (F.spec !== 'all') p.set('spec', F.spec);
-  if (F.q)             p.set('q', F.q);
-  const url = location.pathname + (p.toString() ? '?' + p : '');
-  try { push ? history.pushState(F, '', url) : history.replaceState(F, '', url); } catch (e) {}
-}
-function urlToState() {
-  const p = new URLSearchParams(location.search);
-  F.city = p.get('city') || '';
-  F.spec = p.get('spec') || 'all';
-  F.q    = p.get('q')    || '';
-  const box = document.querySelector('.hero-search input');
-  if (box) box.value = F.q;
-}
-window.addEventListener('popstate', () => { urlToState(); loadCompanies(); });
-
-/* ══ الوجوه — مجموعة كاملة تُحسب منها العدّادات فقط ══ */
-async function loadFacets() {
-  try {
-    const r = await fetch(API + '/companies?page=1&per_page=100', { signal: AbortSignal.timeout(12000) });
-    if (r.ok) FACETS = ((await r.json()).items || []).map(normalize);
-  } catch (e) { FACETS = []; }
-}
-
-/* ══ الجلب — كل تغيير فلتر يستدعي /companies بمعاملاته ══ */
-async function loadCompanies() {
-  const p = new URLSearchParams({ page: '1', per_page: String(PER_PAGE) });
-  if (F.city)           p.set('city', F.city);
-  if (F.spec !== 'all') p.set('spec', F.spec);
-  if (F.q)              p.set('q', F.q);
-  try {
-    const r = await fetch(API + '/companies?' + p, { signal: AbortSignal.timeout(12000) });
-    if (!r.ok) throw new Error('HTTP ' + r.status);
-    const d = await r.json();
-    companies = (d.items || []).map(normalize);
-    TOTAL = d.total || 0;          /* يعكس الفلتر — الخادم يحسبه بنفس الشرط */
-    LOAD_ERROR = false;
-  } catch (e) { companies = []; TOTAL = 0; LOAD_ERROR = true; }
-  buildFilters();
-  renderRows();
-  renderFeatured();
-}
-
-/* ══ ١ · بناء الفلاتر بعد وصول البيانات ══ */
-function buildFilters() {
-  const cityRow = $('cityRow'), specRow = $('frow');
-  cityRow.innerHTML = ''; specRow.innerHTML = '';
-  if (LOAD_ERROR) { $('fbar').classList.remove('has-start', 'has-end'); return; }
-
-  const live = FACETS.filter(c => c.status !== 'rejected');
-
-  /* عدّ متقاطع: عدّاد المدينة يحترم التخصص المختار والعكس —
-     فلا يَعِد الرقمُ بنتيجة لا تأتي. */
-  const inSpec = (c) => F.spec === 'all' || c.spec === F.spec;
-  const inCity = (c) => !F.city || c.city === F.city;
-
-  const cityCounts = {};
-  live.filter(inSpec).forEach(c => { if (c.city) cityCounts[c.city] = (cityCounts[c.city] || 0) + 1; });
-  const specCounts = {};
-  live.filter(inCity).forEach(c => { specCounts[c.spec] = (specCounts[c.spec] || 0) + 1; });
-
-  const mk = (label, count, active, on, disabled) => {
-    const b = document.createElement('button');
-    b.type = 'button';
-    b.className = 'pill' + (active ? ' is-on' : '');
-    b.innerHTML = esc(label) + ' <span class="pill-n">' + count + '</span>';
-    if (disabled) b.disabled = true; else b.onclick = on;
-    return b;
-  };
-
-  /* الفلتر النشط يبقى معروضاً ولو كان عدّاده صفراً مع الفلتر الآخر،
-     وإلا اختفى ولم يجد المستخدم ما يلغيه. */
-  if (F.city && !(F.city in cityCounts))       cityCounts[F.city] = 0;
-  if (F.spec !== 'all' && !(F.spec in specCounts)) specCounts[F.spec] = 0;
-
-  /* المدن — «كل المدن» أولاً */
-  cityRow.appendChild(mk('كل المدن', live.filter(inSpec).length, !F.city, () => setCity('')));
-  Object.keys(cityCounts).sort().forEach(city => {
-    const active = F.city === city;
-    cityRow.appendChild(mk(city, cityCounts[city], active,
-      () => setCity(city), cityCounts[city] === 0 && !active));
-  });
-
-  /* التخصصات — الفارغ منها معطَّل، إلا أن يكون هو النشط */
-  specRow.appendChild(mk('الكل', live.filter(inCity).length, F.spec === 'all', () => setSpec('all')));
-  Object.keys(specCounts).sort((a, b) => specCounts[b] - specCounts[a]).forEach(s => {
-    const active = F.spec === s;
-    specRow.appendChild(mk(s, specCounts[s], active, () => setSpec(s),
-      specCounts[s] === 0 && !active));
-  });
-
-  /* أظهر الفلتر النشط في الرؤية — على الجوّال يخرج الصفّ عن الشاشة
-     فيختفي ما اختاره المستخدم للتوّ. */
-  [cityRow, specRow].forEach(row => {
-    const on = row.querySelector('.pill.is-on');
-    if (on && on !== row.firstElementChild) {
-      on.scrollIntoView({ block: 'nearest', inline: 'center' });
-    }
-  });
-
-  syncArrows();
-}
-
-function syncArrows() {
-  const row = $('frow'), bar = $('fbar');
-  const max = row.scrollWidth - row.clientWidth;
-  if (max <= 4) { bar.classList.remove('has-start', 'has-end'); return; }
-  const pos = Math.abs(row.scrollLeft);
-  bar.classList.toggle('has-end', pos < max - 4);
-  bar.classList.toggle('has-start', pos > 4);
-}
-$('frow').addEventListener('scroll', syncArrows, { passive: true });
-window.addEventListener('resize', syncArrows);
-$('fPrev').onclick = () => { $('frow').scrollBy({ left:  240, behavior: 'smooth' }); };
-$('fNext').onclick = () => { $('frow').scrollBy({ left: -240, behavior: 'smooth' }); };
-
-/* كل تغيير: يعود إلى الصفحة ١ (الطلب يثبّت page=1)، ويحدّث URL، ويعيد الجلب */
-function setCity(v) { F.city = v; stateToURL(true); loadCompanies(); }
-function setSpec(v) { F.spec = v; stateToURL(true); loadCompanies(); }
-function syncSearch(v) { F.q = (v || '').trim(); stateToURL(true); loadCompanies(); }
-function clearFilters() {
-  F = { city: '', spec: 'all', q: '' };
-  const box = document.querySelector('.hero-search input'); if (box) box.value = '';
-  stateToURL(true); loadCompanies();
-}
-const hasFilters = () => !!(F.city || F.spec !== 'all' || F.q);
-
-/* ══ ٢ · صفوف الشركات ══ */
-function renderRows() {
-  const g = $('companiesGrid');
-
-  if (LOAD_ERROR) {
-    $('resultCount').textContent = '';
-    g.innerHTML = '<div class="state">' + svg(IC.offline, 38) +
-      '<div class="state-t">تعذّر الاتصال بالخادم</div>' +
-      '<div class="state-d">لم نتمكّن من تحميل قائمة الشركات. تحقّق من اتصالك ثم أعد المحاولة.</div>' +
-      '<button class="bn-btn" type="button" onclick="retryLoad(this)">إعادة المحاولة</button></div>';
-    return;
+/* ══ الفلاتر والصفوف — من الوحدة المشتركة bn-filters.js ══
+   نسختان من هذا المنطق تفترقان حتماً ويُصلَح كل عطب مرتين،
+   فهذه النسخة الوحيدة وتستعملها companies.html أيضاً. */
+const FILT = BunyanFilters.create({
+  perPage: 24,
+  onResults(r) {
+    FACETS = FILT.facets;              /* «مميزة» من المجموعة الكاملة لا من نتيجة الفلتر */
+    $('resultCount').textContent = r.error ? ''
+      : (r.hasFilters ? r.total + ' نتيجة' : r.total + ' شركة');
+    FILT.renderInto($('companiesGrid'));
+    renderFeatured();
   }
-
-  const vis = companies.filter(c => c.status !== 'rejected');
-  /* العدّاد يعكس نتيجة الفلتر — TOTAL يحسبه الخادم بنفس شرط الفلتر */
-  $('resultCount').textContent = hasFilters()
-    ? TOTAL + ' نتيجة'
-    : TOTAL + ' شركة';
-
-  if (!vis.length) {
-    /* فراغ الفلتر مميَّز عن الخطأ: أيقونة وعنوان وإجراء مختلفة */
-    const bits = [];
-    if (F.city) bits.push(F.city);
-    if (F.spec !== 'all') bits.push(F.spec);
-    if (F.q) bits.push('«' + F.q + '»');
-    g.innerHTML = '<div class="state">' + svg(IC.filterOff, 38) +
-      '<div class="state-t">لا توجد شركات بهذا الفلتر</div>' +
-      '<div class="state-d">' +
-        (bits.length ? 'لا نتائج لـ ' + esc(bits.join(' + ')) + '.' : 'جرّب فلتراً آخر.') +
-      '</div>' +
-      '<button class="bn-btn" type="button" onclick="clearFilters()">إزالة الفلاتر</button></div>';
-    return;
-  }
-
-  g.innerHTML = vis.map(c => {
-    const av = c.image_url
-      ? '<div class="row-av"><img src="' + esc(c.image_url) + '" alt="" loading="lazy"></div>'
-      : '<div class="row-av">' + esc(initials(c.name)) + '</div>';
-    const wa = c.phone
-      ? '<a class="wa" href="https://wa.me/' + esc(c.phone.replace(/[^\d]/g, '')) +
-        '" target="_blank" rel="noopener" aria-label="واتساب ' + esc(c.name) + '">' + svg(IC.wa, 19) + '</a>'
-      : '';
-    return '<div class="row bn-solid">' + av +
-      '<div class="row-b">' +
-        '<div class="row-n"><span>' + esc(c.name) + '</span>' +
-          (c.verified ? '<span class="bn-badge bn-badge-verified">' + svg(IC.check, 10) + 'موثّقة</span>' : '') +
-        '</div>' +
-        '<div class="row-m">' +
-          (c.city ? '<i>' + svg(IC.pin, 12) + esc(c.city) + '</i>' : '') +
-          '<i>' + esc(c.spec) + '</i>' +
-          '<span class="row-r">' + svg(IC.star, 12) + score(c).toFixed(1) +
-            (c.review_count ? ' (' + c.review_count + ')' : '') + '</span>' +
-        '</div>' +
-      '</div>' +
-      '<div class="row-a">' +
-        '<a class="bn-btn bn-btn-sm" href="company_profile.html?id=' + esc(c.id) + '">عرض الملف</a>' + wa +
-      '</div></div>';
-  }).join('');
-}
+});
+function syncSearch(v) { FILT.setSearch(v); }
 
 /* ══ ٣ · مميزة — verified + التقييم + باقة تمنح الظهور المميز ══ */
 function renderFeatured() {
@@ -739,15 +454,6 @@ function renderFeatured() {
           '<span class="row-r">' + svg(IC.star, 11) + score(c).toFixed(1) + '</span></div>' +
       '</div></a>';
   }).join('');
-}
-
-async function retryLoad(btn) {
-  if (btn) { btn.disabled = true; btn.textContent = 'جارٍ المحاولة...'; }
-  await loadPlans();
-  await loadFacets();
-  await loadCompanies();
-  loadStats();
-  if (btn) { btn.disabled = false; btn.textContent = 'إعادة المحاولة'; }
 }
 
 /* ══ ٤ · المشاريع — الميزانية أبرز، وعدد العروض حقيقي ══ */
@@ -957,16 +663,11 @@ async function submitCompany() {
   }
 }
 
-Object.assign(window, { setCity, setSpec, syncSearch, clearFilters, retryLoad,
-                        openRegModal, closeRegModal, ovClick, submitCompany });
+Object.assign(window, { syncSearch, openRegModal, closeRegModal, ovClick, submitCompany });
 
-/* الباقات أولاً — معيار «مميزة» يعتمد عليها */
 (async function boot() {
-  urlToState();                    /* الفلتر من العنوان — الرابط قابل للمشاركة */
-  await loadPlans();               /* معيار «مميزة» يعتمد على الباقات */
-  await loadFacets();              /* المجموعة الكاملة — للعدّادات وحدها */
-  await loadCompanies();           /* النتيجة المفلترة من الخادم */
-  stateToURL(false);
+  await loadPlans();   /* أولاً — معيار «مميزة» يعتمد على is_featured فيها */
+  await FILT.init();   /* الوحدة: تقرأ العنوان، تجلب الوجوه، ثم النتيجة */
   loadCategories();
   loadProjects();
   loadStats();
