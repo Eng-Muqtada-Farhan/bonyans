@@ -185,7 +185,7 @@ body{padding-inline-start:244px}
     });
 
     root.querySelector('[data-bna-out]').addEventListener('click', function () {
-      ['COMPANY_TOKEN', 'company_id', 'company_name'].forEach(function (k) {
+      ['bn_token', 'company_id', 'company_name'].forEach(function (k) {
         try { localStorage.removeItem(k); } catch (e) {}
       });
       /* الكعكة HttpOnly فلا تمسحها الصفحة — يمسحها الخادم.

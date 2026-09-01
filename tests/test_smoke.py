@@ -39,17 +39,19 @@ def test_01_admin_login(client, admin_token):
 
 
 def test_02_company_login(client, company_token):
-    """حساب الشركة يدخل ويأخذ رمزاً من نوع company."""
+    """حساب الشركة يدخل ويأخذ رمزاً موحّد الشكل بدور company."""
     payload = _jose_jwt.decode(company_token, main.JWT_SECRET, algorithms=[main.ALGORITHM])
-    assert payload["type"] == "company"
-    assert payload["company_id"]
+    assert payload["role"] == main.ROLE_COMPANY
+    assert payload["uid"]
+    # الشركة تُقرأ من profiles لا من الرمز — رمز عمره أسبوع لا يحمل صلاحية
+    assert "company_id" not in payload
 
 
 def test_03_user_login(client, user_token):
-    """صاحب المشروع يدخل ويأخذ رمزاً من نوع user."""
+    """صاحب المشروع يدخل ويأخذ الرمز نفسه بدور user."""
     payload = _jose_jwt.decode(user_token, main.JWT_SECRET, algorithms=[main.ALGORITHM])
-    assert payload["type"] == "user"
-    assert payload["user_id"]
+    assert payload["role"] == main.ROLE_USER
+    assert payload["uid"]
 
 
 def test_04_wrong_password_is_401(client):
@@ -67,7 +69,7 @@ def test_04_wrong_password_is_401(client):
 def test_05_forged_token_rejected(client):
     """رمز موقَّع بمفتاح آخر يُرفض — التوقيع لا الشكل هو الحَكَم."""
     forged = _jose_jwt.encode(
-        {"sub": "user:5", "type": "user", "user_id": 5, "exp": int(time.time()) + 3600},
+        {"sub": "user:5", "role": "user", "uid": 5, "exp": int(time.time()) + 3600},
         "not-the-real-secret", algorithm=main.ALGORITHM)
     r = client.get("/my/projects", headers=bearer(forged))
     assert r.status_code == 401
@@ -76,7 +78,7 @@ def test_05_forged_token_rejected(client):
 def test_06_expired_token_rejected(client):
     """رمز صحيح التوقيع لكنه منتهٍ يُرفض."""
     expired = _jose_jwt.encode(
-        {"sub": "user:5", "type": "user", "user_id": 5, "exp": int(time.time()) - 60},
+        {"sub": "user:5", "role": "user", "uid": 5, "exp": int(time.time()) - 60},
         main.JWT_SECRET, algorithm=main.ALGORITHM)
     r = client.get("/my/projects", headers=bearer(expired))
     assert r.status_code == 401
@@ -246,9 +248,10 @@ def test_19_company_lifecycle(client, admin_token, user_token):
             "phone": "07000000099", "spec": "مقاولات عامة",
             "desc": "صف اختبار دخان — يُحذف تلقائياً."}
 
+    # بلا رمز ٤٠١، وبرمز صالح لدور آخر ٤٠٣ — التمييز مقصود
     assert client.post("/companies", json=body).status_code == 401
     assert client.post("/companies", json=body,
-                       headers=bearer(user_token)).status_code == 401
+                       headers=bearer(user_token)).status_code == 403
 
     r = client.post("/companies", json=body, headers=bearer(admin_token))
     assert r.status_code == 200, r.text
@@ -294,3 +297,100 @@ def test_20_rate_limit_blocks_sixth_login(client):
     assert codes[:5] == [401] * 5, codes
     assert codes[5] == 429, codes
     _wipe_rate_limits()
+
+
+# ══════════════════════════════════════════════════════════════
+# ٢١–٢٦ · توحيد المصادقة (RBAC)
+# ══════════════════════════════════════════════════════════════
+
+def test_21_legacy_token_shape_rejected(client):
+    """
+    رمز بالشكل القديم (type بدل role) يُرفض.
+
+    قبوله يعني إبقاء شكلين للمطالبات إلى الأبد — وهو الازدواج
+    الذي أُزيل. الإبطال قرار مُعلَن لا سهو.
+    """
+    for legacy in (
+        {"sub": "company:63", "type": "company", "company_id": 63},
+        {"sub": "user:5", "type": "user", "user_id": 5},
+    ):
+        legacy["exp"] = int(time.time()) + 3600
+        tok = _jose_jwt.encode(legacy, main.JWT_SECRET, algorithm=main.ALGORITHM)
+        assert client.get("/company/me", headers=bearer(tok)).status_code == 401
+
+
+def test_22_profiles_cover_every_user(client):
+    """كل مستخدم نشط له ملفّ دور — لا حساب بلا دور بعد الترحيل."""
+    with main.SessionLocal() as db:
+        orphans = db.execute(text("""
+            SELECT count(*) FROM users u
+            WHERE u.is_active = true
+              AND NOT EXISTS (SELECT 1 FROM profiles p WHERE p.user_id = u.id)
+        """)).scalar()
+    assert orphans == 0
+
+
+def test_23_profile_shape_constraint(client):
+    """قيد الشكل يمنع ملفّاً متناقضاً: شركة بلا company_id، أو عميل بشركة."""
+    import sqlalchemy.exc
+    with main.SessionLocal() as db:
+        uid = db.execute(text("SELECT id FROM users LIMIT 1")).scalar()
+        for role, cid in (("company", None), ("client", 1)):
+            try:
+                db.execute(text(
+                    "INSERT INTO profiles (user_id, role, company_id) VALUES (:u,:r,:c)"
+                ), {"u": uid, "r": role, "c": cid})
+                db.commit()
+                assert False, f"قُبل ملفّ متناقض: {role}/{cid}"
+            except Exception:
+                db.rollback()
+
+
+def test_24_require_role_separates_401_from_403(client, user_token):
+    """
+    بلا رمز ٤٠١، وبرمز صالح لدور آخر ٤٠٣.
+
+    التمييز عملي: الأول يعيد الدخول، والثاني لا يفيده التكرار.
+    """
+    assert client.get("/company/me").status_code == 401
+    assert client.get("/company/me", headers=bearer(user_token)).status_code == 403
+
+
+def test_25_company_login_reads_profiles(client, company_token):
+    """
+    دخول الشركة صار من users + profiles لا من company_users.
+    الرمز يحمل uid، والشركة تُشتقّ من الملفّ.
+    """
+    payload = _jose_jwt.decode(company_token, main.JWT_SECRET, algorithms=[main.ALGORITHM])
+    ident = main.identity_from_claims(payload)
+    assert ident is not None
+    assert ident.role == main.ROLE_COMPANY
+    assert ident.cid
+    with main.SessionLocal() as db:
+        cid = db.execute(text("""
+            SELECT company_id FROM profiles WHERE user_id=:u AND role='company'
+        """), {"u": ident.uid}).scalar()
+    assert cid == ident.cid
+
+
+def test_26_deactivated_user_token_stops_working(client):
+    """
+    تعطيل الحساب يُبطل رمزه فوراً — الصلاحية تُقرأ من قاعدة
+    البيانات عند كل طلب لا من داخل الرمز.
+    """
+    r = client.post("/auth/login", json={"email": "client@seed.test",
+                                         "password": "SeedTest!2026"})
+    assert r.status_code == 200
+    tok = r.json()["token"]
+    _wipe_rate_limits()
+    assert client.get("/my/projects", headers=bearer(tok)).status_code == 200
+
+    with main.SessionLocal() as db:
+        db.execute(text("UPDATE users SET is_active=false WHERE email='client@seed.test'"))
+        db.commit()
+    try:
+        assert client.get("/my/projects", headers=bearer(tok)).status_code == 401
+    finally:
+        with main.SessionLocal() as db:
+            db.execute(text("UPDATE users SET is_active=true WHERE email='client@seed.test'"))
+            db.commit()

@@ -192,8 +192,9 @@ const IC = Object.assign({}, BF.icons, {
 const ID    = new URLSearchParams(location.search).get('id');
 const ROLE  = (window.BunyanGuard && window.BunyanGuard.role()) || null;
 const store = (k) => { try { return localStorage.getItem(k) || ''; } catch (e) { return ''; } };
-const UTOK  = store('project_user_token');
-const CTOK  = store('COMPANY_TOKEN') || UTOK;   /* عضو شركة يحمل رمز مستخدم */
+/* رمز واحد لكل الأدوار — الخادم يقرأ الدور من داخله */
+const UTOK  = store('bn_token');
+const CTOK  = UTOK;
 const MYUID = parseInt(store('project_user_id') || '0', 10);
 
 const PSTATUS = BF.projectStatus;

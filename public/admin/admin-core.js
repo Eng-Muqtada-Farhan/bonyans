@@ -16,7 +16,7 @@
   var API = '';
 
   function store(k) { try { return localStorage.getItem(k) || ''; } catch (e) { return ''; } }
-  function token() { return store('admin_token') || store('token'); }
+  function token() { return store('bn_token'); }
 
   function esc(s) {
     return String(s == null ? '' : s)
@@ -90,7 +90,7 @@
   }
 
   function sessionExpired() {
-    try { localStorage.removeItem('admin_token'); localStorage.removeItem('token'); } catch (e) {}
+    try { localStorage.removeItem('bn_token'); } catch (e) {}
     location.replace('../login.html?role=admin&next=' + encodeURIComponent(location.pathname));
   }
 

@@ -123,17 +123,23 @@ _ROLE_LOGIN = {"company": "company", "user": "client"}
 
 
 def role_from_token(token: str) -> Optional[str]:
-    """الدور من رمز موقّع، أو None إن كان غائباً أو تالفاً أو منتهياً."""
+    """
+    الدور من رمز موقّع، أو None إن كان غائباً أو تالفاً أو منتهياً.
+
+    يُستعمل في حارس الأسطح (middleware) قبل تعريف Identity، فيقرأ
+    المطالبة role مباشرةً بلا لمس قاعدة البيانات: الحارس يقرّر
+    الوجهة لا الصلاحية، والصلاحية يحسمها require_role عند المسار.
+    """
     if not token:
         return None
     try:
         payload = jwt.decode(token, JWT_SECRET, algorithms=[ALGORITHM])
     except JWTError:
         return None
-    if payload.get("sub") == ADMIN_USERNAME:
+    role = payload.get("role")
+    if role == "admin" and payload.get("sub") == ADMIN_USERNAME:
         return "admin"
-    t = payload.get("type")
-    return t if t in ("company", "user") else None
+    return role if role in ("company", "user") else None
 
 
 def _is_page_request(request: Request) -> bool:
@@ -698,7 +704,7 @@ def login(data: dict, request: Request):
     with SessionLocal() as db:
         write_audit_log(db, "admin", username, "login_success", request)
         db.commit()
-    token = create_access_token(username)
+    token = create_token(ROLE_ADMIN)
     resp = JSONResponse({"token": token})
     set_session_cookie(resp, token, ADMIN_TTL)
     return resp
@@ -825,24 +831,50 @@ class ProjectRequestCreate(BaseModel):
     budget:        Optional[str] = None
 
 
-# ── JWT helpers ───────────────────────────────────────────────────────────────
+# ══════════════════════════════════════════════════════════════════════════════
+# المصادقة والصلاحيات — مسار واحد
+#
+# كان هنا ثلاثة أنظمة: رمز شركة، ورمز مستخدم، ورمز مدير، ولكلٍّ
+# حارسه وشكل مطالباته. الثمن أن كل ميزة أمنية تُبنى ثلاث مرات
+# وتُنسى مرة. الآن: مُصدِّر واحد، وشكل مطالبات واحد، وحارس واحد.
+#
+# شكل الرمز:
+#   { "sub": "user:5" | "admin", "role": "company"|"user"|"admin",
+#     "uid": 5 | None, "exp": ... }
+#
+# الشركة (cid) لا تُحفَظ في الرمز بل تُقرأ من profiles عند كل طلب:
+# رمز عمره سبعة أيام لا يصلح حاملاً لصلاحية قد تُسحب اليوم.
+# ══════════════════════════════════════════════════════════════════════════════
 
-def create_company_token(company_id: int) -> str:
-    expire = datetime.now(timezone.utc) + SESSION_TTL
-    return jwt.encode(
-        {"sub": f"company:{company_id}", "type": "company", "company_id": company_id, "exp": expire},
-        JWT_SECRET,
-        algorithm=ALGORITHM,
-    )
+ROLE_ADMIN   = "admin"
+ROLE_COMPANY = "company"
+ROLE_USER    = "user"
 
 
-def create_user_token(user_id: int) -> str:
-    expire = datetime.now(timezone.utc) + SESSION_TTL
-    return jwt.encode(
-        {"sub": f"user:{user_id}", "type": "user", "user_id": user_id, "exp": expire},
-        JWT_SECRET,
-        algorithm=ALGORITHM,
-    )
+def create_token(role: str, uid: Optional[int] = None) -> str:
+    ttl = ADMIN_TTL if role == ROLE_ADMIN else SESSION_TTL
+    claims = {
+        "sub":  ADMIN_USERNAME if role == ROLE_ADMIN else f"user:{uid}",
+        "role": role,
+        "uid":  uid,
+        "exp":  datetime.now(timezone.utc) + ttl,
+    }
+    return jwt.encode(claims, JWT_SECRET, algorithm=ALGORITHM)
+
+
+class Identity:
+    """من يطلب، وبأي دور، وعن أي شركة."""
+
+    __slots__ = ("role", "uid", "cid", "company_role")
+
+    def __init__(self, role, uid=None, cid=None, company_role=None):
+        self.role = role
+        self.uid = uid
+        self.cid = cid
+        self.company_role = company_role
+
+    def __repr__(self):
+        return f"Identity(role={self.role!r}, uid={self.uid!r}, cid={self.cid!r})"
 
 
 def _decode_token(request: Request) -> dict:
@@ -856,45 +888,76 @@ def _decode_token(request: Request) -> dict:
         raise HTTPException(status_code=401, detail="invalid token")
 
 
-def require_user(request: Request) -> int:
-    """Requires a user JWT (type=user). Returns user_id."""
-    payload = _decode_token(request)
-    if payload.get("type") != "user":
-        raise HTTPException(status_code=401, detail="user token required")
+def identity_from_claims(payload: dict) -> Optional[Identity]:
+    """
+    هويّة من مطالبات رمز موقَّع، أو None إن كان الشكل غير معروف.
+
+    الرموز القديمة (type=company / type=user) لا تحمل role فتُرفض
+    عمداً: شكلها يُرمّز نموذج الهوية القديم، وقبولها يعني إبقاء
+    شكلين للأبد — وهو الازدواج الذي أُزيل. قرار مُعلَن، والجميع
+    يسجّل الدخول مرة واحدة.
+    """
+    role = payload.get("role")
+    if role == ROLE_ADMIN and payload.get("sub") == ADMIN_USERNAME:
+        return Identity(ROLE_ADMIN)
+    if role not in (ROLE_COMPANY, ROLE_USER):
+        return None
     try:
-        return int(payload["user_id"])
-    except (KeyError, ValueError):
-        raise HTTPException(status_code=401, detail="invalid user token")
+        uid = int(payload["uid"])
+    except (KeyError, TypeError, ValueError):
+        return None
+
+    with SessionLocal() as db:
+        prof = db.execute(text("""
+            SELECT p.role, p.company_id, p.company_role
+            FROM profiles p
+            JOIN users u ON u.id = p.user_id
+            WHERE p.user_id = :uid AND u.is_active = true
+            ORDER BY (p.role = 'company') DESC, p.created_at
+            LIMIT 1
+        """), {"uid": uid}).mappings().fetchone()
+
+    if not prof:
+        return None
+    if prof["role"] == "company":
+        return Identity(ROLE_COMPANY, uid, int(prof["company_id"]), prof["company_role"])
+    return Identity(ROLE_USER, uid)
+
+
+def resolve_identity(request: Request) -> Identity:
+    ident = identity_from_claims(_decode_token(request))
+    if ident is None:
+        raise HTTPException(status_code=401, detail="invalid token")
+    return ident
+
+
+def require_role(request: Request, *roles: str) -> Identity:
+    """
+    الحارس الوحيد. يرفع 401 لمن لا رمز صالح له، و403 لمن رمزه
+    صالح لكن دوره ليس المطلوب — التمييز مقصود: الأول يعيد الدخول،
+    والثاني لا يفيده تكرار المحاولة.
+    """
+    ident = resolve_identity(request)
+    if roles and ident.role not in roles:
+        raise HTTPException(status_code=403, detail="هذا الإجراء ليس لدورك.")
+    return ident
+
+
+# ── مُهايئات مواضع الاستدعاء ───────────────────────────────────────────────────
+# أسماء قديمة تُعيد القيمة القياسية التي تتوقّعها المسارات. لا منطق
+# فيها: التنفيذ كلّه في require_role أعلاه، فلا تفترق ثلاثة حرّاس
+# بعد اليوم.
+
+def require_admin(request: Request) -> None:
+    require_role(request, ROLE_ADMIN)
+
+
+def require_user(request: Request) -> int:
+    return require_role(request, ROLE_USER).uid
 
 
 def require_company(request: Request) -> int:
-    """Accepts both old company JWT and new user JWT. Returns company_id."""
-    payload = _decode_token(request)
-    token_type = payload.get("type")
-
-    # Old Phase-5 company token
-    if token_type == "company":
-        try:
-            return int(payload["company_id"])
-        except (KeyError, ValueError):
-            raise HTTPException(status_code=401, detail="invalid company token")
-
-    # New Phase-5B user token — look up their company via company_members
-    if token_type == "user":
-        try:
-            user_id = int(payload["user_id"])
-        except (KeyError, ValueError):
-            raise HTTPException(status_code=401, detail="invalid user token")
-        with SessionLocal() as db:
-            row = db.execute(
-                text("SELECT company_id FROM company_members WHERE user_id=:uid ORDER BY created_at LIMIT 1"),
-                {"uid": user_id}
-            ).fetchone()
-        if not row:
-            raise HTTPException(status_code=403, detail="No company associated with this account")
-        return int(row[0])
-
-    raise HTTPException(status_code=401, detail="not a valid company or user token")
+    return require_role(request, ROLE_COMPANY).cid
 
 
 # ── DB helpers (Phase 5) ──────────────────────────────────────────────────────
@@ -952,7 +1015,7 @@ def company_register(payload: CompanyRegister):
 
         # 2. Prevent duplicate claim: company_id already has an account
         existing_claim = db.execute(
-            text("SELECT id FROM company_users WHERE company_id=:cid"),
+            text("SELECT id FROM profiles WHERE company_id=:cid AND role='company'"),
             {"cid": payload.company_id}
         ).fetchone()
         if existing_claim:
@@ -963,32 +1026,36 @@ def company_register(payload: CompanyRegister):
 
         # 3. Email must be unique
         existing_email = db.execute(
-            text("SELECT id FROM company_users WHERE email=:email"),
+            text("SELECT id FROM users WHERE lower(email)=:email"),
             {"email": payload.email.lower()}
         ).fetchone()
         if existing_email:
             raise HTTPException(status_code=409, detail="Email already in use")
 
-        # 4. Create company user
+        # ٤ · الحساب في users، والدور في profiles — لا جدول ثالث
         hashed = pwd_context.hash(payload.password)
-        result = db.execute(text("""
-            INSERT INTO company_users (company_id, email, password_hash, provider)
-            VALUES (:company_id, :email, :password_hash, 'email')
-            RETURNING id, company_id, email, is_active, created_at
+        row = db.execute(text("""
+            INSERT INTO users (email, display_name, provider, password_hash, is_active)
+            VALUES (:email, :name, 'email', :password_hash, true)
+            RETURNING id, email
         """), {
-            "company_id":    payload.company_id,
             "email":         payload.email.lower(),
+            "name":          company_name or payload.email.lower(),
             "password_hash": hashed,
-        })
-        row = result.mappings().fetchone()
+        }).mappings().fetchone()
+        db.execute(text("""
+            INSERT INTO profiles (user_id, role, company_id, company_role)
+            VALUES (:uid, 'company', :cid, 'owner')
+            ON CONFLICT DO NOTHING
+        """), {"uid": row["id"], "cid": payload.company_id})
         db.commit()
 
     return {
         "message":    "Company account created",
         "user_id":    row["id"],
-        "company_id": row["company_id"],
+        "company_id": payload.company_id,
         "email":      row["email"],
-        "token":      create_company_token(payload.company_id),
+        "token":      create_token(ROLE_COMPANY, row["id"]),
     }
 
 
@@ -1004,16 +1071,19 @@ def company_login(payload: CompanyLogin, request: Request):
     with SessionLocal() as db:
         user = db.execute(
             text("""
-                SELECT cu.id, cu.company_id, cu.password_hash, cu.is_active,
-                       c.status AS company_status
-                FROM company_users cu
-                JOIN companies c ON c.id = cu.company_id
-                WHERE cu.email = :email
+                SELECT u.id, u.password_hash, u.is_active,
+                       p.company_id, c.status AS company_status
+                FROM users u
+                JOIN profiles p ON p.user_id = u.id AND p.role = 'company'
+                JOIN companies c ON c.id = p.company_id
+                WHERE lower(u.email) = :email
+                ORDER BY p.created_at
+                LIMIT 1
             """),
             {"email": payload.email.lower()}
         ).mappings().fetchone()
 
-    if not user or not pwd_context.verify(payload.password, user["password_hash"]):
+    if not user or not user["password_hash"] or not pwd_context.verify(payload.password, user["password_hash"]):
         with SessionLocal() as db:
             write_audit_log(db, "company", payload.email.lower(), "login_fail", request)
             db.commit()
@@ -1026,8 +1096,9 @@ def company_login(payload: CompanyLogin, request: Request):
     with SessionLocal() as db:
         write_audit_log(db, "company", str(user["company_id"]), "login_success", request)
         db.commit()
-    token = create_company_token(user["company_id"])
-    resp = JSONResponse({"token": token, "company_id": user["company_id"]})
+    token = create_token(ROLE_COMPANY, user["id"])
+    resp = JSONResponse({"token": token, "company_id": user["company_id"],
+                         "user_id": user["id"]})
     set_session_cookie(resp, token, SESSION_TTL)
     return resp
 
@@ -1538,24 +1609,8 @@ def update_verification_status(company_id: int, request: Request, data: dict):
 @app.get("/company/{company_id}/views")
 def get_company_views(company_id: int, request: Request):
     """View count — accessible to the company owner or admin."""
-    payload = _decode_token(request)
-    token_type = payload.get("type")
-
-    if payload.get("sub") == ADMIN_USERNAME:
-        pass  # admin: unrestricted
-    elif token_type == "company":
-        if int(payload.get("company_id", 0)) != company_id:
-            raise HTTPException(status_code=403, detail="Forbidden")
-    elif token_type == "user":
-        uid = int(payload.get("user_id", 0))
-        with SessionLocal() as db:
-            cid = db.execute(
-                text("SELECT company_id FROM company_members WHERE user_id=:uid ORDER BY created_at LIMIT 1"),
-                {"uid": uid}
-            ).scalar()
-        if cid != company_id:
-            raise HTTPException(status_code=403, detail="Forbidden")
-    else:
+    ident = resolve_identity(request)
+    if ident.role != ROLE_ADMIN and ident.cid != company_id:
         raise HTTPException(status_code=403, detail="Forbidden")
 
     with SessionLocal() as db:
@@ -1619,6 +1674,11 @@ def auth_register(payload: UserRegister):
             "password_hash": hashed,
         })
         row = result.mappings().fetchone()
+        # كل مستخدم جديد صاحب مشروع حتى يصير له ملفّ شركة
+        db.execute(text("""
+            INSERT INTO profiles (user_id, role) VALUES (:uid, 'client')
+            ON CONFLICT DO NOTHING
+        """), {"uid": row["id"]})
         db.commit()
 
     return {
@@ -1626,7 +1686,7 @@ def auth_register(payload: UserRegister):
         "user_id":      row["id"],
         "email":        row["email"],
         "display_name": row["display_name"],
-        "token":        create_user_token(row["id"]),
+        "token":        create_token(ROLE_USER, row["id"]),
     }
 
 
@@ -1658,16 +1718,19 @@ def auth_login(payload: UserLogin, request: Request):
 
     user_id = user["id"]
     with SessionLocal() as db:
-        row = db.execute(
-            text("SELECT company_id FROM company_members WHERE user_id=:uid ORDER BY created_at LIMIT 1"),
-            {"uid": user_id}
-        ).fetchone()
+        row = db.execute(text("""
+            SELECT company_id FROM profiles
+            WHERE user_id = :uid AND role = 'company'
+            ORDER BY created_at LIMIT 1
+        """), {"uid": user_id}).fetchone()
     company_id = int(row[0]) if row else None
 
     with SessionLocal() as db:
         write_audit_log(db, "user", str(user_id), "login_success", request)
         db.commit()
-    token = create_user_token(user_id)
+    # الدور من الملفّ لا من المسار: من له شركة يدخل بدور شركة ولو
+    # جاء من /auth/login، فلا يحمل رمزاً أضعف من صلاحيته الفعلية.
+    token = create_token(ROLE_COMPANY if company_id else ROLE_USER, user_id)
     resp = JSONResponse({
         "token":      token,
         "user_id":    user_id,
@@ -1688,7 +1751,8 @@ def company_create(payload: CompanyCreate, request: Request):
 
     with SessionLocal() as db:
         existing = db.execute(
-            text("SELECT company_id FROM company_members WHERE user_id=:uid AND role='owner'"),
+            text("SELECT company_id FROM profiles "
+                 "WHERE user_id=:uid AND role='company' AND company_role='owner'"),
             {"uid": user_id}
         ).fetchone()
         if existing:
@@ -1725,12 +1789,15 @@ def company_create(payload: CompanyCreate, request: Request):
             {"id": company_id}
         )
 
-        # Add to company_members as owner
+        # الدور في profiles — company_members لم يعد يُكتب فيه
         db.execute(text("""
-            INSERT INTO company_members (company_id, user_id, role)
-            VALUES (:company_id, :user_id, 'owner')
-            ON CONFLICT (company_id, user_id) DO NOTHING
+            INSERT INTO profiles (user_id, role, company_id, company_role)
+            VALUES (:user_id, 'company', :company_id, 'owner')
+            ON CONFLICT DO NOTHING
         """), {"company_id": company_id, "user_id": user_id})
+        # صاحب المشروع صار شركةً — ملفّه القديم لم يعد يصفه
+        db.execute(text("DELETE FROM profiles WHERE user_id=:uid AND role='client'"),
+                   {"uid": user_id})
 
         db.commit()
 
@@ -1738,7 +1805,7 @@ def company_create(payload: CompanyCreate, request: Request):
         "message":    "Company registered — pending admin approval",
         "company_id": company_id,
         "status":     "pending",
-        "token":      create_user_token(user_id),
+        "token":      create_token(ROLE_COMPANY, user_id),
     }
 
 
@@ -1753,10 +1820,10 @@ def auth_me(request: Request):
         ).mappings().fetchone()
         if not user:
             raise HTTPException(status_code=404, detail="User not found")
-        row = db.execute(
-            text("SELECT company_id FROM company_members WHERE user_id=:uid ORDER BY created_at LIMIT 1"),
-            {"uid": user_id}
-        ).fetchone()
+        row = db.execute(text("""
+            SELECT company_id FROM profiles
+            WHERE user_id=:uid AND role='company' ORDER BY created_at LIMIT 1
+        """), {"uid": user_id}).fetchone()
     return {
         "user_id":      user["id"],
         "email":        user["email"],
@@ -1869,15 +1936,9 @@ def row_to_bid_dict(r: dict) -> dict:
 
 @app.post("/projects")
 def create_project(payload: MarketProjectCreate, request: Request):
+    # require_user يعني دور 'user'، ومن له ملفّ شركة يُحسم دوره
+    # 'company' فيُرفض بـ403 هنا. لا حاجة لفحص ثانٍ على جدول ثانٍ.
     user_id = require_user(request)
-    # B5: Block company members — they cannot create client projects
-    with SessionLocal() as db:
-        is_company_member = db.execute(
-            text("SELECT 1 FROM company_members WHERE user_id=:uid LIMIT 1"),
-            {"uid": user_id}
-        ).fetchone()
-    if is_company_member:
-        raise HTTPException(status_code=403, detail="لا يمكن لحسابات الشركات إنشاء طلبات مشاريع كعميل")
     with SessionLocal() as db:
         result = db.execute(text("""
             INSERT INTO projects
@@ -2006,39 +2067,16 @@ def _may_see_project_contact(request: Request, project: dict) -> bool:
     لا تُفرَّغ: حقلٌ فارغ يقول «لا رقم له»، وغيابه يقول «ليس لك».
     """
     try:
-        payload = _decode_token(request)
+        ident = resolve_identity(request)
     except HTTPException:
         return False
 
-    if payload.get("sub") == ADMIN_USERNAME:
+    if ident.role == ROLE_ADMIN:
+        return True
+    if ident.uid is not None and project.get("owner_user_id") == ident.uid:
         return True
 
-    token_type = payload.get("type")
-
-    if token_type == "user":
-        try:
-            user_id = int(payload["user_id"])
-        except (KeyError, ValueError):
-            return False
-        if project.get("owner_user_id") == user_id:
-            return True
-
-    # شركة — عبر رمز الشركة القديم أو عضوية مستخدم في شركة
-    company_id = None
-    if token_type == "company":
-        try:
-            company_id = int(payload["company_id"])
-        except (KeyError, ValueError):
-            return False
-    elif token_type == "user":
-        with SessionLocal() as db:
-            cm = db.execute(
-                text("SELECT company_id FROM company_members "
-                     "WHERE user_id=:uid ORDER BY created_at LIMIT 1"),
-                {"uid": payload.get("user_id")},
-            ).fetchone()
-        company_id = int(cm[0]) if cm else None
-
+    company_id = ident.cid
     if company_id is None:
         return False
 
@@ -2138,69 +2176,43 @@ def submit_bid(project_id: int, payload: ProjectBidCreate, request: Request):
 
 @app.get("/projects/{project_id}/bids")
 def get_project_bids(project_id: int, request: Request):
-    auth = request.headers.get("Authorization", "")
-    if not auth:
-        raise HTTPException(status_code=401, detail="Authentication required")
+    ident = resolve_identity(request)
 
-    try:
-        payload = _decode_token(request)
-    except HTTPException:
-        raise HTTPException(status_code=401, detail="Invalid token")
+    ALL_BIDS = """
+        SELECT pb.*, c.name AS company_name, c.image_url AS company_image
+        FROM project_bids pb
+        JOIN companies c ON c.id = pb.company_id
+        WHERE pb.project_id = :pid
+        ORDER BY pb.price ASC
+    """
 
-    token_type = payload.get("type")
-
-    # Admin sees all bids
-    if payload.get("sub") == ADMIN_USERNAME:
+    # المدير: كل العروض
+    if ident.role == ROLE_ADMIN:
         with SessionLocal() as db:
-            rows = db.execute(text("""
-                SELECT pb.*, c.name AS company_name, c.image_url AS company_image
-                FROM project_bids pb
-                JOIN companies c ON c.id = pb.company_id
-                WHERE pb.project_id = :pid
-                ORDER BY pb.price ASC
-            """), {"pid": project_id}).mappings().fetchall()
+            rows = db.execute(text(ALL_BIDS), {"pid": project_id}).mappings().fetchall()
         return [row_to_bid_dict(dict(r)) for r in rows]
 
-    # Project owner sees all bids
-    if token_type == "user":
-        user_id = int(payload["user_id"])
+    # صاحب المشروع: كل العروض مرتّبةً بالسعر
+    if ident.uid is not None:
         with SessionLocal() as db:
-            proj = db.execute(
+            owner = db.execute(
                 text("SELECT owner_user_id FROM projects WHERE id=:id"),
                 {"id": project_id}
-            ).mappings().fetchone()
-        if proj and proj["owner_user_id"] == user_id:
+            ).scalar()
+        if owner == ident.uid:
             with SessionLocal() as db:
-                rows = db.execute(text("""
-                    SELECT pb.*, c.name AS company_name, c.image_url AS company_image
-                    FROM project_bids pb
-                    JOIN companies c ON c.id = pb.company_id
-                    WHERE pb.project_id = :pid
-                    ORDER BY pb.price ASC
-                """), {"pid": project_id}).mappings().fetchall()
+                rows = db.execute(text(ALL_BIDS), {"pid": project_id}).mappings().fetchall()
             return [row_to_bid_dict(dict(r)) for r in rows]
 
-    # Company sees only their own bid
-    if token_type in ("company", "user"):
-        if token_type == "company":
-            company_id = int(payload["company_id"])
-        else:
-            user_id = int(payload["user_id"])
-            with SessionLocal() as db:
-                cm = db.execute(
-                    text("SELECT company_id FROM company_members WHERE user_id=:uid ORDER BY created_at LIMIT 1"),
-                    {"uid": user_id}
-                ).fetchone()
-            if not cm:
-                raise HTTPException(status_code=403, detail="No company associated")
-            company_id = int(cm[0])
+    # الشركة: عرضها هي وحده
+    if ident.cid is not None:
         with SessionLocal() as db:
             rows = db.execute(text("""
                 SELECT pb.*, c.name AS company_name, c.image_url AS company_image
                 FROM project_bids pb
                 JOIN companies c ON c.id = pb.company_id
                 WHERE pb.project_id = :pid AND pb.company_id = :cid
-            """), {"pid": project_id, "cid": company_id}).mappings().fetchall()
+            """), {"pid": project_id, "cid": ident.cid}).mappings().fetchall()
         return [row_to_bid_dict(dict(r)) for r in rows]
 
     raise HTTPException(status_code=403, detail="Access denied")
@@ -2655,27 +2667,12 @@ def create_notification(db, user_id=None, company_id=None,
 
 
 def _resolve_auth(request: Request):
-    """Decode token; return ('company', company_id) or ('user', user_id).
-    Handles dual-JWT: user tokens belonging to company members → company role."""
-    payload = _decode_token(request)
-    if payload.get("type") == "company":
-        cid = payload.get("company_id")
-        if not cid:
-            raise HTTPException(status_code=401, detail="invalid company token")
-        return ("company", int(cid))
-    if payload.get("type") == "user":
-        uid = int(payload.get("user_id", 0))
-        if not uid:
-            raise HTTPException(status_code=401, detail="invalid user token")
-        with SessionLocal() as db:
-            cid = db.execute(text(
-                "SELECT company_id FROM company_members WHERE user_id=:uid "
-                "ORDER BY created_at LIMIT 1"
-            ), {"uid": uid}).scalar()
-        if cid:
-            return ("company", int(cid))
-        return ("user", uid)
-    raise HTTPException(status_code=401, detail="Unauthorized")
+    """
+    ('company', company_id) أو ('user', user_id) — للمحادثات التي
+    يختلف طرفاها. مُهايئ فوق require_role، لا نسخة ثانية منه.
+    """
+    ident = require_role(request, ROLE_COMPANY, ROLE_USER)
+    return (ident.role, ident.cid if ident.role == ROLE_COMPANY else ident.uid)
 
 
 # ── PHASE 8 Part A: Messaging ─────────────────────────────────────────────────
@@ -2934,15 +2931,9 @@ class ReviewReplyCreate(BaseModel):
 @app.post("/reviews")
 def submit_review(payload: ReviewCreate, request: Request):
     # B5: Only authenticated users (not guests, not companies) can submit reviews
+    # الدور وحده يحجب الشركات — require_user يرفع 403 لحاملي
+    # ملفّ الشركة قبل الوصول إلى هنا.
     user_id = require_user(request)
-    # Block company members from reviewing
-    with SessionLocal() as db:
-        is_company_member = db.execute(
-            text("SELECT 1 FROM company_members WHERE user_id=:uid LIMIT 1"),
-            {"uid": user_id}
-        ).fetchone()
-    if is_company_member:
-        raise HTTPException(status_code=403, detail="لا يمكن لحسابات الشركات إضافة تقييمات")
     ip = get_client_ip(request)
     if not check_rate_limit(f"review:{ip}", 30, 3600):
         with SessionLocal() as db:

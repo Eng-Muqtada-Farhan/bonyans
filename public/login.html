@@ -324,14 +324,10 @@ body{
       var d = await res.json();
       if (!d.token) { msg('استجابة غير متوقّعة من الخادم.'); return; }
 
-      /* تخزين الجلسة بمفاتيح كل دور — يقرؤها الحارس والقوائم */
-      if (role === 'company') {
-        localStorage.setItem('COMPANY_TOKEN', d.token);
-        if (d.company_id) localStorage.setItem('company_id', String(d.company_id));
-      } else {
-        localStorage.setItem('project_user_token', d.token);
-        if (d.user_id) localStorage.setItem('project_user_id', String(d.user_id));
-      }
+      /* مفتاح جلسة واحد: الرمز يحمل دوره، فلا حاجة لمفتاح لكل دور */
+      localStorage.setItem('bn_token', d.token);
+      if (d.company_id) localStorage.setItem('company_id', String(d.company_id));
+      if (d.user_id) localStorage.setItem('project_user_id', String(d.user_id));
 
       /* كعكة الجلسة يضعها الخادم في استجابة الدخول نفسها — HttpOnly
          فلا تلمسها الصفحة. يقرؤها حارس الأسطح لأن طلب التنقّل في

@@ -249,7 +249,7 @@ const BF    = BunyanFilters;
 const esc   = BF.esc, svg = BF.svg, IC = BF.icons;
 const ROLE  = (window.BunyanGuard && window.BunyanGuard.role()) || null;
 const TOKEN = (function () {
-  try { return localStorage.getItem('project_user_token') || ''; } catch (e) { return ''; }
+  try { return localStorage.getItem('bn_token') || ''; } catch (e) { return ''; }
 })();
 
 /* ══ ١ · السوق — الوحدة المشتركة بإعداد المشاريع ══

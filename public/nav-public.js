@@ -50,7 +50,7 @@
     } catch (e) { return null; }
   }
   function readRole() {
-    var t = localStorage.getItem('project_user_token');
+    var t = localStorage.getItem('bn_token');
     if (jwtValid(t)) {
       return { role: 'client', name: localStorage.getItem('project_user_name') || 'حسابي' };
     }
@@ -185,7 +185,7 @@
     });
     var o = root.querySelector('[data-bnv-out]');
     if (o) o.addEventListener('click', function () {
-      ['project_user_token', 'project_user_id', 'project_user_name'].forEach(function (k) {
+      ['bn_token', 'project_user_id', 'project_user_name'].forEach(function (k) {
         try { localStorage.removeItem(k); } catch (e) {}
       });
       /* الكعكة HttpOnly فلا تمسحها الصفحة — يمسحها الخادم.

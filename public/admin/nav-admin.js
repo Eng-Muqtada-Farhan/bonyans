@@ -177,7 +177,7 @@ body{padding-inline-start:244px}
     });
 
     root.querySelector('[data-bnd-out]').addEventListener('click', function () {
-      ['admin_token', 'token'].forEach(function (k) {
+      ['bn_token'].forEach(function (k) {
         try { localStorage.removeItem(k); } catch (e) {}
       });
       /* الكعكة HttpOnly فلا تمسحها الصفحة — يمسحها الخادم.

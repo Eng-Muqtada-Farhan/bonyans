@@ -15,7 +15,7 @@
   var API = '';
 
   function store(k) { try { return localStorage.getItem(k) || ''; } catch (e) { return ''; } }
-  function token() { return store('project_user_token'); }
+  function token() { return store('bn_token'); }
 
   function esc(s) {
     return String(s == null ? '' : s)
@@ -83,7 +83,7 @@
 
   function sessionExpired() {
     try {
-      localStorage.removeItem('project_user_token');
+      localStorage.removeItem('bn_token');
       localStorage.removeItem('project_user_id');
     } catch (e) {}
     location.replace('../login.html?role=client&next=' + encodeURIComponent(location.pathname));

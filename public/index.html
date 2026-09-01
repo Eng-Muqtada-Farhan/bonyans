@@ -648,7 +648,7 @@ async function submitCompany() {
     if (!cr.ok) throw new Error((await cr.json().catch(() => ({}))).detail || 'خطأ في تسجيل الشركة');
     const cd = await cr.json();
 
-    localStorage.setItem('project_user_token', tok);
+    localStorage.setItem('bn_token', tok);
     localStorage.setItem('project_user_id', String(ad.user_id || ''));
     if (ad.display_name) localStorage.setItem('project_user_name', ad.display_name);
     localStorage.setItem('company_id', String(cd.company_id));

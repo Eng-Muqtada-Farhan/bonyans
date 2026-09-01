@@ -36,21 +36,28 @@
   }
   function get(k) { try { return localStorage.getItem(k); } catch (e) { return null; } }
 
-  /** الدور الفعلي من التخزين — أول رمز صالح، بترتيب أضيق الصلاحيات أولاً. */
+  var KEY = 'bn_token';   /* مفتاح الجلسة الوحيد */
+
+  /**
+   * الدور من مطالبة role في الرمز الموحّد.
+   *
+   * كانت هنا ثلاثة مفاتيح تخزين لثلاثة أشكال رموز، والدور يُستنتج
+   * من أيّها وُجد. صار شكل واحد يحمل دوره صراحةً، فمفتاح واحد.
+   * الرموز القديمة لا تحمل role ويرفضها الخادم أصلاً.
+   */
   function currentRole() {
-    var a = payload(get('admin_token') || get('token'));
-    if (a && a.sub === 'admin') return 'admin';
-    var c = payload(get('COMPANY_TOKEN'));
-    if (c) return 'company';
-    var u = payload(get('project_user_token'));
-    if (u) return 'user';
-    return null;
+    var p = payload(get(KEY));
+    if (!p) return null;
+    var r = p.role;
+    if (r === 'admin' && p.sub === 'admin') return 'admin';
+    return (r === 'company' || r === 'user') ? r : null;
   }
 
   /* تُصدَّر للصفحات العامّة التي تحتاج معرفة الدور دون أن تُحرَس:
      صفحة تعرض زر «أضف مشروعك» تحتاج أن تعرف إن كان للزائر جلسة.
      لا تُغيّر سلوك الحارس نفسه. */
-  window.BunyanGuard = { role: currentRole, token: get, home: HOME };
+  window.BunyanGuard = { role: currentRole, token: function () { return get(KEY); },
+                         KEY: KEY, home: HOME };
 
   function go(url) { location.replace(url); }
 
@@ -75,6 +82,11 @@
   }
 
   /* مطابق — تمرّ الصفحة. يعمل الحارس في <head> فيُنفَّذ التحويل
-     قبل رسم الجسم، فلا وميض ولا حاجة لإخفاء مؤقّت. */
-  window.BunyanGuard = { role: role, home: HOME[role] };
+     قبل رسم الجسم، فلا وميض ولا حاجة لإخفاء مؤقّت.
+
+     يُضاف إلى الكائن ولا يُستبدَل: كان هذا السطر يستبدله بشكل
+     ثانٍ يجعل role نصّاً بدل دالّة، فيختلف معنى BunyanGuard.role
+     بين صفحة محروسة وصفحة عامّة — فخّ لا يظهر إلا عند الاستدعاء. */
+  window.BunyanGuard.current = role;
+  window.BunyanGuard.homeUrl = HOME[role];
 })();

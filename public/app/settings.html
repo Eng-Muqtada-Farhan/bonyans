@@ -140,9 +140,8 @@ $('logoutBtn').onclick = async function () {
   if (!await AC.confirm('تسجيل الخروج', 'ستحتاج إلى إدخال بياناتك مجدداً.', 'خروج')) return;
   try { await fetch('/logout', { method: 'POST' }); } catch (e) {}
   try {
-    localStorage.removeItem('COMPANY_TOKEN');
+    localStorage.removeItem('bn_token');
     localStorage.removeItem('company_id');
-    localStorage.removeItem('project_user_token');
     localStorage.removeItem('project_user_id');
   } catch (e) {}
   location.replace('../login.html');

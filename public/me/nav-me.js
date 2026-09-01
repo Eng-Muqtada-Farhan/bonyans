@@ -119,7 +119,7 @@
       paintTheme();
     });
     root.querySelector('[data-bnm-out]').addEventListener('click', function () {
-      ['project_user_token', 'project_user_id', 'project_user_name'].forEach(function (k) {
+      ['bn_token', 'project_user_id', 'project_user_name'].forEach(function (k) {
         try { localStorage.removeItem(k); } catch (e) {}
       });
       /* الكعكة HttpOnly فيمسحها الخادم؛ keepalive حتى يكتمل

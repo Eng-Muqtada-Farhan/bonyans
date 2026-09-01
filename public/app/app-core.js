@@ -21,7 +21,7 @@
 
   function store(k) { try { return localStorage.getItem(k) || ''; } catch (e) { return ''; } }
   /* رمز الشركة القديم أو رمز مستخدم عضو في شركة — الخادم يقبلهما */
-  function token() { return store('COMPANY_TOKEN') || store('project_user_token'); }
+  function token() { return store('bn_token'); }
 
   function esc(s) {
     return String(s == null ? '' : s)
@@ -104,8 +104,7 @@
 
   function sessionExpired() {
     try {
-      localStorage.removeItem('COMPANY_TOKEN');
-      localStorage.removeItem('project_user_token');
+      localStorage.removeItem('bn_token');
     } catch (e) {}
     /* ../login.html — الاستثناء المصرَّح به: العزل يحكم الجلسة
        لا نهايتها. من انتهت جلسته لم يعد شركة. */
