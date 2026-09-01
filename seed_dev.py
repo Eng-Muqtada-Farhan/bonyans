@@ -147,11 +147,11 @@ def seed(engine) -> None:
                 INSERT INTO companies
                     (name, city, phone, spec, description, email, website, map_link,
                      rating, verified, status, created_at, verification_status,
-                     country, subscription_plan, updated_at, image_url)
+                     country, updated_at, image_url)
                 VALUES
                     (:name, :city, :phone, :spec, :descr, :email, '', '',
                      :rating, :verified, :status, :created, :vstatus,
-                     'IQ', :plan, :updated, '')
+                     'IQ', :updated, '')
                 RETURNING id
             """), {
                 "name":     f"شركة اختبار {AR_NUM[i]}",
@@ -165,7 +165,6 @@ def seed(engine) -> None:
                 "status":   st,
                 "created":  now - timedelta(days=60 - i * 3),
                 "vstatus":  "verified" if st == "approved" else "pending",
-                "plan":     ["starter", "active", "featured", "partner"][i % 4],
                 "updated":  now,
             }).scalar()
             company_ids.append(cid)

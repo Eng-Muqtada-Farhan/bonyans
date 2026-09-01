@@ -402,7 +402,7 @@ function normalize(c) {
     image_url: c.image_url || '', phone: c.phone || '',
     review_count: Number(c.review_count) || 0,
     review_avg: c.review_avg != null ? Number(c.review_avg) : null,
-    plan: c.subscription_plan || 'starter'
+    plan: c.plan || 'starter', planFeatured: Boolean(c.plan_featured)
   };
 }
 const score = (c) => (c.review_count > 0 ? (c.review_avg || 0) : c.rating);
@@ -422,19 +422,19 @@ const FILT = BunyanFilters.create({
 });
 function syncSearch(v) { FILT.setSearch(v); }
 
-/* ══ ٣ · مميزة — verified + التقييم + باقة تمنح الظهور المميز ══ */
+/* ══ ٣ · مميزة — معتمدة وموثّقة، الأعلى تقييماً، وصاحب الباقة يتصدّر ══
+   المعيار لا يشترط اشتراكاً: يعمل اليوم بصفر مشترك ويتوسّع وحده
+   حين تشترك شركات. الترتيب: من له باقة تمنح الظهور المميز أولاً،
+   ثم الأعلى تقييماً — والتقييم من مراجعات حقيقية حين توجد. */
 function renderFeatured() {
   const sec = $('secFeatured'), el = $('featured');
   if (LOAD_ERROR) { sec.hidden = true; return; }
 
-  /* أي الباقات تمنح الظهور المميز — من جدول الباقات الحقيقي */
-  const featPlans = new Set(PLANS.filter(p => p.is_featured).map(p => p.code));
-
   /* من المجموعة الكاملة لا من نتيجة الفلتر: هذا عرض للمنصّة
      كلّها، لا نتيجة بحث المستخدم. */
   const top = FACETS
-    .filter(c => c.status === 'approved' && c.verified && featPlans.has(c.plan))
-    .sort((a, b) => score(b) - score(a))
+    .filter(c => c.status === 'approved' && c.verified)
+    .sort((a, b) => (Number(b.planFeatured) - Number(a.planFeatured)) || (score(b) - score(a)))
     .slice(0, 8);
 
   if (!top.length) { sec.hidden = true; return; }

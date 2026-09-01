@@ -197,6 +197,45 @@ def test_18_projects_filters_and_defaults(client):
                    for x in one["items"])
 
 
+def test_18b_guest_never_sees_project_contact(client, company_token):
+    """
+    زائر لا يجد حقول التواصل إطلاقاً — لا فارغةً بل غائبة.
+
+    إخفاؤها في الواجهة وحدها مسرح أمني: نداء واحد يكشفها.
+    الشركة التي لم يُقبل عرضها لا تراها كذلك.
+    """
+    listing = client.get("/projects", params={"per_page": 100}).json()
+    assert listing["items"], "تحتاج بيانات البذر: python seed_dev.py"
+
+    # القائمة العامّة لا تحمل حقول تواصل أصلاً
+    for p in listing["items"]:
+        for f in ("contact_name", "contact_phone", "contact_email"):
+            assert f not in p, f"القائمة العامّة تسرّب {f}"
+
+    pid = listing["items"][0]["id"]
+
+    guest = client.get(f"/projects/{pid}").json()
+    for f in ("contact_name", "contact_phone", "contact_email"):
+        assert f not in guest, f"زائر يرى {f}"
+    assert "title" in guest and "budget_min" in guest   # البقية سليمة
+
+    company = client.get(f"/projects/{pid}", headers=bearer(company_token)).json()
+    for f in ("contact_name", "contact_phone", "contact_email"):
+        assert f not in company, f"شركة لم يُقبل عرضها ترى {f}"
+
+
+def test_18c_owner_and_admin_see_project_contact(client, user_token, admin_token):
+    """صاحب المشروع والمدير يريان بيانات التواصل."""
+    mine = client.get("/my/projects", headers=bearer(user_token)).json()
+    assert mine, "تحتاج بيانات البذر: python seed_dev.py"
+    pid = mine[0]["id"]
+
+    for label, tok in (("المالك", user_token), ("المدير", admin_token)):
+        d = client.get(f"/projects/{pid}", headers=bearer(tok)).json()
+        assert "contact_phone" in d, f"{label} لا يرى بيانات التواصل"
+        assert "contact_name" in d and "contact_email" in d
+
+
 # ══════════════════════════════════════════════════════════════
 # ١٩ · دورة حياة الشركة: إنشاء · اعتماد · رفض
 # ══════════════════════════════════════════════════════════════

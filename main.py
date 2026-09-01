@@ -345,7 +345,12 @@ def row_to_company_dict(r: dict) -> dict:
         "facebook_url":          r.get("facebook_url") or "",
         "instagram_url":         r.get("instagram_url") or "",
         "linkedin_url":          r.get("linkedin_url") or "",
-        "subscription_plan":     r.get("subscription_plan") or "free",
+        # الباقة من الاشتراك الفعّال وحده. عمود companies.subscription_plan
+        # كان يُكتب ولا يُقرأ في أي قرار — get_company_plan يقرأ من
+        # company_subscriptions — فحُذف بترحيل. المفتاح هنا يُملأ من
+        # الصلة حين يوفّرها الاستعلام، وإلا فالباقة المجانية.
+        "plan":                  r.get("plan_code") or "starter",
+        "plan_featured":         bool(r.get("plan_featured")),
         "owner_user_id":         r.get("owner_user_id"),
     }
 
@@ -559,6 +564,8 @@ def get_companies(
         rows = db.execute(text(f"""
             SELECT c.*,
                    COALESCE(sp.search_priority, 0) AS _priority,
+                   sp.code                         AS plan_code,
+                   COALESCE(sp.is_featured, false) AS plan_featured,
                    COALESCE(rv.review_count, 0)    AS review_count,
                    rv.review_avg
             FROM companies c
@@ -1684,11 +1691,11 @@ def company_create(payload: CompanyCreate, request: Request):
             INSERT INTO companies
                 (name, city, phone, spec, description, email, website,
                  rating, verified, status, created_at, image_url,
-                 owner_user_id, slug, country, subscription_plan)
+                 owner_user_id, slug, country)
             VALUES
                 (:name, :city, :phone, :spec, :description, :email, :website,
                  5.0, 0, 'pending', now(), :image_url,
-                 :owner_user_id, :slug, 'IQ', 'free')
+                 :owner_user_id, :slug, 'IQ')
             RETURNING *
         """), {
             "name":         payload.name.strip(),
@@ -1959,7 +1966,10 @@ def list_projects(
         ).scalar() or 0
 
     return {
-        "items":    [row_to_project_dict(dict(r)) for r in rows],
+        # القائمة العامّة لا تحمل بيانات تواصل أصلاً: تسريبها هنا
+        # أسوأ من تسريبها في صفحة واحدة — نداء واحد يجمع أرقام
+        # كل أصحاب المشاريع. من يحقّ له يقرؤها من /projects/{id}.
+        "items":    [_strip_contact(row_to_project_dict(dict(r))) for r in rows],
         "page":     page,
         "per_page": per_page,
         "total":    int(total),
@@ -1967,8 +1977,75 @@ def list_projects(
     }
 
 
+_CONTACT_FIELDS = ("contact_name", "contact_phone", "contact_email")
+
+
+def _strip_contact(d: dict) -> dict:
+    """يحذف حقول التواصل من الاستجابة كلياً — لا يُفرّغها."""
+    for f in _CONTACT_FIELDS:
+        d.pop(f, None)
+    return d
+
+
+def _may_see_project_contact(request: Request, project: dict) -> bool:
+    """
+    من يحقّ له رؤية بيانات تواصل صاحب المشروع:
+      · صاحب المشروع نفسه
+      · الشركة التي قُبل عرضها
+      · المدير
+
+    إخفاؤها في الواجهة وحدها مسرحٌ أمني — نداء واحد يكشفها.
+    فالحَكَم هنا، ولمن لا يحقّ له تُحذف الحقول من الاستجابة كلياً
+    لا تُفرَّغ: حقلٌ فارغ يقول «لا رقم له»، وغيابه يقول «ليس لك».
+    """
+    try:
+        payload = _decode_token(request)
+    except HTTPException:
+        return False
+
+    if payload.get("sub") == ADMIN_USERNAME:
+        return True
+
+    token_type = payload.get("type")
+
+    if token_type == "user":
+        try:
+            user_id = int(payload["user_id"])
+        except (KeyError, ValueError):
+            return False
+        if project.get("owner_user_id") == user_id:
+            return True
+
+    # شركة — عبر رمز الشركة القديم أو عضوية مستخدم في شركة
+    company_id = None
+    if token_type == "company":
+        try:
+            company_id = int(payload["company_id"])
+        except (KeyError, ValueError):
+            return False
+    elif token_type == "user":
+        with SessionLocal() as db:
+            cm = db.execute(
+                text("SELECT company_id FROM company_members "
+                     "WHERE user_id=:uid ORDER BY created_at LIMIT 1"),
+                {"uid": payload.get("user_id")},
+            ).fetchone()
+        company_id = int(cm[0]) if cm else None
+
+    if company_id is None:
+        return False
+
+    with SessionLocal() as db:
+        won = db.execute(
+            text("SELECT 1 FROM project_bids WHERE project_id=:pid "
+                 "AND company_id=:cid AND status='accepted'"),
+            {"pid": project["id"], "cid": company_id},
+        ).first()
+    return won is not None
+
+
 @app.get("/projects/{project_id}")
-def get_project(project_id: int):
+def get_project(project_id: int, request: Request):
     with SessionLocal() as db:
         row = db.execute(text("""
             SELECT p.*,
@@ -1977,7 +2054,11 @@ def get_project(project_id: int):
         """), {"id": project_id}).mappings().fetchone()
     if not row:
         raise HTTPException(status_code=404, detail="Project not found")
-    return row_to_project_dict(dict(row))
+
+    out = row_to_project_dict(dict(row))
+    if not _may_see_project_contact(request, out):
+        _strip_contact(out)
+    return out
 
 
 @app.post("/projects/{project_id}/bid")
@@ -2449,10 +2530,8 @@ async def admin_approve_subscription(req_id: int, request: Request):
             WHERE id=:id
         """), {"now": now, "id": req_id})
 
-        # Update company.subscription_plan
-        db.execute(text("""
-            UPDATE companies SET subscription_plan=:code WHERE id=:cid
-        """), {"code": plan["code"], "cid": req["company_id"]})
+        # لا نسخة ثانية للباقة على جدول companies: الاشتراك أعلاه
+        # هو المصدر الوحيد، ونسخةٌ ثانية تفترق عنه بصمت.
 
         db.commit()
 
@@ -2537,9 +2616,7 @@ def admin_set_company_subscription(company_id: int, payload: AdminSubscriptionSe
             "founder": is_founder, "start": now, "expires": expires,
         })
 
-        db.execute(text("""
-            UPDATE companies SET subscription_plan=:code WHERE id=:id
-        """), {"code": plan["code"], "id": company_id})
+        # المصدر الوحيد للباقة هو company_subscriptions أعلاه.
 
         db.commit()
 

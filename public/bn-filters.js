@@ -198,7 +198,8 @@
       image_url: c.image_url || '', phone: c.phone || '',
       review_count: Number(c.review_count) || 0,
       review_avg: c.review_avg != null ? Number(c.review_avg) : null,
-      plan: c.subscription_plan || 'starter'
+      /* الباقة من الاشتراك الفعّال — لا من عمود companies المحذوف */
+      plan: c.plan || 'starter', planFeatured: Boolean(c.plan_featured)
     };
   }
   function score(c) { return c.review_count > 0 ? (c.review_avg || 0) : c.rating; }
