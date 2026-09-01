@@ -394,3 +394,167 @@ def test_26_deactivated_user_token_stops_working(client):
         with main.SessionLocal() as db:
             db.execute(text("UPDATE users SET is_active=true WHERE email='client@seed.test'"))
             db.commit()
+
+
+# ══════════════════════════════════════════════════════════════
+# ٢٧–٣٤ · سلسلة البريد
+#
+# البريد نفسه مُعطَّل في الاختبارات (لا RESEND_API_KEY)، وهذا
+# مقصود: نختبر المنطق والأمان لا مزوّد الطرف الثالث. mailer.send
+# يُرجع False فتُختبَر أيضاً استجابة النظام لفشل الإرسال.
+# ══════════════════════════════════════════════════════════════
+
+import hashlib as _hl
+import secrets as _sec
+
+SEED_EMAIL = "client@seed.test"
+SEED_PASS  = "SeedTest!2026"
+
+
+def _mk_reset(email, minutes=30):
+    """رمز استعادة مزروع — الخام لا يُخزَّن فنولّده هنا."""
+    raw = _sec.token_urlsafe(32)
+    h = _hl.sha256(raw.encode()).hexdigest()
+    with main.SessionLocal() as db:
+        uid = db.execute(text("SELECT id FROM users WHERE lower(email)=:e"),
+                         {"e": email}).scalar()
+        db.execute(text(
+            "INSERT INTO password_resets (user_id, token_hash, expires_at) "
+            "VALUES (:u, :h, now() + make_interval(mins => :m))"
+        ), {"u": uid, "h": h, "m": minutes})
+        db.commit()
+    return raw, uid
+
+
+def _wipe_mail_limits():
+    with main.SessionLocal() as db:
+        db.execute(text("DELETE FROM rate_limits WHERE key LIKE 'forgot:%' "
+                        "OR key LIKE 'reset:%' OR key LIKE 'verify:%' "
+                        "OR key LIKE 'chgmail:%'"))
+        db.commit()
+
+
+def test_27_forgot_password_reply_never_varies(client):
+    """الردّ نفسه سواء وُجد البريد أم لا — اختلافه يكشف المسجَّلين."""
+    _wipe_mail_limits()
+    real = client.post("/auth/forgot-password", json={"email": SEED_EMAIL})
+    fake = client.post("/auth/forgot-password",
+                       json={"email": "definitely-not-registered@nowhere.test"})
+    assert real.status_code == fake.status_code == 200
+    assert real.json() == fake.json()
+    _wipe_mail_limits()
+
+
+def test_28_forgot_password_rate_limited_same_reply(client):
+    """الحدّ يُطبَّق، والردّ لا يتغيّر حتى عند الحجب."""
+    _wipe_mail_limits()
+    replies = [client.post("/auth/forgot-password", json={"email": SEED_EMAIL})
+               for _ in range(5)]
+    assert all(r.status_code == 200 for r in replies)
+    assert len({r.text for r in replies}) == 1, "الردّ تغيّر عند الحجب فكشف الحساب"
+    with main.SessionLocal() as db:
+        n = db.execute(text(
+            "SELECT count(*) FROM rate_limits WHERE key LIKE 'forgot:email:%'")).scalar()
+    assert n >= 1
+    _wipe_mail_limits()
+
+
+def test_29_reset_token_single_use_and_hashed(client):
+    """الرمز يُستعمل مرة واحدة ولا يُخزَّن نصّاً."""
+    _wipe_mail_limits()
+    raw, uid = _mk_reset(SEED_EMAIL)
+    with main.SessionLocal() as db:
+        stored = db.execute(text(
+            "SELECT token_hash FROM password_resets WHERE user_id=:u "
+            "ORDER BY id DESC LIMIT 1"), {"u": uid}).scalar()
+    assert raw not in stored, "الرمز الخام مخزَّن — من قرأ الجدول ينتحل"
+
+    assert client.post("/auth/reset-password",
+                       json={"token": raw, "password": SEED_PASS}).status_code == 200
+    assert client.post("/auth/reset-password",
+                       json={"token": raw, "password": SEED_PASS}).status_code == 400
+    _wipe_rate_limits()
+    assert client.post("/auth/login",
+                       json={"email": SEED_EMAIL, "password": SEED_PASS}).status_code == 200
+    _wipe_mail_limits()
+
+
+def test_30_expired_reset_token_rejected(client):
+    """رمز منتهٍ يُرفض."""
+    _wipe_mail_limits()
+    raw, _ = _mk_reset(SEED_EMAIL, minutes=-1)
+    assert client.post("/auth/reset-password",
+                       json={"token": raw, "password": SEED_PASS}).status_code == 400
+    _wipe_mail_limits()
+
+
+def test_31_reset_rejects_short_password(client):
+    """كلمة قصيرة تُرفض ولا تستهلك الرمز."""
+    _wipe_mail_limits()
+    raw, _ = _mk_reset(SEED_EMAIL)
+    assert client.post("/auth/reset-password",
+                       json={"token": raw, "password": "short"}).status_code == 400
+    assert client.post("/auth/reset-password",
+                       json={"token": raw, "password": SEED_PASS}).status_code == 200
+    _wipe_mail_limits()
+
+
+def test_32_change_password_requires_current(client, user_token):
+    """رمز جلسة مسروق وحده لا يكفي لتغيير كلمة المرور."""
+    bad = client.post("/auth/change-password", headers=bearer(user_token),
+                      json={"current_password": "wrong-one",
+                            "new_password": "NewPass!2026"})
+    assert bad.status_code == 401
+    ok = client.post("/auth/change-password", headers=bearer(user_token),
+                     json={"current_password": SEED_PASS, "new_password": SEED_PASS})
+    assert ok.status_code == 200, ok.text
+
+
+def test_33_change_email_needs_password_and_defers(client, user_token):
+    """يتطلّب كلمة المرور، ولا يغيّر البريد قبل التأكيد."""
+    _wipe_mail_limits()
+    with main.SessionLocal() as db:
+        uid = db.execute(text("SELECT id FROM users WHERE lower(email)=:e"),
+                         {"e": SEED_EMAIL}).scalar()
+        before = db.execute(text("SELECT email FROM users WHERE id=:i"),
+                            {"i": uid}).scalar()
+
+    assert client.post("/auth/change-email", headers=bearer(user_token),
+                       json={"new_email": "new@seed.test",
+                             "password": "wrong"}).status_code == 401
+
+    # الإرسال يفشل (لا مفتاح بريد) فيُعاد 502 — ولا يُدّعى نجاح
+    r = client.post("/auth/change-email", headers=bearer(user_token),
+                    json={"new_email": "new@seed.test", "password": SEED_PASS})
+    assert r.status_code in (200, 502), r.text
+
+    with main.SessionLocal() as db:
+        after = db.execute(text("SELECT email FROM users WHERE id=:i"),
+                           {"i": uid}).scalar()
+        db.execute(text("DELETE FROM email_tokens WHERE user_id=:u"), {"u": uid})
+        db.commit()
+    assert after == before, "تغيّر البريد قبل التأكيد"
+    _wipe_mail_limits()
+
+
+def test_34_verify_and_change_tokens_do_not_cross(client):
+    """الغرض شرط قبول لا وسم: رمز تفعيل لا يؤكّد تغيير بريد."""
+    raw = _sec.token_urlsafe(32)
+    with main.SessionLocal() as db:
+        uid = db.execute(text("SELECT id FROM users WHERE lower(email)=:e"),
+                         {"e": SEED_EMAIL}).scalar()
+        db.execute(text(
+            "INSERT INTO email_tokens (user_id, purpose, token_hash, expires_at) "
+            "VALUES (:u, 'verify', :h, now() + interval '1 hour')"
+        ), {"u": uid, "h": _hl.sha256(raw.encode()).hexdigest()})
+        db.commit()
+    try:
+        assert client.post("/auth/confirm-email-change",
+                           json={"token": raw}).status_code == 400
+        assert client.post("/auth/verify-email",
+                           json={"token": raw}).status_code == 200
+    finally:
+        with main.SessionLocal() as db:
+            db.execute(text("DELETE FROM email_tokens WHERE user_id=:u"), {"u": uid})
+            db.execute(text("UPDATE users SET is_email_verified=true WHERE id=:u"), {"u": uid})
+            db.commit()

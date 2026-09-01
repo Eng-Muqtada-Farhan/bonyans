@@ -1,0 +1,170 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>إعادة تعيين كلمة المرور — بُنيان</title>
+<meta name="robots" content="noindex, nofollow">
+<meta name="theme-color" content="#F4F2ED" media="(prefers-color-scheme: light)">
+<meta name="theme-color" content="#15120E" media="(prefers-color-scheme: dark)">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" data-bn-font
+      href="https://fonts.googleapis.com/css2?family=Tajawal:wght@300;400;500;700&display=swap">
+<link rel="stylesheet" href="tokens.css">
+<script>
+  (function(){ var t=localStorage.getItem('bn-theme')||'light';
+    document.documentElement.setAttribute('data-theme',t); })();
+</script>
+<style>
+/* ══════════════════════════════════════════════════════════════
+   صفحة واحدة بحالتين:
+     بلا رمز  ← طلب رابط الاستعادة
+     برمز     ← اختيار كلمة مرور جديدة
+   صفحتان منفصلتان تعنيان نسختين من الترويسة والحالات.
+   ══════════════════════════════════════════════════════════════ */
+body { margin:0; min-height:100vh; display:grid; place-items:center;
+  background:var(--bn-bg); color:var(--bn-ink);
+  font:var(--bn-t-body); font-family:var(--bn-font); -webkit-font-smoothing:antialiased; }
+.card { width:100%; max-width:420px; margin:var(--bn-s5);
+  padding:var(--bn-s8) var(--bn-s6); border-radius:var(--bn-r-lg); }
+.logo { font:700 22px/1 var(--bn-font); text-align:center;
+  margin-block-end:var(--bn-s6); }
+.logo b { color:var(--bn-ac); }
+h1 { font:var(--bn-t-h3); margin:0 0 var(--bn-s3); text-align:center; }
+.lead { font:var(--bn-t-sm); color:var(--bn-ink-3); margin:0 0 var(--bn-s6);
+  text-align:center; line-height:1.8; }
+.fr { margin-block-end:var(--bn-s4); }
+.fr label { display:block; font:var(--bn-t-cap); color:var(--bn-ink-3);
+  margin-block-end:6px; }
+.fr input { width:100%; min-height:48px; padding:12px var(--bn-s4);
+  border:1px solid var(--bn-line); border-radius:var(--bn-r);
+  background:var(--bn-bg); color:var(--bn-ink); font:400 14px/1.5 var(--bn-font); }
+.fr input:focus { outline:none; border-color:var(--bn-ac); }
+.fr-hint { font:var(--bn-t-cap); color:var(--bn-ink-3); margin-block-start:5px;
+  line-height:1.7; }
+.bn-btn { width:100%; min-height:48px; }
+.msg { font:var(--bn-t-sm); border-radius:var(--bn-r); padding:12px var(--bn-s4);
+  margin-block-end:var(--bn-s4); display:none; line-height:1.8;
+  background:var(--bn-ac-bg); color:var(--bn-ac); border:1px solid var(--bn-ac-line); }
+.msg.is-on { display:block; }
+.back { display:block; text-align:center; min-height:44px; line-height:44px;
+  margin-block-start:var(--bn-s4); font:var(--bn-t-sm);
+  color:var(--bn-ink-3); text-decoration:none; }
+.back:hover { color:var(--bn-ac); }
+.done { text-align:center; }
+.done svg { width:40px; height:40px; stroke:var(--bn-ac); fill:none;
+  stroke-width:1.4; margin-block-end:var(--bn-s4); }
+</style>
+</head>
+<body class="bn-body">
+
+<div class="bn-backdrop" aria-hidden="true"></div>
+
+<main class="card bn-glass" id="card">
+  <div class="logo">بُ<b>نيان</b></div>
+  <div id="body"></div>
+</main>
+
+<script>
+(function () {
+'use strict';
+const $ = (id) => document.getElementById(id);
+const esc = (s) => String(s == null ? '' : s)
+  .replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+const svg = (d) => '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" ' +
+  'stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">' + d + '</svg>';
+
+const TOKEN = new URLSearchParams(location.search).get('token');
+
+function msg(el, t) { el.textContent = t; el.classList.add('is-on'); }
+
+/* ── الحالة ١: طلب رابط ── */
+function askForm() {
+  $('body').innerHTML =
+    '<h1>نسيت كلمة المرور؟</h1>' +
+    '<p class="lead">اكتب بريدك المسجَّل وسنرسل لك رابطاً لاختيار كلمة مرور جديدة.</p>' +
+    '<div class="msg" id="m"></div>' +
+    '<form id="f">' +
+      '<div class="fr"><label for="e">البريد الإلكتروني</label>' +
+        '<input id="e" type="email" required dir="ltr" autocomplete="email"></div>' +
+      '<button class="bn-btn" type="submit" id="btn">أرسل الرابط</button>' +
+    '</form>' +
+    '<a class="back" href="login.html">العودة إلى تسجيل الدخول</a>';
+
+  $('f').onsubmit = async function (e) {
+    e.preventDefault();
+    const btn = $('btn');
+    btn.disabled = true; btn.textContent = 'جارٍ الإرسال...';
+    try {
+      const r = await fetch('/auth/forgot-password', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email: $('e').value.trim() })
+      });
+      const d = await r.json().catch(() => ({}));
+      /* الخادم يعيد الردّ نفسه سواء وُجد البريد أم لا — والواجهة
+         تعرضه كما هو. رسالة مختلفة هنا تكشف ما أخفاه الخادم. */
+      $('body').innerHTML =
+        '<div class="done">' + svg('<rect x="3" y="5" width="18" height="14" rx="2"/><path d="M3 7l9 6 9-6"/>') +
+        '<h1>تحقّق من بريدك</h1>' +
+        '<p class="lead">' + esc(d.message || 'إن كان هذا البريد مسجّلاً لدينا فستصلك رسالة خلال دقائق.') + '</p>' +
+        '<p class="lead">الرابط صالح ٣٠ دقيقة ويُستخدم مرة واحدة.</p>' +
+        '<a class="back" href="login.html">العودة إلى تسجيل الدخول</a></div>';
+    } catch (err) {
+      btn.disabled = false; btn.textContent = 'أرسل الرابط';
+      msg($('m'), 'تعذّر الاتصال بالخادم — أعد المحاولة.');
+    }
+  };
+}
+
+/* ── الحالة ٢: اختيار كلمة مرور جديدة ── */
+function setForm() {
+  $('body').innerHTML =
+    '<h1>اختر كلمة مرور جديدة</h1>' +
+    '<p class="lead">ستدخل بها من الآن فصاعداً.</p>' +
+    '<div class="msg" id="m"></div>' +
+    '<form id="f">' +
+      '<div class="fr"><label for="p">كلمة المرور الجديدة</label>' +
+        '<input id="p" type="password" required dir="ltr" autocomplete="new-password" minlength="8">' +
+        '<div class="fr-hint">٨ محارف على الأقل.</div></div>' +
+      '<div class="fr"><label for="p2">تأكيد كلمة المرور</label>' +
+        '<input id="p2" type="password" required dir="ltr" autocomplete="new-password"></div>' +
+      '<button class="bn-btn" type="submit" id="btn">حفظ كلمة المرور</button>' +
+    '</form>' +
+    '<a class="back" href="login.html">العودة إلى تسجيل الدخول</a>';
+
+  $('f').onsubmit = async function (e) {
+    e.preventDefault();
+    const p = $('p').value, p2 = $('p2').value, btn = $('btn');
+    if (p.length < 8) { msg($('m'), 'كلمة المرور ٨ محارف على الأقل.'); return; }
+    if (p !== p2)     { msg($('m'), 'الكلمتان غير متطابقتين.'); return; }
+    btn.disabled = true; btn.textContent = 'جارٍ الحفظ...';
+    try {
+      const r = await fetch('/auth/reset-password', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ token: TOKEN, password: p })
+      });
+      const d = await r.json().catch(() => ({}));
+      if (!r.ok) {
+        btn.disabled = false; btn.textContent = 'حفظ كلمة المرور';
+        msg($('m'), d.detail || 'تعذّر إتمام العملية — اطلب رابطاً جديداً.');
+        return;
+      }
+      $('body').innerHTML =
+        '<div class="done">' + svg('<circle cx="12" cy="12" r="9"/><path d="M8 12.5l2.5 2.5 5-5"/>') +
+        '<h1>تمّ</h1>' +
+        '<p class="lead">' + esc(d.message || 'غُيّرت كلمة المرور.') + '</p>' +
+        '<a class="bn-btn" href="login.html" style="display:block;line-height:48px;' +
+        'text-decoration:none;text-align:center">تسجيل الدخول</a></div>';
+    } catch (err) {
+      btn.disabled = false; btn.textContent = 'حفظ كلمة المرور';
+      msg($('m'), 'تعذّر الاتصال بالخادم — أعد المحاولة.');
+    }
+  };
+}
+
+TOKEN ? setForm() : askForm();
+})();
+</script>
+</body>
+</html>

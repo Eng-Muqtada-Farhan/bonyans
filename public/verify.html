@@ -1,0 +1,106 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>تفعيل البريد — بُنيان</title>
+<meta name="robots" content="noindex, nofollow">
+<meta name="theme-color" content="#F4F2ED" media="(prefers-color-scheme: light)">
+<meta name="theme-color" content="#15120E" media="(prefers-color-scheme: dark)">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" data-bn-font
+      href="https://fonts.googleapis.com/css2?family=Tajawal:wght@300;400;500;700&display=swap">
+<link rel="stylesheet" href="tokens.css">
+<script>
+  (function(){ var t=localStorage.getItem('bn-theme')||'light';
+    document.documentElement.setAttribute('data-theme',t); })();
+</script>
+<style>
+/* صفحة واحدة لرابطين: ?token= للتفعيل، و?change= لتأكيد البريد
+   الجديد. الوجهتان تصلان من البريد وتنتهيان بالحالة نفسها. */
+body { margin:0; min-height:100vh; display:grid; place-items:center;
+  background:var(--bn-bg); color:var(--bn-ink);
+  font:var(--bn-t-body); font-family:var(--bn-font); -webkit-font-smoothing:antialiased; }
+.card { width:100%; max-width:420px; margin:var(--bn-s5);
+  padding:var(--bn-s8) var(--bn-s6); border-radius:var(--bn-r-lg); text-align:center; }
+.logo { font:700 22px/1 var(--bn-font); margin-block-end:var(--bn-s6); }
+.logo b { color:var(--bn-ac); }
+h1 { font:var(--bn-t-h3); margin:0 0 var(--bn-s3); }
+.lead { font:var(--bn-t-sm); color:var(--bn-ink-3); margin:0 0 var(--bn-s5);
+  line-height:1.8; }
+.ic { width:40px; height:40px; fill:none; stroke-width:1.4;
+  margin-block-end:var(--bn-s4); stroke:var(--bn-ac); }
+.ic-bad { stroke:var(--bn-ink-3); }
+.bn-btn { display:block; width:100%; min-height:48px; line-height:48px;
+  text-decoration:none; text-align:center; }
+.back { display:block; min-height:44px; line-height:44px; margin-block-start:var(--bn-s3);
+  font:var(--bn-t-sm); color:var(--bn-ink-3); text-decoration:none; }
+.back:hover { color:var(--bn-ac); }
+.spin { width:34px; height:34px; border-radius:50%; margin:0 auto var(--bn-s4);
+  border:2px solid var(--bn-line); border-block-start-color:var(--bn-ac);
+  animation:sp .8s linear infinite; }
+@keyframes sp { to { transform:rotate(360deg); } }
+@media(prefers-reduced-motion:reduce){ .spin { animation-duration:2.4s; } }
+</style>
+</head>
+<body class="bn-body">
+
+<div class="bn-backdrop" aria-hidden="true"></div>
+
+<main class="card bn-glass">
+  <div class="logo">بُ<b>نيان</b></div>
+  <div id="body"><div class="spin"></div><p class="lead">جارٍ التحقّق...</p></div>
+</main>
+
+<script>
+(function () {
+'use strict';
+const $ = (id) => document.getElementById(id);
+const esc = (s) => String(s == null ? '' : s)
+  .replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+const svg = (d, bad) => '<svg class="ic' + (bad ? ' ic-bad' : '') + '" viewBox="0 0 24 24" ' +
+  'stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">' + d + '</svg>';
+
+const OK  = '<circle cx="12" cy="12" r="9"/><path d="M8 12.5l2.5 2.5 5-5"/>';
+const BAD = '<circle cx="12" cy="12" r="9"/><path d="M12 7.5v5.5M12 16.5h.01"/>';
+
+const q = new URLSearchParams(location.search);
+const verifyToken = q.get('token');
+const changeToken = q.get('change');
+
+function show(html) { $('body').innerHTML = html; }
+
+function good(title, text, cta) {
+  show(svg(OK) + '<h1>' + esc(title) + '</h1>' +
+    '<p class="lead">' + esc(text) + '</p>' +
+    (cta || '<a class="bn-btn" href="login.html">تسجيل الدخول</a>'));
+}
+function bad(title, text) {
+  show(svg(BAD, true) + '<h1>' + esc(title) + '</h1>' +
+    '<p class="lead">' + esc(text) + '</p>' +
+    '<a class="bn-btn" href="login.html">تسجيل الدخول</a>' +
+    '<a class="back" href="index.html">الصفحة الرئيسية</a>');
+}
+
+async function run(path, token, okTitle) {
+  try {
+    const r = await fetch(path, {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ token: token })
+    });
+    const d = await r.json().catch(() => ({}));
+    if (r.ok) { good(okTitle, d.message || ''); return; }
+    bad('تعذّر إتمام العملية', d.detail || 'الرابط منتهٍ أو مستعمل.');
+  } catch (e) {
+    bad('تعذّر الاتصال بالخادم', 'تحقّق من اتصالك ثم افتح الرابط مجدداً.');
+  }
+}
+
+if (verifyToken)      run('/auth/verify-email', verifyToken, 'فُعّل بريدك');
+else if (changeToken) run('/auth/confirm-email-change', changeToken, 'تغيّر بريدك');
+else bad('رابط غير مكتمل', 'افتح الرابط من رسالة البريد كما وصلك.');
+})();
+</script>
+</body>
+</html>

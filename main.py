@@ -1,6 +1,7 @@
 import hashlib
 import io
 import os
+import secrets
 from datetime import datetime, timedelta, timezone
 from math import ceil
 from typing import Literal, Optional
@@ -17,6 +18,8 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse, RedirectResponse
 from pydantic import BaseModel
 from imagekitio import ImageKit
+
+import mailer
 
 load_dotenv()
 
@@ -1641,7 +1644,7 @@ def get_company_views(company_id: int, request: Request):
 # ══════════════════════════════════════════════════════════════════════════════
 
 @app.post("/auth/register")
-def auth_register(payload: UserRegister):
+def auth_register(payload: UserRegister, request: Request):
     """
     Create a new user account.
     Returns a user JWT. The user can then call POST /company/create to set up
@@ -1681,11 +1684,16 @@ def auth_register(payload: UserRegister):
         """), {"uid": row["id"]})
         db.commit()
 
+    # رسالة التفعيل — فشلها لا يمنع إنشاء الحساب، لكنه يُسجَّل
+    # ولا يُدّعى نجاحاً: verification_sent يقول الحقيقة للواجهة.
+    sent = _issue_verify(row["id"], row["email"], ROLE_USER, request)
+
     return {
         "message":      "Account created",
         "user_id":      row["id"],
         "email":        row["email"],
         "display_name": row["display_name"],
+        "verification_sent": sent,
         "token":        create_token(ROLE_USER, row["id"]),
     }
 
@@ -1811,11 +1819,18 @@ def company_create(payload: CompanyCreate, request: Request):
 
 @app.get("/auth/me")
 def auth_me(request: Request):
-    """Get authenticated user's info + company_id."""
-    user_id = require_user(request)
+    """
+    بيانات الحساب الحالي — لكل دور له مستخدم.
+
+    كان محصوراً بدور 'user' فلا تستطيع الشركة قراءة بريدها ولا
+    حالة تفعيله، وقسم أمان الحساب واحد للسطحين.
+    """
+    ident = require_role(request, ROLE_USER, ROLE_COMPANY)
+    user_id = ident.uid
     with SessionLocal() as db:
         user = db.execute(
-            text("SELECT id, email, display_name, avatar_url, phone, provider, is_active, created_at FROM users WHERE id=:id"),
+            text("SELECT id, email, display_name, avatar_url, phone, provider, "
+                 "is_active, is_email_verified, created_at FROM users WHERE id=:id"),
             {"id": user_id}
         ).mappings().fetchone()
         if not user:
@@ -1832,9 +1847,342 @@ def auth_me(request: Request):
         "phone":        user["phone"] or "",
         "provider":     user["provider"],
         "is_active":    user["is_active"],
+        "is_email_verified": bool(user["is_email_verified"]),
+        "role":         ident.role,
         "created_at":   str(user["created_at"]),
         "company_id":   int(row[0]) if row else None,
     }
+
+
+# ══════════════════════════════════════════════════════════════════════════════
+# سلسلة البريد — استعادة كلمة المرور · التفعيل · تغيير البريد
+#
+# المرجع: MAIL-TEXTS.md — النصوص وقواعد الإرسال.
+#   · forgot-password يعيد الردّ نفسه دائماً؛ اختلافه يكشف
+#     أي العناوين مسجَّلة عندنا
+#   · حدّ معدّل على البريد وعلى عنوان IP معاً
+#   · كل حدث يُسجَّل في security_audit_log
+#   · الرمز يُخزَّن مجزّأً: من قرأ الجدول لا ينتحل أحداً
+# ══════════════════════════════════════════════════════════════════════════════
+
+RESET_TTL        = timedelta(minutes=30)
+VERIFY_TTL       = timedelta(hours=24)
+EMAIL_CHANGE_TTL = timedelta(minutes=30)
+
+
+def _new_token() -> tuple[str, str]:
+    """(الرمز الخام للرابط، تجزئته للتخزين)."""
+    raw = secrets.token_urlsafe(32)
+    return raw, hashlib.sha256(raw.encode()).hexdigest()
+
+
+def _hash_token(raw: str) -> str:
+    return hashlib.sha256((raw or "").encode()).hexdigest()
+
+
+def _base_url() -> str:
+    return os.getenv("PUBLIC_BASE_URL", "http://127.0.0.1:8000").rstrip("/")
+
+
+class ForgotPassword(BaseModel):
+    email: str
+
+
+class ResetPassword(BaseModel):
+    token:    str
+    password: str
+
+
+class ChangePassword(BaseModel):
+    current_password: str
+    new_password:     str
+
+
+class ChangeEmail(BaseModel):
+    new_email: str
+    password:  str
+
+
+class TokenOnly(BaseModel):
+    token: str
+
+
+def _valid_password(p: str) -> bool:
+    return isinstance(p, str) and len(p) >= 8
+
+
+# ── ١ · استعادة كلمة المرور ───────────────────────────────────────────────────
+
+# ردّ واحد لا يتغيّر — لا يكشف وجود الحساب من عدمه
+_FORGOT_REPLY = {"message": "إن كان هذا البريد مسجّلاً لدينا فستصلك رسالة خلال دقائق."}
+
+
+@app.post("/auth/forgot-password")
+def forgot_password(payload: ForgotPassword, request: Request):
+    email = (payload.email or "").strip().lower()
+    ip = get_client_ip(request)
+
+    # حدّان: على البريد وعلى العنوان. الأول يمنع إغراق صندوق بعينه،
+    # والثاني يمنع مسح قائمة عناوين من جهاز واحد.
+    if not check_rate_limit(f"forgot:ip:{ip}", 5, 3600) or \
+       not check_rate_limit(f"forgot:email:{email}", 3, 3600):
+        with SessionLocal() as db:
+            write_audit_log(db, "ip", ip, "rate_limit:forgot_password", request)
+            db.commit()
+        # حتى عند الحجب: الردّ نفسه. رسالة حجب مختلفة تكشف الحساب.
+        return _FORGOT_REPLY
+
+    with SessionLocal() as db:
+        user = db.execute(
+            text("SELECT id, email FROM users WHERE lower(email)=:e AND is_active=true"),
+            {"e": email},
+        ).mappings().fetchone()
+        write_audit_log(db, "user", email, "password_reset_request", request)
+        db.commit()
+
+    if not user:
+        return _FORGOT_REPLY
+
+    raw, hashed = _new_token()
+    with SessionLocal() as db:
+        # طلب جديد يُبطل ما سبقه: رابطان صالحان معاً يضاعفان النافذة
+        db.execute(text("""
+            UPDATE password_resets SET used_at = now()
+            WHERE user_id = :uid AND used_at IS NULL
+        """), {"uid": user["id"]})
+        db.execute(text("""
+            INSERT INTO password_resets (user_id, token_hash, expires_at, ip_hash)
+            VALUES (:uid, :h, :exp, :ip)
+        """), {
+            "uid": user["id"], "h": hashed,
+            "exp": datetime.now(timezone.utc) + RESET_TTL,
+            "ip": hashlib.sha256(ip.encode()).hexdigest()[:16],
+        })
+        db.commit()
+
+    url = f"{_base_url()}/reset.html?token={raw}"
+    if not mailer.password_reset(user["email"], url):
+        # لا نقول «أرسلنا» إن لم تُرسَل — والردّ يبقى نفسه للمستخدم
+        with SessionLocal() as db:
+            write_audit_log(db, "user", str(user["id"]), "mail_failed:password_reset", request)
+            db.commit()
+    return _FORGOT_REPLY
+
+
+@app.post("/auth/reset-password")
+def reset_password(payload: ResetPassword, request: Request):
+    if not _valid_password(payload.password):
+        raise HTTPException(status_code=400, detail="كلمة المرور ٨ محارف على الأقل.")
+    ip = get_client_ip(request)
+    if not check_rate_limit(f"reset:ip:{ip}", 10, 3600):
+        raise HTTPException(status_code=429, detail="محاولات كثيرة — انتظر قبل المحاولة مجدداً.")
+
+    with SessionLocal() as db:
+        row = db.execute(text("""
+            SELECT id, user_id FROM password_resets
+            WHERE token_hash = :h AND used_at IS NULL AND expires_at > now()
+        """), {"h": _hash_token(payload.token)}).mappings().fetchone()
+
+        if not row:
+            write_audit_log(db, "ip", ip, "password_reset_invalid", request)
+            db.commit()
+            raise HTTPException(status_code=400,
+                                detail="الرابط منتهٍ أو مستعمل. اطلب رابطاً جديداً.")
+
+        db.execute(text("UPDATE password_resets SET used_at = now() WHERE id = :id"),
+                   {"id": row["id"]})
+        db.execute(text("UPDATE users SET password_hash = :p, updated_at = now() WHERE id = :uid"),
+                   {"p": pwd_context.hash(payload.password), "uid": row["user_id"]})
+        write_audit_log(db, "user", str(row["user_id"]), "password_reset_used", request)
+        db.commit()
+
+    return {"message": "غُيّرت كلمة المرور. سجّل الدخول بها الآن."}
+
+
+# ── ٢ · تفعيل البريد ──────────────────────────────────────────────────────────
+
+def _issue_verify(user_id: int, email: str, role: str, request: Request) -> bool:
+    raw, hashed = _new_token()
+    with SessionLocal() as db:
+        db.execute(text("""
+            UPDATE email_tokens SET used_at = now()
+            WHERE user_id = :uid AND purpose = 'verify' AND used_at IS NULL
+        """), {"uid": user_id})
+        db.execute(text("""
+            INSERT INTO email_tokens (user_id, purpose, token_hash, expires_at)
+            VALUES (:uid, 'verify', :h, :exp)
+        """), {"uid": user_id, "h": hashed,
+               "exp": datetime.now(timezone.utc) + VERIFY_TTL})
+        write_audit_log(db, "user", str(user_id), "email_verify_sent", request)
+        db.commit()
+    return mailer.email_verify(email, f"{_base_url()}/verify.html?token={raw}", role)
+
+
+@app.post("/auth/resend-verification")
+def resend_verification(request: Request):
+    ident = require_role(request, ROLE_USER, ROLE_COMPANY)
+    ip = get_client_ip(request)
+    if not check_rate_limit(f"verify:uid:{ident.uid}", 3, 3600) or \
+       not check_rate_limit(f"verify:ip:{ip}", 5, 3600):
+        raise HTTPException(status_code=429, detail="محاولات كثيرة — انتظر قبل المحاولة مجدداً.")
+
+    with SessionLocal() as db:
+        u = db.execute(text("SELECT email, is_email_verified FROM users WHERE id=:i"),
+                       {"i": ident.uid}).mappings().fetchone()
+    if not u:
+        raise HTTPException(status_code=404, detail="الحساب غير موجود.")
+    if u["is_email_verified"]:
+        return {"message": "بريدك مُفعَّل بالفعل.", "sent": False}
+
+    sent = _issue_verify(ident.uid, u["email"], ident.role, request)
+    if not sent:
+        raise HTTPException(status_code=502,
+                            detail="تعذّر إرسال البريد الآن — حاول بعد قليل.")
+    return {"message": "أُرسلت رسالة التفعيل.", "sent": True}
+
+
+@app.post("/auth/verify-email")
+def verify_email(payload: TokenOnly, request: Request):
+    with SessionLocal() as db:
+        row = db.execute(text("""
+            SELECT id, user_id FROM email_tokens
+            WHERE token_hash = :h AND purpose = 'verify'
+              AND used_at IS NULL AND expires_at > now()
+        """), {"h": _hash_token(payload.token)}).mappings().fetchone()
+        if not row:
+            write_audit_log(db, "ip", get_client_ip(request), "email_verify_invalid", request)
+            db.commit()
+            raise HTTPException(status_code=400,
+                                detail="الرابط منتهٍ أو مستعمل. اطلب رابطاً جديداً.")
+        db.execute(text("UPDATE email_tokens SET used_at = now() WHERE id = :id"),
+                   {"id": row["id"]})
+        db.execute(text("UPDATE users SET is_email_verified = true, updated_at = now() "
+                        "WHERE id = :uid"), {"uid": row["user_id"]})
+        write_audit_log(db, "user", str(row["user_id"]), "email_verified", request)
+        db.commit()
+    return {"message": "فُعّل بريدك."}
+
+
+# ── ٣ · تغيير البريد وكلمة المرور (من داخل الحساب) ────────────────────────────
+
+@app.post("/auth/change-password")
+def change_password(payload: ChangePassword, request: Request):
+    ident = require_role(request, ROLE_USER, ROLE_COMPANY)
+    if not _valid_password(payload.new_password):
+        raise HTTPException(status_code=400, detail="كلمة المرور ٨ محارف على الأقل.")
+
+    with SessionLocal() as db:
+        u = db.execute(text("SELECT password_hash FROM users WHERE id=:i"),
+                       {"i": ident.uid}).mappings().fetchone()
+    # كلمة المرور الحالية شرط: رمز مسروق وحده لا يكفي لتغييرها
+    if not u or not u["password_hash"] or \
+       not pwd_context.verify(payload.current_password, u["password_hash"]):
+        with SessionLocal() as db:
+            write_audit_log(db, "user", str(ident.uid), "password_change_fail", request)
+            db.commit()
+        raise HTTPException(status_code=401, detail="كلمة المرور الحالية غير صحيحة.")
+
+    with SessionLocal() as db:
+        db.execute(text("UPDATE users SET password_hash=:p, updated_at=now() WHERE id=:i"),
+                   {"p": pwd_context.hash(payload.new_password), "i": ident.uid})
+        write_audit_log(db, "user", str(ident.uid), "password_changed", request)
+        db.commit()
+    return {"message": "غُيّرت كلمة المرور."}
+
+
+@app.post("/auth/change-email")
+def change_email(payload: ChangeEmail, request: Request):
+    ident = require_role(request, ROLE_USER, ROLE_COMPANY)
+    new_email = (payload.new_email or "").strip().lower()
+    if "@" not in new_email or len(new_email) < 5:
+        raise HTTPException(status_code=400, detail="بريد غير صالح.")
+
+    ip = get_client_ip(request)
+    if not check_rate_limit(f"chgmail:uid:{ident.uid}", 3, 3600):
+        raise HTTPException(status_code=429, detail="محاولات كثيرة — انتظر قبل المحاولة مجدداً.")
+
+    with SessionLocal() as db:
+        u = db.execute(text("SELECT email, password_hash FROM users WHERE id=:i"),
+                       {"i": ident.uid}).mappings().fetchone()
+    if not u or not u["password_hash"] or \
+       not pwd_context.verify(payload.password, u["password_hash"]):
+        raise HTTPException(status_code=401, detail="كلمة المرور غير صحيحة.")
+    if new_email == (u["email"] or "").lower():
+        raise HTTPException(status_code=400, detail="هذا بريدك الحالي.")
+
+    with SessionLocal() as db:
+        taken = db.execute(text("SELECT 1 FROM users WHERE lower(email)=:e AND id<>:i"),
+                           {"e": new_email, "i": ident.uid}).first()
+    if taken:
+        # لا نكشف أن العنوان مسجّل لحساب آخر — الردّ عامّ
+        raise HTTPException(status_code=400, detail="تعذّر استعمال هذا البريد.")
+
+    raw, hashed = _new_token()
+    with SessionLocal() as db:
+        db.execute(text("""
+            UPDATE email_tokens SET used_at = now()
+            WHERE user_id = :uid AND purpose = 'change' AND used_at IS NULL
+        """), {"uid": ident.uid})
+        db.execute(text("""
+            INSERT INTO email_tokens (user_id, purpose, token_hash, new_email, expires_at, ip_hash)
+            VALUES (:uid, 'change', :h, :ne, :exp, :ip)
+        """), {"uid": ident.uid, "h": hashed, "ne": new_email,
+               "exp": datetime.now(timezone.utc) + EMAIL_CHANGE_TTL,
+               "ip": hashlib.sha256(ip.encode()).hexdigest()[:16]})
+        write_audit_log(db, "user", str(ident.uid), "email_change_request", request)
+        db.commit()
+
+    url = f"{_base_url()}/verify.html?change={raw}"
+    sent_new = mailer.email_change_confirm(new_email, url)
+    # التنبيه إلى العنوان القديم إلزامي: هو الفرصة الوحيدة ليعرف
+    # صاحب الحساب أن أحداً يحاول إقفاله خارجاً (MAIL-TEXTS.md §٤).
+    sent_old = mailer.email_change_alert(u["email"])
+
+    if not sent_new:
+        with SessionLocal() as db:
+            write_audit_log(db, "user", str(ident.uid), "mail_failed:email_change", request)
+            db.commit()
+        raise HTTPException(status_code=502,
+                            detail="تعذّر إرسال البريد الآن — حاول بعد قليل.")
+    if not sent_old:
+        with SessionLocal() as db:
+            write_audit_log(db, "user", str(ident.uid), "mail_failed:email_change_alert", request)
+            db.commit()
+    return {"message": "أُرسل رابط التأكيد إلى بريدك الجديد."}
+
+
+@app.post("/auth/confirm-email-change")
+def confirm_email_change(payload: TokenOnly, request: Request):
+    with SessionLocal() as db:
+        row = db.execute(text("""
+            SELECT id, user_id, new_email FROM email_tokens
+            WHERE token_hash = :h AND purpose = 'change'
+              AND used_at IS NULL AND expires_at > now()
+        """), {"h": _hash_token(payload.token)}).mappings().fetchone()
+        if not row:
+            write_audit_log(db, "ip", get_client_ip(request), "email_change_invalid", request)
+            db.commit()
+            raise HTTPException(status_code=400,
+                                detail="الرابط منتهٍ أو مستعمل. اطلب رابطاً جديداً.")
+
+        taken = db.execute(text("SELECT 1 FROM users WHERE lower(email)=:e AND id<>:i"),
+                           {"e": row["new_email"], "i": row["user_id"]}).first()
+        if taken:
+            db.execute(text("UPDATE email_tokens SET used_at = now() WHERE id = :id"),
+                       {"id": row["id"]})
+            db.commit()
+            raise HTTPException(status_code=400, detail="تعذّر استعمال هذا البريد.")
+
+        db.execute(text("UPDATE email_tokens SET used_at = now() WHERE id = :id"),
+                   {"id": row["id"]})
+        # العنوان الجديد مُثبَت بالفعل بوصول الرابط إليه
+        db.execute(text("""
+            UPDATE users SET email = :e, is_email_verified = true, updated_at = now()
+            WHERE id = :uid
+        """), {"e": row["new_email"], "uid": row["user_id"]})
+        write_audit_log(db, "user", str(row["user_id"]), "email_changed", request)
+        db.commit()
+    return {"message": "تغيّر بريدك. سجّل الدخول بالبريد الجديد."}
 
 
 # ── Project Requests (public submission, future bidding system) ───────────────
