@@ -1,9 +1,9 @@
 /**
- * بُنيان — قائمة لوحة الإدارة  ⛔ سطح مسوَّر
+ * بُنيان — قائمة لوحة الإدارة  سطح مسوَّر
  * ═══════════════════════════════════════════════════════════════
  * المرجع: DESIGN.md §٤ §٥ §٦
  *
- * ⛔ قاعدة العزل ١ — لا رابط تصفّح للموقع العام في هذا الملف،
+ * قاعدة العزل ١ — لا رابط تصفّح للموقع العام في هذا الملف،
  *    والشعار يؤدي إلى /admin لا إلى /.
  *
  *    الاستثناء الوحيد — مُصرَّح به من صاحب المشروع ٣٠ آب ٢٠٢٦ —
@@ -71,6 +71,7 @@
   border-inline-end:1px solid var(--bn-glass-line);transition:transform var(--bn-mid)}
 .bnd-head{padding:var(--bn-s5) var(--bn-s5) var(--bn-s4)}
 .bnd-logo{display:inline-flex;align-items:center;gap:8px;text-decoration:none;
+  min-height:44px;
   color:var(--bn-ink);font:700 19px/1 var(--bn-font)}
 .bnd-logo b{color:var(--bn-ac)}
 .bnd-id{margin-block-start:var(--bn-s3)}
@@ -79,6 +80,10 @@
 .bnd-block+.bnd-block{border-block-start:1px solid var(--bn-line-soft)}
 .bnd-title{font:var(--bn-t-cap);color:var(--bn-ink-3);letter-spacing:.04em;
   padding-inline:var(--bn-s3);margin-block-end:6px}
+.bnd-count{margin-inline-start:auto;min-width:22px;height:20px;padding-inline:6px;
+  border-radius:999px;background:var(--bn-ac);color:var(--bn-ac-on);
+  font:600 11px/20px var(--bn-mono);text-align:center;flex:none}
+.bnd-link[aria-current="page"] .bnd-count{background:var(--bn-ac);color:var(--bn-ac-on)}
 .bnd-link{display:flex;align-items:center;gap:10px;min-height:44px;
   padding-inline:var(--bn-s3);border-radius:var(--bn-r-sm);text-decoration:none;
   color:var(--bn-ink-2);font:400 13.5px/1 var(--bn-font);
@@ -92,7 +97,7 @@
   border:0;background:0;color:var(--bn-ink-2);cursor:pointer;border-radius:var(--bn-r-sm);
   transition:color var(--bn-fast),background var(--bn-fast)}
 .bnd-icon:hover{color:var(--bn-ac);background:var(--bn-ac-bg)}
-.bnd-scrim{position:fixed;inset:0;z-index:295;background:rgba(0,0,0,.42);
+.bnd-scrim{position:fixed;inset:0;z-index:295;background:var(--bn-scrim);
   opacity:0;pointer-events:none;transition:opacity var(--bn-mid)}
 
 body{padding-inline-start:244px}
@@ -113,8 +118,11 @@ body{padding-inline-start:244px}
   function build() {
     var nav = BLOCKS.map(function (b) {
       var items = b.items.map(function (it) {
+        /* العدّاد يُملأ لاحقاً من /admin/system-status عبر
+           AdminCore.counts() — لا رقم قبل وصول بياناته. */
         return '<a class="bnd-link" href="' + it.href + '"' + cur(it.href) + '>' +
-               svg(it.icon, 17) + '<span>' + it.label + '</span></a>';
+               svg(it.icon, 17) + '<span>' + it.label + '</span>' +
+               '<span class="bnd-count" data-bnd-count="' + it.href + '" hidden></span></a>';
       }).join('');
       return '<div class="bnd-block">' +
              (b.title ? '<div class="bnd-title">' + b.title + '</div>' : '') +
@@ -196,9 +204,27 @@ body{padding-inline-start:244px}
     host.innerHTML = build();
     paintTheme();
     wire(host);
+    paintCounts(host);
   }
 
-  window.BunyanNavAdmin = { mount: mount, surface: 'admin' };
+  /* عدّادات الطوابير — رقم حقيقي من /admin/system-status، ويبقى
+     مخفياً حين يكون صفراً: شارة «٠» ضجيج لا خبر. */
+  function paintCounts(host) {
+    if (!window.AdminCore || !window.AdminCore.counts) return;
+    window.AdminCore.counts().then(function (c) {
+      Object.keys(c).forEach(function (href) {
+        var el = host.querySelector('[data-bnd-count="' + href + '"]');
+        if (!el) return;
+        if (c[href] > 0) { el.textContent = c[href]; el.hidden = false; }
+        else { el.hidden = true; }
+      });
+    }).catch(function () {});
+  }
+
+  window.BunyanNavAdmin = { mount: mount, surface: 'admin', refreshCounts: function () {
+    var host = document.getElementById('bn-nav') || document.body;
+    paintCounts(host);
+  }};
   if (document.readyState === 'loading') {
     document.addEventListener('DOMContentLoaded', mount);
   } else { mount(); }

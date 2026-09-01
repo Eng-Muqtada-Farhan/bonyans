@@ -3,34 +3,100 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>حسابي — بُنيان</title>
+<title>مشاريعي — بُنيان</title>
+<meta name="robots" content="noindex, nofollow">
+<meta name="theme-color" content="#F4F2ED" media="(prefers-color-scheme: light)">
+<meta name="theme-color" content="#15120E" media="(prefers-color-scheme: dark)">
 <link rel="stylesheet" href="../tokens.css">
 <script>
   (function(){ var t=localStorage.getItem('bn-theme')||'light';
     document.documentElement.setAttribute('data-theme',t); })();
 </script>
-<style>
-  body { margin:0; background:var(--bn-bg); color:var(--bn-ink); font:var(--bn-t-body); }
-  .ph { padding: var(--bn-s10) var(--bn-s6); max-width: 62ch; }
-  .ph h1 { font: var(--bn-t-h1); margin: 0 0 var(--bn-s3); }
-  .ph p  { color: var(--bn-ink-2); margin: 0 0 var(--bn-s3); }
-</style>
 <script src="../guard.js" data-require="user"></script>
 </head>
 <body class="bn-body">
 
 <div class="bn-backdrop" aria-hidden="true"></div>
-
 <div id="bn-nav"></div>
 
-<main class="ph">
-  <h1>حسابي</h1>
-  <p>صفحة مؤقتة — نقطة تركيب القائمة فقط. المحتوى يُستخرج من الموجود لاحقاً.</p>
-  <p>صاحب المشروع <strong>غير مسوَّر</strong>: حسابه منطقة شخصية فوق الموقع
-     العام، فالقائمة هنا هي قائمة الموقع العام نفسها — عزله عن الدليل
-     يجرّده من سبب وجوده.</p>
+<main class="me-wrap" id="main">
+  <div class="me-head">
+    <h1>مشاريعي</h1>
+    <p>المشاريع التي نشرتها وحال كلٍّ منها. اضغط مشروعاً لترى عروضه.</p>
+  </div>
+  <div id="body"></div>
 </main>
 
-<script src="../nav-public.js"></script>
+<script src="me-core.js"></script>
+<script src="nav-me.js"></script>
+<script>
+(function () {
+'use strict';
+const ME = window.MeCore;
+const $ = (id) => document.getElementById(id);
+const esc = ME.esc, svg = ME.svg, I = ME.icons, num = ME.num, when = ME.when;
+
+const STATUS = { published:'مفتوح للعروض', contracted:'مُتعاقَد عليه',
+                 closed:'مغلق', cancelled:'ملغى', pending:'قيد المراجعة' };
+
+$('body').innerHTML = ME.skeleton(3, 130);
+
+function budget(p) {
+  if (p.budget_min != null && p.budget_max != null) return num(p.budget_min) + ' – ' + num(p.budget_max);
+  if (p.budget_min != null) return num(p.budget_min) + '+';
+  if (p.budget_max != null) return '≤ ' + num(p.budget_max);
+  return null;
+}
+
+function render(list) {
+  if (!list.length) {
+    $('body').className = '';
+    /* لا رابط إلى سوق المشاريع العام: العزل بنيوي. النشر يبدأ من
+       الموقع العام، والزائر يصله من هناك لا من هنا. */
+    $('body').innerHTML = ME.emptyState('لم تنشر مشروعاً بعد',
+      'حين تنشر مشروعاً ستجده هنا مع العروض التي تصله.', '', I.folder);
+    return;
+  }
+  $('body').className = 'me-list';
+  $('body').innerHTML = list.map(p => {
+    const open = p.status === 'published';
+    const b = budget(p);
+    return '<div class="me-card bn-solid">' +
+      '<div class="me-card-h">' +
+        '<div style="min-width:0;flex:1">' +
+          '<h3 class="me-t">' + esc(p.title) + '</h3>' +
+          '<div class="me-m">' +
+            (p.city ? '<i>' + svg(I.pin, 11) + esc(p.city) + '</i>' : '') +
+            (p.category ? '<i>' + svg(I.tag, 11) + esc(p.category) + '</i>' : '') +
+            '<i>' + svg(I.clock, 11) + esc(when(p.created_at, {year:'numeric', month:'long'})) + '</i>' +
+          '</div>' +
+        '</div>' +
+        '<div style="text-align:end">' +
+          (b ? '<span class="me-bud">' + esc(b) + '</span>' +
+               '<span class="me-bud-c">دينار</span>'
+             : '<span class="me-bud-c">الميزانية غير محدَّدة</span>') +
+        '</div>' +
+      '</div>' +
+      '<div class="me-f">' +
+        '<span class="me-tag ' + (open ? 'me-tag-on' : 'me-tag-off') + '">' +
+          esc(STATUS[p.status] || p.status) + '</span>' +
+        '<a class="bn-btn bn-btn-sm bn-btn-ghost" href="bids.html?project=' + esc(p.id) + '">' +
+          svg(I.bid, 13) + ' ' + p.bids_count + (p.bids_count === 1 ? ' عرض' : ' عروض') + '</a>' +
+      '</div></div>';
+  }).join('');
+}
+
+async function load() {
+  try {
+    render(await ME.api('/my/projects'));
+  } catch (e) {
+    $('body').className = '';
+    $('body').innerHTML = ME.errorState(ME.errText(e));
+    ME.onRetry($('body'), load);
+  }
+}
+load();
+})();
+</script>
 </body>
 </html>

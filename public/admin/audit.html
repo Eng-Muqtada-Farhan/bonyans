@@ -1,0 +1,142 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>سجل التدقيق — بُنيان</title>
+<meta name="robots" content="noindex, nofollow">
+<meta name="theme-color" content="#F4F2ED" media="(prefers-color-scheme: light)">
+<meta name="theme-color" content="#15120E" media="(prefers-color-scheme: dark)">
+<link rel="stylesheet" href="../tokens.css">
+<script>
+  (function(){ var t=localStorage.getItem('bn-theme')||'light';
+    document.documentElement.setAttribute('data-theme',t); })();
+</script>
+<script src="../guard.js" data-require="admin"></script>
+<style>
+.au { display:flex; align-items:flex-start; gap:var(--bn-s4); padding:var(--bn-s4);
+  border-radius:var(--bn-r-lg); }
+.au-i { width:36px; height:36px; flex:none; display:grid; place-items:center;
+  border-radius:var(--bn-r-sm); background:var(--bn-ac-bg); color:var(--bn-ac);
+  border:1px solid var(--bn-ac-line); }
+.au-b { flex:1; min-width:0; }
+.au-t { font:500 13.5px/1.5 var(--bn-font); margin:0 0 4px; word-break:break-word; }
+.au-m { font:var(--bn-t-cap); color:var(--bn-ink-3); display:flex;
+  align-items:center; gap:var(--bn-s3); flex-wrap:wrap; }
+.au-m i { display:inline-flex; align-items:center; gap:4px; font-style:normal; }
+.au-meta { font:400 12px/1.7 var(--bn-mono); color:var(--bn-ink-3);
+  direction:ltr; text-align:start; margin-block-start:6px;
+  word-break:break-all; max-width:100%; }
+</style>
+</head>
+<body class="bn-body">
+
+<div class="bn-backdrop" aria-hidden="true"></div>
+
+<main class="ad-wrap" id="main">
+  <div class="ad-head">
+    <h1>سجل التدقيق</h1>
+    <p>آخر ٢٠٠ حدث على المنصّة. السجل للقراءة فقط — لا يُعدَّل ولا يُحذف منه.</p>
+  </div>
+  <div class="ad-tabs" id="tabs"></div>
+  <div id="body"></div>
+</main>
+
+<script src="admin-core.js"></script>
+<script src="nav-admin.js"></script>
+<script>
+(function () {
+'use strict';
+const AD = window.AdminCore;
+const $ = (id) => document.getElementById(id);
+const esc = AD.esc, svg = AD.svg, I = AD.icons, when = AD.when;
+
+const LABEL = {
+  login: 'تسجيل دخول', login_fail: 'محاولة دخول فاشلة', login_success: 'دخول ناجح',
+  profile_update: 'تحديث ملف', gallery_add: 'إضافة صورة', gallery_delete: 'حذف صورة',
+  bid_submit: 'تقديم عرض', project_add: 'إضافة مشروع'
+};
+function label(a) {
+  const s = String(a || '');
+  if (LABEL[s]) return LABEL[s];
+  if (s.indexOf('rate_limit:') === 0) return 'حجب بحدّ المعدّل — ' + s.split(':')[1];
+  if (s.indexOf('plan_recommended:') === 0) return 'تغيير الباقة الموصى بها';
+  return s;
+}
+
+/* مصدران مختلفان لا واحد:
+     security_audit_log — الأحداث الأمنية (دخول، حجب، قرارات إدارة)
+     activity_log       — نشاط الشركات على ملفّاتها
+   خلطهما كان يُظهر الشاشة فارغة بينما ١٦٥ حدثاً أمنياً مسجَّل،
+   لأن /admin/activity يقرأ الثاني وحده. */
+const TABS = [ { k:'sec', t:'أمنية' }, { k:'co', t:'نشاط الشركات' } ];
+let SEC = [], CO = [], TAB = 'sec';
+$('body').innerHTML = AD.skeleton(6, 62);
+
+function actorLabel(r) {
+  const m = { admin:'مدير', company:'شركة', user:'مستخدم', ip:'عنوان' };
+  return (m[r.actor_type] || r.actor_type || '') + (r.actor_id ? ' · ' + r.actor_id : '');
+}
+
+function renderTabs() {
+  $('tabs').innerHTML = TABS.map(t => {
+    const n = t.k === 'sec' ? SEC.length : CO.length;
+    return '<button class="ad-tab' + (TAB === t.k ? ' is-on' : '') +
+      '" type="button" data-tab="' + t.k + '">' + esc(t.t) +
+      ' <span class="ad-tab-n">' + n + '</span></button>';
+  }).join('');
+  $('tabs').querySelectorAll('[data-tab]').forEach(b => {
+    b.onclick = () => { TAB = b.dataset.tab; render(); };
+  });
+}
+
+function render() {
+  renderTabs();
+  const sec = TAB === 'sec';
+  const list = sec ? SEC : CO;
+  if (!list.length) {
+    $('body').className = '';
+    $('body').innerHTML = AD.emptyState(
+      sec ? 'لا أحداث أمنية مسجَّلة' : 'لا نشاط شركات مسجَّل', '', '', I.scroll);
+    return;
+  }
+  $('body').className = 'ad-list';
+  $('body').innerHTML = list.map(r => {
+    let meta = sec ? r.meta : r.metadata;
+    if (meta && typeof meta === 'object') {
+      try { meta = JSON.stringify(meta); } catch (e) { meta = ''; }
+    }
+    const who = sec ? actorLabel(r) : (r.company_name || '');
+    return '<div class="au bn-solid">' +
+      '<div class="au-i">' + svg(sec ? I.alert : I.scroll, 16) + '</div>' +
+      '<div class="au-b">' +
+        '<div class="au-t">' + esc(label(r.action)) + '</div>' +
+        '<div class="au-m">' +
+          (who ? '<i>' + svg(sec ? I.users : I.building, 11) + esc(who) + '</i>' : '') +
+          '<i>' + svg(I.clock, 11) + esc(when(r.created_at,
+            { month:'short', day:'numeric', hour:'2-digit', minute:'2-digit' })) + '</i>' +
+        '</div>' +
+        (meta ? '<div class="au-meta">' + esc(String(meta).slice(0, 240)) + '</div>' : '') +
+      '</div></div>';
+  }).join('');
+}
+
+async function load() {
+  try {
+    const [sec, co] = await Promise.all([
+      AD.api('/admin/audit-log'),
+      AD.api('/admin/activity').catch(() => [])
+    ]);
+    SEC = sec || []; CO = co || [];
+    render();
+  } catch (e) {
+    $('body').className = '';
+    $('body').innerHTML = AD.errorState(AD.errText(e));
+    AD.onRetry($('body'), load);
+  }
+}
+load();
+})();
+</script>
+</body>
+</html>

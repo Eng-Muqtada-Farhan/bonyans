@@ -4,33 +4,148 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>لوحة الإدارة — بُنيان</title>
+<meta name="robots" content="noindex, nofollow">
+<meta name="theme-color" content="#F4F2ED" media="(prefers-color-scheme: light)">
+<meta name="theme-color" content="#15120E" media="(prefers-color-scheme: dark)">
 <link rel="stylesheet" href="../tokens.css">
 <script>
   (function(){ var t=localStorage.getItem('bn-theme')||'light';
     document.documentElement.setAttribute('data-theme',t); })();
 </script>
-<style>
-  body { margin:0; background:var(--bn-bg); color:var(--bn-ink); font:var(--bn-t-body); }
-  .ph { padding: var(--bn-s10) var(--bn-s6); max-width: 62ch; }
-  .ph h1 { font: var(--bn-t-h1); margin: 0 0 var(--bn-s3); }
-  .ph p  { color: var(--bn-ink-2); margin: 0 0 var(--bn-s3); }
-</style>
 <script src="../guard.js" data-require="admin"></script>
 </head>
 <body class="bn-body">
 
 <div class="bn-backdrop" aria-hidden="true"></div>
 
-<div id="bn-nav"></div>
+<main class="ad-wrap" id="main">
+  <div class="ad-head">
+    <h1>لوحة الإدارة</h1>
+    <p>ما ينتظر قرارك أولاً، ثم أرقام المنصّة.</p>
+  </div>
 
-<main class="ph">
-  <h1>لوحة الإدارة</h1>
-  <p>صفحة مؤقتة — نقطة تركيب القائمة فقط. المحتوى يُبنى في الخطوة ٧
-     بتفكيك <code>admin.html</code>.</p>
-  <p>بطاقة الهوية هنا «أسود معكوس» — أوضح تمييز في النظام، لأن الخطأ
-     في سطح الإدارة هو الأغلى.</p>
+  <section class="ad-sec">
+    <h2 class="ad-sec-t">ينتظر قرارك</h2>
+    <div id="queue"></div>
+  </section>
+
+  <section class="ad-sec">
+    <h2 class="ad-sec-t">أرقام المنصّة</h2>
+    <div id="stats"></div>
+  </section>
+
+  <section class="ad-sec">
+    <h2 class="ad-sec-t">الباقة الموصى بها</h2>
+    <p class="ad-sec-d">شارة «توصيتنا» في صفحة الباقات — رأي المنصّة منسوباً إليها، لا إحصائية عن سلوك مستخدمين لا وجود له بعد.</p>
+    <div id="plans"></div>
+  </section>
 </main>
 
+<script src="admin-core.js"></script>
 <script src="nav-admin.js"></script>
+<script>
+(function () {
+'use strict';
+const AD = window.AdminCore;
+const $ = (id) => document.getElementById(id);
+const esc = AD.esc, svg = AD.svg, I = AD.icons, num = AD.num;
+
+$('queue').innerHTML = AD.skeleton(3, 140);
+$('stats').innerHTML = AD.skeleton(4, 78);
+$('plans').innerHTML = AD.skeleton(2, 66);
+
+/* ══ الطابور أولاً ══
+   الرقم كبير والإطار محذّر حين ينتظر قرار، وهادئ حين لا ينتظر.
+   الترتيب مقصود: القرار قبل السياق (DESIGN §٦). */
+function queueCard(href, label, icon, n, dueText, calmText) {
+  const due = n > 0;
+  return '<a class="ad-q' + (due ? ' is-due' : '') + '" href="' + href + '">' +
+    '<div class="ad-q-l">' + svg(due ? I.alert : icon, 14) + esc(label) + '</div>' +
+    '<div class="ad-q-n">' + num(n) + '</div>' +
+    '<div class="ad-q-d">' + esc(due ? dueText : calmText) + '</div></a>';
+}
+
+function statCard(label, value, note) {
+  return '<div class="ad-stat bn-solid">' +
+    '<div class="ad-stat-l">' + esc(label) + '</div>' +
+    '<div class="ad-stat-n">' + esc(value) + '</div>' +
+    (note ? '<div class="ad-stat-d">' + esc(note) + '</div>' : '') + '</div>';
+}
+
+async function loadStatus() {
+  try {
+    const s = await AD.api('/admin/system-status');
+
+    $('queue').className = 'ad-queue';
+    $('queue').innerHTML =
+      queueCard('requests.html', 'شركات قيد الاعتماد', I.inbox,
+        s.companies.pending, 'تنتظر مراجعتك', 'لا شيء ينتظر') +
+      queueCard('reports.html', 'تقييمات قيد المراجعة', I.flag,
+        s.reviews.pending, 'تنتظر مراجعتك', 'لا شيء ينتظر');
+
+    $('stats').className = 'ad-stats';
+    $('stats').innerHTML =
+      statCard('الشركات', num(s.companies.total), s.companies.approved + ' معتمدة') +
+      statCard('المشاريع', num(s.projects.total), s.projects.published + ' منشورة') +
+      statCard('المستخدمون', num(s.users.total), s.users.active + ' نشط') +
+      statCard('الاشتراكات', num(s.subscriptions.total), s.subscriptions.active + ' فعّال') +
+      statCard('التقييمات', num(s.reviews.total), s.reviews.approved + ' معتمد') +
+      statCard('المحادثات', num(s.conversations.total), num(s.messages.total) + ' رسالة') +
+      statCard('سجل التدقيق', num(s.audit_log.total), 'حدثاً مسجَّلاً');
+  } catch (e) {
+    $('queue').className = '';
+    $('queue').innerHTML = AD.errorState(AD.errText(e));
+    AD.onRetry($('queue'), loadStatus);
+    $('stats').innerHTML = '';
+  }
+}
+
+/* ══ مبدّل is_recommended ══
+   العمود والمسار كانا جاهزين بلا واجهة، فالميزة غير قابلة
+   للاستعمال. الخادم يضمن واحدة فقط: يصفّر البقية عند التفعيل. */
+async function loadPlans() {
+  try {
+    const plans = await fetch('/subscription/plans').then(r => r.json());
+    $('plans').className = 'ad-list';
+    $('plans').innerHTML = plans.map(p =>
+      '<div class="ad-item bn-solid">' +
+        '<div class="ad-item-b">' +
+          '<div class="ad-item-t">' + esc(p.name || p.code) + '</div>' +
+          '<div class="ad-item-m"><i>' + svg(I.card, 11) +
+            (Number(p.monthly_price) ? num(p.monthly_price) + ' دينار شهرياً' : 'مجاناً') + '</i></div>' +
+        '</div>' +
+        '<div class="ad-item-act">' +
+          '<button class="ad-switch' + (p.is_recommended ? ' is-on' : '') +
+            '" type="button" role="switch" aria-checked="' + (p.is_recommended ? 'true' : 'false') +
+            '" data-plan="' + esc(p.id) + '">' +
+            '<span class="ad-track"></span><span>توصيتنا</span></button>' +
+        '</div></div>').join('');
+
+    $('plans').querySelectorAll('[data-plan]').forEach(sw => {
+      sw.onclick = async function () {
+        const next = !this.classList.contains('is-on');
+        this.classList.add('is-loading');
+        try {
+          await AD.api('/admin/subscription-plans/' + this.dataset.plan + '/recommended',
+            { method: 'PUT', body: { is_recommended: next } });
+          AD.toast(next ? 'صارت هذه توصيتنا.' : 'أُزيلت التوصية.');
+          loadPlans();
+        } catch (e) {
+          this.classList.remove('is-loading');
+          AD.toast(AD.errText(e), 'err');
+        }
+      };
+    });
+  } catch (e) {
+    $('plans').className = '';
+    $('plans').innerHTML = AD.errorState(AD.errText(e));
+    AD.onRetry($('plans'), loadPlans);
+  }
+}
+
+loadStatus();
+loadPlans();
+})();
+</script>
 </body>
 </html>

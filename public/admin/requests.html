@@ -1,0 +1,132 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>طلبات الاعتماد — بُنيان</title>
+<meta name="robots" content="noindex, nofollow">
+<meta name="theme-color" content="#F4F2ED" media="(prefers-color-scheme: light)">
+<meta name="theme-color" content="#15120E" media="(prefers-color-scheme: dark)">
+<link rel="stylesheet" href="../tokens.css">
+<script>
+  (function(){ var t=localStorage.getItem('bn-theme')||'light';
+    document.documentElement.setAttribute('data-theme',t); })();
+</script>
+<script src="../guard.js" data-require="admin"></script>
+<style>
+.rq { padding:var(--bn-s5); border-radius:var(--bn-r-lg); border-color:var(--bn-ac-line); }
+.rq-h { display:flex; align-items:center; gap:var(--bn-s4); margin-block-end:var(--bn-s4); }
+.rq-t { font:600 16px/1.4 var(--bn-font); margin:0 0 4px; }
+.rq-grid { display:grid; grid-template-columns:repeat(auto-fit,minmax(160px,1fr));
+  gap:var(--bn-s3); padding-block:var(--bn-s4);
+  border-block:1px solid var(--bn-line-soft); margin-block-end:var(--bn-s4); }
+.rq-f-l { font:var(--bn-t-cap); color:var(--bn-ink-3); margin-block-end:4px; }
+.rq-f-v { font:400 13.5px/1.5 var(--bn-font); color:var(--bn-ink); word-break:break-word; }
+.rq-f-v.mono { font-family:var(--bn-mono); direction:ltr; text-align:start; }
+.rq-desc { font-size:13.5px; color:var(--bn-ink-2); line-height:1.8;
+  margin:0 0 var(--bn-s4); }
+.rq-act { display:flex; gap:var(--bn-s2); flex-wrap:wrap; justify-content:flex-end; }
+.rq-act .bn-btn { min-width:130px; }
+</style>
+</head>
+<body class="bn-body">
+
+<div class="bn-backdrop" aria-hidden="true"></div>
+
+<main class="ad-wrap" id="main">
+  <div class="ad-head">
+    <h1>طلبات الاعتماد</h1>
+    <p>شركات سجّلت وتنتظر قرارك. الاعتماد يُظهرها في الدليل العام ويمنحها شارة التوثيق.</p>
+  </div>
+  <div id="body"></div>
+</main>
+
+<script src="admin-core.js"></script>
+<script src="nav-admin.js"></script>
+<script>
+(function () {
+'use strict';
+const AD = window.AdminCore;
+const $ = (id) => document.getElementById(id);
+const esc = AD.esc, svg = AD.svg, I = AD.icons, when = AD.when;
+
+$('body').innerHTML = AD.skeleton(2, 240);
+
+function fld(label, value, mono) {
+  if (!value) return '';
+  return '<div><div class="rq-f-l">' + esc(label) + '</div>' +
+    '<div class="rq-f-v' + (mono ? ' mono' : '') + '">' + esc(value) + '</div></div>';
+}
+
+function render(list) {
+  if (!list.length) {
+    $('body').className = '';
+    $('body').innerHTML = AD.emptyState('لا طلبات تنتظر',
+      'كل الشركات المسجَّلة روجعت. الطلبات الجديدة تظهر هنا.', '', I.check);
+    return;
+  }
+  $('body').className = 'ad-list';
+  $('body').innerHTML = list.map(c =>
+    '<div class="rq bn-solid" data-row="' + esc(c.id) + '">' +
+      '<div class="rq-h">' +
+        (c.image_url
+          ? '<div class="ad-av"><img src="' + esc(c.image_url) + '" alt=""></div>'
+          : '<div class="ad-av">' + esc(AD.initials(c.name)) + '</div>') +
+        '<div style="min-width:0;flex:1">' +
+          '<h3 class="rq-t">' + esc(c.name) + '</h3>' +
+          '<div class="ad-item-m">' +
+            (c.city ? '<i>' + svg(I.pin, 11) + esc(c.city) + '</i>' : '') +
+            (c.spec ? '<i>' + svg(I.tag, 11) + esc(c.spec) + '</i>' : '') +
+            '<i>' + svg(I.clock, 11) + esc(when(c.created_at)) + '</i>' +
+          '</div>' +
+        '</div>' +
+      '</div>' +
+      '<div class="rq-grid">' +
+        fld('الهاتف', c.phone, true) +
+        fld('البريد', c.email, true) +
+        fld('الموقع', c.website, true) +
+      '</div>' +
+      (c.desc ? '<p class="rq-desc">' + esc(c.desc) + '</p>' : '') +
+      '<div class="rq-act">' +
+        '<button class="bn-btn bn-btn-ghost ad-btn-danger" type="button" data-reject="' + esc(c.id) + '">رفض</button>' +
+        '<button class="bn-btn" type="button" data-approve="' + esc(c.id) + '">اعتماد</button>' +
+      '</div></div>').join('');
+  wire();
+}
+
+/* كل زرّ يمرّ بالحالات الخمس عبر runAction: القفل والدوّار ثم
+   علامة النجاح، فلا يضغط المستخدم مرتين على إجراء صامت. */
+function wire() {
+  $('body').querySelectorAll('[data-approve]').forEach(b => {
+    b.onclick = function () {
+      AD.runAction(this, () => AD.api('/companies/' + this.dataset.approve + '/approve', { method: 'PUT' }),
+        { loading: 'جارٍ الاعتماد', success: 'اعتُمدت', then: load });
+    };
+  });
+  $('body').querySelectorAll('[data-reject]').forEach(b => {
+    b.onclick = async function () {
+      const btn = this;
+      if (!await AD.confirm('رفض الشركة',
+        'لن تظهر في الدليل العام. يمكنك اعتمادها لاحقاً من صفحة الشركات.', 'رفض')) return;
+      AD.runAction(btn, () => AD.api('/companies/' + btn.dataset.reject + '/reject', { method: 'PUT' }),
+        { loading: 'جارٍ الرفض', success: 'رُفضت', then: load });
+    };
+  });
+}
+
+async function load() {
+  try {
+    const all = await AD.api('/admin/companies');
+    render(all.filter(c => c.status === 'pending'));
+    if (window.BunyanNavAdmin) window.BunyanNavAdmin.refreshCounts();
+  } catch (e) {
+    $('body').className = '';
+    $('body').innerHTML = AD.errorState(AD.errText(e));
+    AD.onRetry($('body'), load);
+  }
+}
+load();
+})();
+</script>
+</body>
+</html>

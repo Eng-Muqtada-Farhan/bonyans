@@ -1,0 +1,95 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>المستخدمون — بُنيان</title>
+<meta name="robots" content="noindex, nofollow">
+<meta name="theme-color" content="#F4F2ED" media="(prefers-color-scheme: light)">
+<meta name="theme-color" content="#15120E" media="(prefers-color-scheme: dark)">
+<link rel="stylesheet" href="../tokens.css">
+<script>
+  (function(){ var t=localStorage.getItem('bn-theme')||'light';
+    document.documentElement.setAttribute('data-theme',t); })();
+</script>
+<script src="../guard.js" data-require="admin"></script>
+<style>
+.us-search { display:flex; max-width:420px; margin-block-end:var(--bn-s5); }
+.us-search input { flex:1; min-height:44px; padding:11px var(--bn-s4);
+  border:1px solid var(--bn-line); border-radius:var(--bn-r-pill);
+  background:var(--bn-bg); color:var(--bn-ink); font:400 14px/1.5 var(--bn-font); }
+.us-search input:focus { outline:none; border-color:var(--bn-ac); }
+</style>
+</head>
+<body class="bn-body">
+
+<div class="bn-backdrop" aria-hidden="true"></div>
+
+<main class="ad-wrap" id="main">
+  <div class="ad-head">
+    <h1>المستخدمون</h1>
+    <p>أصحاب المشاريع المسجَّلون. آخر ٢٠٠ حساب.</p>
+  </div>
+  <div class="us-search">
+    <input id="q" type="search" placeholder="ابحث بالاسم أو البريد" aria-label="بحث">
+  </div>
+  <div id="body"></div>
+</main>
+
+<script src="admin-core.js"></script>
+<script src="nav-admin.js"></script>
+<script>
+(function () {
+'use strict';
+const AD = window.AdminCore;
+const $ = (id) => document.getElementById(id);
+const esc = AD.esc, svg = AD.svg, I = AD.icons, when = AD.when;
+
+let ALL = [], Q = '';
+$('body').innerHTML = AD.skeleton(5, 68);
+
+/* لا مسار خادمي لتعطيل حساب أو حذفه بعد، فلا زرّ يوهم بذلك
+   (§٥·٥). العرض للقراءة حتى تُبنى إدارة الحسابات في جولة البريد. */
+function render() {
+  const q = Q.trim().toLowerCase();
+  const list = ALL.filter(u => !q ||
+    [u.name, u.email].some(v => String(v || '').toLowerCase().includes(q)));
+
+  if (!list.length) {
+    $('body').className = '';
+    $('body').innerHTML = AD.emptyState(
+      Q ? 'لا نتائج لهذا البحث' : 'لا مستخدمين بعد', '', '', I.users);
+    return;
+  }
+  $('body').className = 'ad-list';
+  $('body').innerHTML = list.map(u =>
+    '<div class="ad-item bn-solid">' +
+      '<div class="ad-av">' + esc(AD.initials(u.name || u.email)) + '</div>' +
+      '<div class="ad-item-b">' +
+        '<div class="ad-item-t">' + esc(u.name || 'بلا اسم') + '</div>' +
+        '<div class="ad-item-m">' +
+          '<i dir="ltr">' + esc(u.email) + '</i>' +
+          '<i>' + svg(I.clock, 11) + esc(when(u.created_at)) + '</i>' +
+        '</div>' +
+      '</div>' +
+      '<div class="ad-item-act">' +
+        '<span class="ad-tag ' + (u.is_active ? 'ad-tag-on' : 'ad-tag-off') + '">' +
+          (u.is_active ? 'نشط' : 'معطَّل') + '</span>' +
+      '</div></div>').join('');
+}
+
+$('q').oninput = function () { Q = this.value; render(); };
+
+async function load() {
+  try { ALL = await AD.api('/admin/users'); render(); }
+  catch (e) {
+    $('body').className = '';
+    $('body').innerHTML = AD.errorState(AD.errText(e));
+    AD.onRetry($('body'), load);
+  }
+}
+load();
+})();
+</script>
+</body>
+</html>

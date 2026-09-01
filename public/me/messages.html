@@ -1,0 +1,187 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>الرسائل — بُنيان</title>
+<meta name="robots" content="noindex, nofollow">
+<meta name="theme-color" content="#F4F2ED" media="(prefers-color-scheme: light)">
+<meta name="theme-color" content="#15120E" media="(prefers-color-scheme: dark)">
+<link rel="stylesheet" href="../tokens.css">
+<script>
+  (function(){ var t=localStorage.getItem('bn-theme')||'light';
+    document.documentElement.setAttribute('data-theme',t); })();
+</script>
+<script src="../guard.js" data-require="user"></script>
+<style>
+.ms-wrap { display:grid; grid-template-columns:280px 1fr; gap:var(--bn-s4); min-height:60vh; }
+@media(max-width:760px){ .ms-wrap { grid-template-columns:1fr; } }
+.ms-list { display:flex; flex-direction:column; gap:6px; }
+.ms-conv { display:flex; align-items:center; gap:var(--bn-s3); padding:var(--bn-s3);
+  border-radius:var(--bn-r); border:1px solid transparent; background:transparent;
+  cursor:pointer; text-align:start; min-height:44px; width:100%;
+  color:var(--bn-ink-2); font-family:var(--bn-font);
+  transition:background var(--bn-fast), border-color var(--bn-fast); }
+.ms-conv:hover { background:var(--bn-glass-tint); }
+.ms-conv.is-on { border-color:var(--bn-ac-line); background:var(--bn-ac-bg); color:var(--bn-ac); }
+.ms-conv-b { flex:1; min-width:0; }
+.ms-conv-n { font:500 13.5px/1.4 var(--bn-font);
+  overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+.ms-conv-d { font:var(--bn-t-cap); color:var(--bn-ink-3); margin-block-start:2px; }
+.ms-unread { flex:none; min-width:22px; height:22px; padding-inline:6px;
+  border-radius:999px; background:var(--bn-ac); color:var(--bn-ac-on);
+  font:600 11px/22px var(--bn-mono); text-align:center; }
+
+.ms-thread { display:flex; flex-direction:column; border:1px solid var(--bn-line-soft);
+  border-radius:var(--bn-r-lg); overflow:hidden; min-height:420px; }
+.ms-head { padding:var(--bn-s4); border-block-end:1px solid var(--bn-line-soft);
+  font:500 14.5px/1.4 var(--bn-font); display:flex; align-items:center; gap:var(--bn-s3); }
+.ms-body { flex:1; overflow-y:auto; padding:var(--bn-s4);
+  display:flex; flex-direction:column; gap:var(--bn-s3); max-height:52vh; }
+.ms-b { max-width:78%; padding:10px var(--bn-s4); border-radius:var(--bn-r-lg);
+  font-size:13.5px; line-height:1.75; }
+.ms-b-in { align-self:flex-start; background:var(--bn-glass-tint);
+  border:1px solid var(--bn-line-soft); }
+.ms-b-out { align-self:flex-end; background:var(--bn-ac-bg); color:var(--bn-ink);
+  border:1px solid var(--bn-ac-line); }
+.ms-b-t { font:var(--bn-t-cap); color:var(--bn-ink-3); margin-block-start:5px; }
+.ms-foot { display:flex; gap:var(--bn-s2); padding:var(--bn-s3);
+  border-block-start:1px solid var(--bn-line-soft); }
+.ms-foot input { flex:1; min-height:44px; padding:11px var(--bn-s4);
+  border:1px solid var(--bn-line); border-radius:var(--bn-r);
+  background:var(--bn-bg); color:var(--bn-ink); font:400 14px/1.5 var(--bn-font); }
+.ms-foot input:focus { outline:none; border-color:var(--bn-ac); }
+.ms-send { width:44px; height:44px; flex:none; display:grid; place-items:center;
+  border:0; border-radius:var(--bn-r); background:var(--bn-ac); color:var(--bn-ac-on);
+  cursor:pointer; }
+.ms-send:disabled { opacity:.5; cursor:not-allowed; }
+</style>
+</head>
+<body class="bn-body">
+
+<div class="bn-backdrop" aria-hidden="true"></div>
+<div id="bn-nav"></div>
+
+<main class="me-wrap" id="main">
+  <div class="me-head">
+    <h1>الرسائل</h1>
+    <p>محادثاتك مع الشركات.</p>
+  </div>
+  <div id="body"></div>
+</main>
+
+<script src="me-core.js"></script>
+<script src="nav-me.js"></script>
+<script>
+(function () {
+'use strict';
+const ME = window.MeCore;
+const $ = (id) => document.getElementById(id);
+const esc = ME.esc, svg = ME.svg, I = ME.icons, when = ME.when;
+
+let CONVS = [], CURRENT = null;
+$('body').innerHTML = ME.skeleton(3, 66);
+
+function renderShell() {
+  $('body').innerHTML =
+    '<div class="ms-wrap"><div class="ms-list" id="convs"></div><div id="thread"></div></div>';
+  renderConvs();
+}
+
+function renderConvs() {
+  $('convs').innerHTML = CONVS.map(c =>
+    '<button class="ms-conv' + (CURRENT === c.id ? ' is-on' : '') +
+      '" type="button" data-c="' + esc(c.id) + '">' +
+      '<span class="me-av" style="width:36px;height:36px;font-size:13px">' +
+        esc(ME.initials(c.company_name || 'ش')) + '</span>' +
+      '<span class="ms-conv-b">' +
+        '<span class="ms-conv-n">' + esc(c.company_name || 'شركة') + '</span>' +
+        '<span class="ms-conv-d">' + esc(when(c.created_at, {month:'short', day:'numeric'})) + '</span>' +
+      '</span>' +
+      (c.unread ? '<span class="ms-unread">' + c.unread + '</span>' : '') +
+    '</button>').join('');
+  $('convs').querySelectorAll('[data-c]').forEach(b => {
+    b.onclick = () => open(Number(b.dataset.c));
+  });
+}
+
+async function open(id) {
+  CURRENT = id;
+  renderConvs();
+  $('thread').innerHTML = '<div class="ms-thread"><div class="ms-body">' +
+    ME.skeleton(3, 44) + '</div></div>';
+  try {
+    const msgs = await ME.api('/conversations/' + id + '/messages');
+    const conv = CONVS.find(c => c.id === id) || {};
+    $('thread').innerHTML =
+      '<div class="ms-thread">' +
+        '<div class="ms-head"><span class="me-av" style="width:36px;height:36px;font-size:13px">' +
+          esc(ME.initials(conv.company_name || 'ش')) + '</span>' +
+          esc(conv.company_name || 'شركة') + '</div>' +
+        '<div class="ms-body" id="msgs">' +
+          (msgs.length
+            ? msgs.map(m =>
+                /* رسالة العميل هي رسالتي أنا هنا — عكس لوحة الشركة */
+                '<div class="ms-b ' + (m.sender_type === 'client' ? 'ms-b-out' : 'ms-b-in') + '">' +
+                  esc(m.message) +
+                  '<div class="ms-b-t">' + esc(when(m.created_at,
+                    {month:'short', day:'numeric', hour:'2-digit', minute:'2-digit'})) + '</div>' +
+                '</div>').join('')
+            : '<div class="me-state"><div class="me-state-t">لا رسائل في هذه المحادثة</div></div>') +
+        '</div>' +
+        '<form class="ms-foot" id="sendForm">' +
+          '<input id="msgInput" maxlength="2000" placeholder="اكتب رسالتك" aria-label="نص الرسالة">' +
+          '<button class="ms-send" type="submit" id="sendBtn" aria-label="إرسال">' +
+            svg(I.send, 18) + '</button>' +
+        '</form>' +
+      '</div>';
+
+    const box = $('msgs');
+    box.scrollTop = box.scrollHeight;
+    const c = CONVS.find(x => x.id === id);
+    if (c) { c.unread = 0; renderConvs(); }
+
+    $('sendForm').onsubmit = async function (e) {
+      e.preventDefault();
+      const inp = $('msgInput'), btn = $('sendBtn');
+      const text = inp.value.trim();
+      if (!text) return;
+      btn.disabled = true;
+      try {
+        await ME.api('/conversations/' + id + '/messages', {
+          method: 'POST', body: { message: text }
+        });
+        inp.value = '';
+        await open(id);
+      } catch (err) { ME.toast(ME.errText(err), 'err'); }
+      finally { btn.disabled = false; }
+    };
+  } catch (e) {
+    $('thread').innerHTML = ME.errorState(ME.errText(e));
+    ME.onRetry($('thread'), () => open(id));
+  }
+}
+
+async function load() {
+  try {
+    CONVS = await ME.api('/conversations');
+    if (!CONVS.length) {
+      $('body').className = '';
+      $('body').innerHTML = ME.emptyState('لا محادثات بعد',
+        'تبدأ المحادثة حين تراسل شركةً من صفحتها.', '', I.chat);
+      return;
+    }
+    renderShell();
+    $('thread').innerHTML = ME.emptyState('اختر محادثة',
+      'اختر محادثة من القائمة لقراءتها والردّ عليها.', '', I.chat);
+  } catch (e) {
+    $('body').className = '';
+    $('body').innerHTML = ME.errorState(ME.errText(e));
+    ME.onRetry($('body'), load);
+  }
+}
+load();
+})();
+</script>
+</body>
+</html>

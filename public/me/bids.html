@@ -1,0 +1,177 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>العروض الواردة — بُنيان</title>
+<meta name="robots" content="noindex, nofollow">
+<meta name="theme-color" content="#F4F2ED" media="(prefers-color-scheme: light)">
+<meta name="theme-color" content="#15120E" media="(prefers-color-scheme: dark)">
+<link rel="stylesheet" href="../tokens.css">
+<script>
+  (function(){ var t=localStorage.getItem('bn-theme')||'light';
+    document.documentElement.setAttribute('data-theme',t); })();
+</script>
+<script src="../guard.js" data-require="user"></script>
+<style>
+.pj-tabs { display:flex; gap:var(--bn-s2); overflow-x:auto; scrollbar-width:none;
+  padding-block-end:var(--bn-s2); margin-block-end:var(--bn-s5); }
+.pj-tabs::-webkit-scrollbar { display:none; }
+.pj-tab { flex:none; min-height:44px; padding-inline:var(--bn-s4);
+  border-radius:var(--bn-r-pill); border:1px solid var(--bn-line);
+  background:transparent; cursor:pointer; color:var(--bn-ink-2);
+  font:400 13px/1 var(--bn-font); display:inline-flex; align-items:center; gap:7px;
+  white-space:nowrap;
+  transition:color var(--bn-fast), border-color var(--bn-fast), background var(--bn-fast); }
+.pj-tab:hover { color:var(--bn-ac); border-color:var(--bn-ac-line); }
+.pj-tab.is-on { background:var(--bn-ac); color:var(--bn-ac-on); border-color:transparent; }
+.pj-n { font:500 11px/1 var(--bn-mono); font-variant-numeric:tabular-nums; opacity:.72; }
+
+.bd { padding:var(--bn-s5); border-radius:var(--bn-r-lg); }
+.bd.is-won { border-color:var(--bn-ac); }
+.bd-h { display:flex; align-items:flex-start; justify-content:space-between;
+  gap:var(--bn-s4); flex-wrap:wrap; }
+.bd-co { display:flex; align-items:center; gap:var(--bn-s3); min-width:0; }
+.bd-n { font:500 14.5px/1.4 var(--bn-font); }
+.bd-when { font:var(--bn-t-cap); color:var(--bn-ink-3); margin-block-start:3px; }
+.bd-p { text-align:end; }
+.bd-p-n { font:700 19px/1.2 var(--bn-mono); color:var(--bn-ac);
+  font-variant-numeric:tabular-nums; direction:ltr; display:block; }
+.bd-p-d { font:var(--bn-t-cap); color:var(--bn-ink-3); margin-block-start:3px; }
+.bd-m { font-size:13.5px; color:var(--bn-ink-2); line-height:1.8;
+  margin:var(--bn-s3) 0 0; padding:var(--bn-s3) var(--bn-s4);
+  border-radius:var(--bn-r); background:var(--bn-glass-tint); }
+.tag-low { background:transparent; color:var(--bn-ac);
+  border:1px dashed var(--bn-ac-line); }
+</style>
+</head>
+<body class="bn-body">
+
+<div class="bn-backdrop" aria-hidden="true"></div>
+<div id="bn-nav"></div>
+
+<main class="me-wrap" id="main">
+  <div class="me-head">
+    <h1>العروض الواردة</h1>
+    <p>عروض الشركات على مشاريعك، مرتَّبة من الأقل سعراً. اختيارك يُغلق المشروع ويُعلم بقيّة الشركات.</p>
+  </div>
+  <div class="pj-tabs" id="tabs"></div>
+  <div id="body"></div>
+</main>
+
+<script src="me-core.js"></script>
+<script src="nav-me.js"></script>
+<script>
+(function () {
+'use strict';
+const ME = window.MeCore;
+const $ = (id) => document.getElementById(id);
+const esc = ME.esc, svg = ME.svg, I = ME.icons, num = ME.num, when = ME.when;
+
+const LABEL = { submitted:'قيد النظر', pending:'قيد النظر',
+                accepted:'مختارة', rejected:'لم تُختَر' };
+let PROJECTS = [], CURRENT = null;
+
+$('body').innerHTML = ME.skeleton(3, 130);
+
+function renderTabs() {
+  $('tabs').innerHTML = PROJECTS.map(p =>
+    '<button class="pj-tab' + (CURRENT === p.id ? ' is-on' : '') +
+      '" type="button" data-p="' + esc(p.id) + '">' +
+      esc(p.title) + ' <span class="pj-n">' + p.bids_count + '</span></button>').join('');
+  $('tabs').querySelectorAll('[data-p]').forEach(b => {
+    b.onclick = () => open(Number(b.dataset.p));
+  });
+}
+
+async function open(pid) {
+  CURRENT = pid;
+  renderTabs();
+  try { history.replaceState(null, '', '?project=' + pid); } catch (e) {}
+  $('body').className = '';
+  $('body').innerHTML = ME.skeleton(2, 130);
+
+  const proj = PROJECTS.find(p => p.id === pid) || {};
+  try {
+    const bids = await ME.api('/projects/' + pid + '/bids');
+    if (!bids.length) {
+      $('body').innerHTML = ME.emptyState('لم تصل عروض على هذا المشروع بعد',
+        'حين تقدّم الشركات عروضها ستظهر هنا مرتّبةً من الأقل سعراً.', '', I.bid);
+      return;
+    }
+    const done = proj.status === 'contracted';
+    const minP = Math.min.apply(null, bids.map(b => Number(b.price)));
+
+    $('body').className = 'me-list';
+    $('body').innerHTML = bids.map(b => {
+      const won = b.status === 'accepted';
+      const tags = [];
+      if (won) tags.push('<span class="me-tag me-tag-on">' + svg(I.trophy, 11) + 'الشركة المختارة</span>');
+      else if (b.status === 'rejected') tags.push('<span class="me-tag me-tag-off">لم تُختَر</span>');
+      else if (Number(b.price) === minP) tags.push('<span class="me-tag tag-low">أقل سعر</span>');
+      else tags.push('<span class="me-tag me-tag-off">' + esc(LABEL[b.status] || b.status) + '</span>');
+
+      return '<div class="bd bn-solid' + (won ? ' is-won' : '') + '">' +
+        '<div class="bd-h">' +
+          '<div class="bd-co">' +
+            (b.company_image
+              ? '<div class="me-av"><img src="' + esc(b.company_image) + '" alt=""></div>'
+              : '<div class="me-av">' + esc(ME.initials(b.company_name)) + '</div>') +
+            '<div><div class="bd-n">' + esc(b.company_name) + '</div>' +
+              '<div class="bd-when">' + esc(when(b.created_at, {year:'numeric', month:'long'})) + '</div></div>' +
+          '</div>' +
+          '<div class="bd-p"><span class="bd-p-n">' + esc(num(b.price)) + '</span>' +
+            '<span class="bd-p-d">دينار' +
+              (b.duration_days ? ' · ' + b.duration_days + ' يوماً' : '') + '</span></div>' +
+        '</div>' +
+        (b.message ? '<p class="bd-m">' + esc(b.message) + '</p>' : '') +
+        '<div class="me-f"><div>' + tags.join(' ') + '</div>' +
+          (done ? '' : '<button class="bn-btn bn-btn-sm" type="button" data-pick="' +
+            esc(b.id) + '">اختر هذه الشركة</button>') +
+        '</div></div>';
+    }).join('');
+
+    $('body').querySelectorAll('[data-pick]').forEach(btn => {
+      btn.onclick = async function () {
+        const b = this;
+        if (!await ME.confirm('اختيار الشركة',
+          'سيُغلق المشروع للعروض وتُعلَم بقيّة الشركات. لا رجعة.', 'اختيار')) return;
+        ME.runAction(b,
+          () => ME.api('/projects/' + pid + '/select-company',
+            { method: 'POST', body: { bid_id: Number(b.dataset.pick) } }),
+          { loading: 'جارٍ', success: 'اختيرت', then: () => load(pid) });
+      };
+    });
+  } catch (e) {
+    $('body').className = '';
+    $('body').innerHTML = ME.errorState(ME.errText(e));
+    ME.onRetry($('body'), () => open(pid));
+  }
+}
+
+async function load(keep) {
+  try {
+    PROJECTS = await ME.api('/my/projects');
+    if (!PROJECTS.length) {
+      $('tabs').innerHTML = '';
+      $('body').className = '';
+      $('body').innerHTML = ME.emptyState('لا مشاريع لك بعد',
+        'العروض تصل على مشاريعك المنشورة.',
+        '<a class="bn-btn" href="index.html">مشاريعي</a>', I.bid);
+      return;
+    }
+    const asked = keep || Number(new URLSearchParams(location.search).get('project'));
+    CURRENT = PROJECTS.some(p => p.id === asked) ? asked : PROJECTS[0].id;
+    renderTabs();
+    open(CURRENT);
+  } catch (e) {
+    $('body').className = '';
+    $('body').innerHTML = ME.errorState(ME.errText(e));
+    ME.onRetry($('body'), () => load());
+  }
+}
+load();
+})();
+</script>
+</body>
+</html>

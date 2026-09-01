@@ -1,0 +1,152 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>البلاغات — بُنيان</title>
+<meta name="robots" content="noindex, nofollow">
+<meta name="theme-color" content="#F4F2ED" media="(prefers-color-scheme: light)">
+<meta name="theme-color" content="#15120E" media="(prefers-color-scheme: dark)">
+<link rel="stylesheet" href="../tokens.css">
+<script>
+  (function(){ var t=localStorage.getItem('bn-theme')||'light';
+    document.documentElement.setAttribute('data-theme',t); })();
+</script>
+<script src="../guard.js" data-require="admin"></script>
+<style>
+.rv { padding:var(--bn-s5); border-radius:var(--bn-r-lg); }
+.rv-h { display:flex; align-items:flex-start; justify-content:space-between;
+  gap:var(--bn-s4); flex-wrap:wrap; margin-block-end:var(--bn-s3); }
+.rv-who { font:500 14.5px/1.4 var(--bn-font); }
+.rv-co { font:var(--bn-t-cap); color:var(--bn-ink-3); margin-block-start:4px; }
+.stars { display:inline-flex; gap:2px; color:var(--bn-ac); flex:none; }
+.stars .off { color:var(--bn-ink-3); opacity:.4; }
+.rv-c { font-size:13.5px; color:var(--bn-ink-2); line-height:1.8;
+  margin:0 0 var(--bn-s4); padding:var(--bn-s3) var(--bn-s4);
+  border-radius:var(--bn-r); background:var(--bn-glass-tint); }
+.rv-act { display:flex; gap:var(--bn-s2); flex-wrap:wrap; justify-content:flex-end; }
+.rv-note { padding:var(--bn-s4) var(--bn-s5); border-radius:var(--bn-r-lg);
+  border:1px dashed var(--bn-line); margin-block-end:var(--bn-s6);
+  font:var(--bn-t-sm); color:var(--bn-ink-3); line-height:1.8; }
+</style>
+</head>
+<body class="bn-body">
+
+<div class="bn-backdrop" aria-hidden="true"></div>
+
+<main class="ad-wrap" id="main">
+  <div class="ad-head">
+    <h1>البلاغات</h1>
+    <p>ما يحتاج إشرافك على المحتوى الذي ينشره المستخدمون.</p>
+  </div>
+
+  <!-- لا نخترع ما لا يوجد: نظام الإبلاغ عن مستخدم أو محتوى
+       (جدول بلاغات) لم يُبنَ بعد وهو في شروط ما قبل النشر في
+       SCOPE.md. المعروض هنا ما يوجد فعلاً: مراجعة التقييمات. -->
+  <div class="rv-note">
+    الإبلاغ عن مستخدم أو محتوى لم يُبنَ بعد — هو من شروط ما قبل النشر.
+    ما يُعرض هنا اليوم هو تقييمات المستخدمين التي تنتظر مراجعتك قبل ظهورها.
+  </div>
+
+  <div class="ad-tabs" id="tabs"></div>
+  <div id="body"></div>
+</main>
+
+<script src="admin-core.js"></script>
+<script src="nav-admin.js"></script>
+<script>
+(function () {
+'use strict';
+const AD = window.AdminCore;
+const $ = (id) => document.getElementById(id);
+const esc = AD.esc, svg = AD.svg, I = AD.icons, when = AD.when;
+
+const LABEL = { pending:'قيد المراجعة', approved:'معتمد', rejected:'مرفوض' };
+const TABS = [ {k:'pending',t:'قيد المراجعة'}, {k:'approved',t:'معتمدة'},
+               {k:'rejected',t:'مرفوضة'}, {k:'all',t:'الكل'} ];
+let ALL = [], TAB = 'pending';
+
+$('body').innerHTML = AD.skeleton(3, 150);
+
+function stars(n) {
+  let out = '';
+  for (let i = 1; i <= 5; i++) {
+    out += '<span class="' + (i <= Math.round(n) ? '' : 'off') + '">' + svg(I.star, 13) + '</span>';
+  }
+  return '<span class="stars">' + out + '</span>';
+}
+
+function renderTabs() {
+  $('tabs').innerHTML = TABS.map(t => {
+    const n = t.k === 'all' ? ALL.length : ALL.filter(r => r.status === t.k).length;
+    return '<button class="ad-tab' + (TAB === t.k ? ' is-on' : '') +
+      '" type="button" data-tab="' + t.k + '">' + esc(t.t) +
+      ' <span class="ad-tab-n">' + n + '</span></button>';
+  }).join('');
+  $('tabs').querySelectorAll('[data-tab]').forEach(b => {
+    b.onclick = () => { TAB = b.dataset.tab; render(); };
+  });
+}
+
+function render() {
+  renderTabs();
+  const list = TAB === 'all' ? ALL : ALL.filter(r => r.status === TAB);
+  if (!list.length) {
+    $('body').className = '';
+    $('body').innerHTML = AD.emptyState(
+      TAB === 'pending' ? 'لا تقييمات تنتظر مراجعتك' : 'لا تقييمات في هذه الحالة',
+      TAB === 'pending' ? 'كل ما وصل روجع.' : '', '', I.check);
+    return;
+  }
+  $('body').className = 'ad-list';
+  $('body').innerHTML = list.map(r =>
+    '<div class="rv bn-solid">' +
+      '<div class="rv-h">' +
+        '<div><div class="rv-who">' + esc(r.client_name || 'عميل') + '</div>' +
+          '<div class="rv-co">' + esc(r.company_name || '') + ' · ' +
+            esc(when(r.created_at)) + '</div></div>' +
+        '<div style="text-align:end">' + stars(Number(r.rating) || 0) +
+          '<div><span class="ad-tag ' + (r.status === 'approved' ? 'ad-tag-on' : 'ad-tag-off') +
+            '" style="margin-block-start:6px">' + esc(LABEL[r.status] || r.status) + '</span></div>' +
+        '</div>' +
+      '</div>' +
+      (r.comment ? '<p class="rv-c">' + esc(r.comment) + '</p>' : '') +
+      '<div class="rv-act">' +
+        (r.status !== 'rejected'
+          ? '<button class="bn-btn bn-btn-sm bn-btn-ghost ad-btn-danger" type="button" data-rej="' + esc(r.id) + '">رفض</button>' : '') +
+        (r.status !== 'approved'
+          ? '<button class="bn-btn bn-btn-sm" type="button" data-app="' + esc(r.id) + '">اعتماد</button>' : '') +
+      '</div></div>').join('');
+
+  $('body').querySelectorAll('[data-app]').forEach(b => {
+    b.onclick = function () {
+      AD.runAction(this, () => AD.api('/admin/reviews/' + this.dataset.app + '/approve', { method: 'PUT' }),
+        { loading: 'جارٍ', success: 'اعتُمد', then: load });
+    };
+  });
+  $('body').querySelectorAll('[data-rej]').forEach(b => {
+    b.onclick = async function () {
+      const btn = this;
+      if (!await AD.confirm('رفض التقييم', 'لن يظهر في صفحة الشركة.', 'رفض')) return;
+      AD.runAction(btn, () => AD.api('/admin/reviews/' + btn.dataset.rej + '/reject', { method: 'PUT' }),
+        { loading: 'جارٍ', success: 'رُفض', then: load });
+    };
+  });
+}
+
+async function load() {
+  try {
+    ALL = await AD.api('/admin/reviews');
+    render();
+    if (window.BunyanNavAdmin) window.BunyanNavAdmin.refreshCounts();
+  } catch (e) {
+    $('body').className = '';
+    $('body').innerHTML = AD.errorState(AD.errText(e));
+    AD.onRetry($('body'), load);
+  }
+}
+load();
+})();
+</script>
+</body>
+</html>

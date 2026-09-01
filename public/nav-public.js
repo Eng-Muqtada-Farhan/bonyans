@@ -141,12 +141,24 @@
         '</div>' +
       '</nav>';
 
+    /* التبويبان الأخيران يقودان إلى سطح مسوَّر. زائرٌ بلا جلسة
+       يُقذَف منه فوراً، فيُرسَل إلى الدخول مباشرةً ومعه next
+       ليعود إلى ما أراده — لا ارتدادة يفهمها على أنها عطب.
+       وصاحب الشركة يُرسَل إلى سطحه هو لا إلى سطح العميل. */
+    var meMsgs = st.role === 'client' ? '/me/messages.html'
+      : st.role === 'company' ? '/app/messages.html'
+      : '/login.html?role=client&next=' + encodeURIComponent('/me/messages.html');
+    var meHome = st.role === 'client' ? '/me/index.html'
+      : st.role === 'company' ? '/app/index.html'
+      : st.role === 'admin' ? '/admin/index.html'
+      : '/login.html';
+
     var tabs = [
       { href: '/index.html',     label: 'الرئيسية', icon: I.home },
       { href: '/companies.html', label: 'الشركات',  icon: I.building },
       { href: '/projects.html',  label: 'المشاريع', icon: I.folder },
-      { href: '/me/messages.html', label: 'الرسائل', icon: I.chat },
-      { href: st.role === 'client' ? 'me/index.html' : 'login.html', label: 'حسابي', icon: I.user }
+      { href: meMsgs,            label: 'الرسائل',  icon: I.chat },
+      { href: meHome,            label: 'حسابي',    icon: I.user }
     ].map(function (t) {
       return '<a class="bnv-tab" href="' + t.href + '"' + cur(t.href) + '>' +
              svg(t.icon, 20) + '<span>' + t.label + '</span></a>';

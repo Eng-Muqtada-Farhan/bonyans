@@ -1,0 +1,140 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>الشركات — بُنيان</title>
+<meta name="robots" content="noindex, nofollow">
+<meta name="theme-color" content="#F4F2ED" media="(prefers-color-scheme: light)">
+<meta name="theme-color" content="#15120E" media="(prefers-color-scheme: dark)">
+<link rel="stylesheet" href="../tokens.css">
+<script>
+  (function(){ var t=localStorage.getItem('bn-theme')||'light';
+    document.documentElement.setAttribute('data-theme',t); })();
+</script>
+<script src="../guard.js" data-require="admin"></script>
+<style>
+.co-search { display:flex; gap:var(--bn-s2); max-width:420px; margin-block-end:var(--bn-s4); }
+.co-search input { flex:1; min-height:44px; padding:11px var(--bn-s4);
+  border:1px solid var(--bn-line); border-radius:var(--bn-r-pill);
+  background:var(--bn-bg); color:var(--bn-ink); font:400 14px/1.5 var(--bn-font); }
+.co-search input:focus { outline:none; border-color:var(--bn-ac); }
+</style>
+</head>
+<body class="bn-body">
+
+<div class="bn-backdrop" aria-hidden="true"></div>
+
+<main class="ad-wrap" id="main">
+  <div class="ad-head">
+    <h1>الشركات</h1>
+    <p>كل الشركات المسجَّلة وحالاتها. من هنا تُغيَّر حالة أي شركة في أي وقت.</p>
+  </div>
+  <div class="co-search">
+    <input id="q" type="search" placeholder="ابحث بالاسم أو المدينة أو الهاتف" aria-label="بحث">
+  </div>
+  <div class="ad-tabs" id="tabs"></div>
+  <div id="body"></div>
+</main>
+
+<script src="admin-core.js"></script>
+<script src="nav-admin.js"></script>
+<script>
+(function () {
+'use strict';
+const AD = window.AdminCore;
+const $ = (id) => document.getElementById(id);
+const esc = AD.esc, svg = AD.svg, I = AD.icons, when = AD.when;
+
+const STATUS = { approved:'معتمدة', pending:'قيد المراجعة', rejected:'مرفوضة' };
+const TABS = [ {k:'all',t:'الكل'}, {k:'pending',t:'قيد المراجعة'},
+               {k:'approved',t:'معتمدة'}, {k:'rejected',t:'مرفوضة'} ];
+let ALL = [], TAB = 'all', Q = '';
+
+$('body').innerHTML = AD.skeleton(4, 76);
+
+function visible() {
+  const q = Q.trim().toLowerCase();
+  return ALL.filter(c =>
+    (TAB === 'all' || c.status === TAB) &&
+    (!q || [c.name, c.city, c.phone, c.spec, c.email]
+      .some(v => String(v || '').toLowerCase().includes(q))));
+}
+
+function renderTabs() {
+  $('tabs').innerHTML = TABS.map(t => {
+    const n = t.k === 'all' ? ALL.length : ALL.filter(c => c.status === t.k).length;
+    return '<button class="ad-tab' + (TAB === t.k ? ' is-on' : '') +
+      '" type="button" data-tab="' + t.k + '">' + esc(t.t) +
+      ' <span class="ad-tab-n">' + n + '</span></button>';
+  }).join('');
+  $('tabs').querySelectorAll('[data-tab]').forEach(b => {
+    b.onclick = () => { TAB = b.dataset.tab; render(); };
+  });
+}
+
+function render() {
+  renderTabs();
+  const list = visible();
+  if (!list.length) {
+    $('body').className = '';
+    $('body').innerHTML = AD.emptyState(
+      Q ? 'لا نتائج لهذا البحث' : 'لا شركات في هذه الحالة', '', '', I.building);
+    return;
+  }
+  $('body').className = 'ad-list';
+  $('body').innerHTML = list.map(c => {
+    const acts = [];
+    if (c.status !== 'approved')
+      acts.push('<button class="bn-btn bn-btn-sm" type="button" data-set="approved" data-id="' + esc(c.id) + '">اعتماد</button>');
+    if (c.status !== 'rejected')
+      acts.push('<button class="bn-btn bn-btn-sm bn-btn-ghost ad-btn-danger" type="button" data-set="rejected" data-id="' + esc(c.id) + '">رفض</button>');
+    if (c.status !== 'pending')
+      acts.push('<button class="bn-btn bn-btn-sm bn-btn-ghost" type="button" data-set="pending" data-id="' + esc(c.id) + '">إعادة للمراجعة</button>');
+    return '<div class="ad-item bn-solid">' +
+      (c.image_url
+        ? '<div class="ad-av"><img src="' + esc(c.image_url) + '" alt=""></div>'
+        : '<div class="ad-av">' + esc(AD.initials(c.name)) + '</div>') +
+      '<div class="ad-item-b">' +
+        '<div class="ad-item-t">' + esc(c.name) + '</div>' +
+        '<div class="ad-item-m">' +
+          '<span class="ad-tag ' + (c.status === 'approved' ? 'ad-tag-on' : 'ad-tag-off') + '">' +
+            esc(STATUS[c.status] || c.status) + '</span>' +
+          (c.city ? '<i>' + svg(I.pin, 11) + esc(c.city) + '</i>' : '') +
+          (c.phone ? '<i dir="ltr">' + esc(c.phone) + '</i>' : '') +
+        '</div>' +
+      '</div>' +
+      '<div class="ad-item-act">' + acts.join('') + '</div></div>';
+  }).join('');
+
+  $('body').querySelectorAll('[data-set]').forEach(b => {
+    b.onclick = async function () {
+      const btn = this, to = btn.dataset.set;
+      if (to === 'rejected' && !await AD.confirm('رفض الشركة',
+        'لن تظهر في الدليل العام.', 'رفض')) return;
+      AD.runAction(btn,
+        () => AD.api('/companies/' + btn.dataset.id + '/status',
+          { method: 'PUT', body: { status: to } }),
+        { loading: 'جارٍ', success: 'تمّ', then: load });
+    };
+  });
+}
+
+$('q').oninput = function () { Q = this.value; render(); };
+
+async function load() {
+  try {
+    ALL = await AD.api('/admin/companies');
+    render();
+    if (window.BunyanNavAdmin) window.BunyanNavAdmin.refreshCounts();
+  } catch (e) {
+    $('body').className = '';
+    $('body').innerHTML = AD.errorState(AD.errText(e));
+    AD.onRetry($('body'), load);
+  }
+}
+load();
+})();
+</script>
+</body>
+</html>

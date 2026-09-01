@@ -3088,6 +3088,38 @@ def admin_reject_review(review_id: int, request: Request):
 
 # ── PHASE 8 Part D (admin): Activity log ──────────────────────────────────────
 
+@app.get("/admin/audit-log")
+def admin_audit_log(request: Request, limit: int = 200):
+    """
+    سجل التدقيق الأمني — security_audit_log.
+
+    كان الجدول يُكتَب ولا يُقرأ: system-status يعدّ صفوفه، ولا مسار
+    يعرضها. فشاشة «سجل التدقيق» كانت تقرأ activity_log (نشاط
+    الشركات) وتظهر فارغة بينما ١٦٥ حدثاً أمنياً مسجَّل.
+
+    ip_hash لا يُعاد: تجزئة العنوان تكفي للربط بين الأحداث ولا
+    حاجة لتسريبها إلى الواجهة.
+    """
+    require_admin(request)
+    limit = min(max(limit, 1), 500)
+    with SessionLocal() as db:
+        rows = db.execute(text("""
+            SELECT id, actor_type, actor_id, action, user_agent, meta, created_at
+            FROM security_audit_log
+            ORDER BY created_at DESC
+            LIMIT :lim
+        """), {"lim": limit}).mappings().fetchall()
+    return [{
+        "id":         r["id"],
+        "actor_type": r["actor_type"],
+        "actor_id":   r["actor_id"],
+        "action":     r["action"],
+        "user_agent": (r["user_agent"] or "")[:180],
+        "meta":       r["meta"],
+        "created_at": str(r["created_at"]),
+    } for r in rows]
+
+
 @app.get("/admin/activity")
 def admin_activity(request: Request):
     require_admin(request)
