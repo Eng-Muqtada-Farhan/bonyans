@@ -1,0 +1,163 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>عروضي — بُنيان</title>
+<meta name="robots" content="noindex, nofollow">
+<meta name="theme-color" content="#F4F2ED" media="(prefers-color-scheme: light)">
+<meta name="theme-color" content="#15120E" media="(prefers-color-scheme: dark)">
+<link rel="stylesheet" href="../tokens.css">
+<script>
+  (function(){ var t=localStorage.getItem('bn-theme')||'light';
+    document.documentElement.setAttribute('data-theme',t); })();
+</script>
+<script src="../guard.js" data-require="company"></script>
+<style>
+.bd-tabs { display:flex; gap:var(--bn-s2); flex-wrap:wrap; margin-block-end:var(--bn-s5); }
+.bd-tab { min-height:44px; padding-inline:var(--bn-s4); border-radius:var(--bn-r-pill);
+  border:1px solid var(--bn-line); background:transparent; cursor:pointer;
+  color:var(--bn-ink-2); font:400 13px/1 var(--bn-font);
+  display:inline-flex; align-items:center; gap:7px;
+  transition:color var(--bn-fast), border-color var(--bn-fast), background var(--bn-fast); }
+.bd-tab:hover { color:var(--bn-ac); border-color:var(--bn-ac-line); }
+.bd-tab.is-on { background:var(--bn-ac); color:var(--bn-ac-on); border-color:transparent; }
+.bd-n { font:500 11px/1 var(--bn-mono); font-variant-numeric:tabular-nums; opacity:.72; }
+
+.bd { padding:var(--bn-s5); border-radius:var(--bn-r-lg); }
+.bd.is-won { border-color:var(--bn-ac); }
+.bd-h { display:flex; align-items:flex-start; justify-content:space-between;
+  gap:var(--bn-s4); flex-wrap:wrap; }
+.bd-t { font:500 15px/1.5 var(--bn-font); margin:0 0 5px; }
+.bd-p { text-align:end; }
+.bd-p-n { font:700 19px/1.2 var(--bn-mono); color:var(--bn-ac);
+  font-variant-numeric:tabular-nums; direction:ltr; display:block; }
+.bd-p-d { font:var(--bn-t-cap); color:var(--bn-ink-3); margin-block-start:3px; }
+.bd-m { font-size:13.5px; color:var(--bn-ink-2); line-height:1.8;
+  margin:var(--bn-s3) 0 0; padding:var(--bn-s3) var(--bn-s4);
+  border-radius:var(--bn-r); background:var(--bn-glass-tint); }
+.bd-f { display:flex; align-items:center; justify-content:space-between; gap:var(--bn-s3);
+  flex-wrap:wrap; margin-block-start:var(--bn-s4); padding-block-start:var(--bn-s3);
+  border-block-start:1px solid var(--bn-line-soft); }
+</style>
+</head>
+<body class="bn-body">
+
+<div class="bn-backdrop" aria-hidden="true"></div>
+
+<main class="ac-wrap" id="main">
+  <div class="ac-head">
+    <h1>عروضي</h1>
+    <p>كل عرض قدّمته وحاله. القرار لصاحب المشروع، ويظهر هنا حين يتّخذه.</p>
+  </div>
+  <div class="bd-tabs" id="tabs"></div>
+  <div id="body"></div>
+</main>
+
+<script src="app-core.js"></script>
+<script src="nav-app.js"></script>
+<script>
+(function () {
+'use strict';
+const AC = window.AppCore;
+const $ = (id) => document.getElementById(id);
+const esc = AC.esc, svg = AC.svg, I = AC.icons, num = AC.num, when = AC.when;
+
+/* حالات العرض كما يكتبها الخادم: submitted/pending عند الإرسال،
+   ثم accepted أو rejected عند اختيار صاحب المشروع. */
+const LABEL = { submitted:'قيد النظر', pending:'قيد النظر',
+                accepted:'مقبول', rejected:'لم يُختَر' };
+const TABS = [
+  { k:'all',      t:'الكل' },
+  { k:'open',     t:'قيد النظر' },
+  { k:'accepted', t:'مقبولة' },
+  { k:'rejected', t:'لم تُختَر' }
+];
+let BIDS = [], TAB = 'all';
+
+$('body').innerHTML = AC.skeleton(3, 130);
+
+const isOpen = (b) => b.status === 'submitted' || b.status === 'pending';
+function bucket(b) { return isOpen(b) ? 'open' : b.status; }
+
+/* /company/bids يرجع budget_min و budget_max للمشروع — لا حاجة
+   لمغادرة السطح لمعرفة نطاقه. */
+function budgetText(b) {
+  if (b.budget_min != null && b.budget_max != null) return num(b.budget_min) + ' – ' + num(b.budget_max);
+  if (b.budget_min != null) return num(b.budget_min) + '+';
+  if (b.budget_max != null) return '≤ ' + num(b.budget_max);
+  return 'غير محدَّدة';
+}
+
+function renderTabs() {
+  $('tabs').innerHTML = TABS.map(t => {
+    const n = t.k === 'all' ? BIDS.length : BIDS.filter(b => bucket(b) === t.k).length;
+    return '<button class="bd-tab' + (TAB === t.k ? ' is-on' : '') +
+      '" type="button" data-tab="' + t.k + '">' + esc(t.t) +
+      ' <span class="bd-n">' + n + '</span></button>';
+  }).join('');
+  $('tabs').querySelectorAll('[data-tab]').forEach(b => {
+    b.onclick = () => { TAB = b.dataset.tab; render(); };
+  });
+}
+
+function render() {
+  renderTabs();
+  const list = TAB === 'all' ? BIDS : BIDS.filter(b => bucket(b) === TAB);
+
+  if (!BIDS.length) {
+    $('body').className = '';
+    $('body').innerHTML = AC.emptyState('لم تقدّم عرضاً بعد',
+      'تصفّح سوق المشاريع وقدّم عرضك الأول.',
+      '<a class="bn-btn" href="market.html">سوق المشاريع</a>', I.bid);
+    return;
+  }
+  if (!list.length) {
+    $('body').className = '';
+    $('body').innerHTML = AC.emptyState('لا عروض في هذه الحالة', '', '', I.bid);
+    return;
+  }
+
+  $('body').className = 'ac-list';
+  $('body').innerHTML = list.map(b => {
+    const won = b.status === 'accepted';
+    return '<div class="bd bn-solid' + (won ? ' is-won' : '') + '">' +
+      '<div class="bd-h">' +
+        '<div style="min-width:0;flex:1">' +
+          '<h3 class="bd-t">' + esc(b.project_title || 'مشروع') + '</h3>' +
+          '<div class="ac-item-m">' +
+            (b.project_city ? '<i>' + svg(I.pin, 11) + esc(b.project_city) + '</i>' : '') +
+            '<i>' + svg(I.clock, 11) + esc(when(b.created_at, {year:'numeric',month:'long'})) + '</i>' +
+          '</div>' +
+        '</div>' +
+        '<div class="bd-p"><span class="bd-p-n">' + esc(num(b.price)) + '</span>' +
+          '<span class="bd-p-d">دينار' +
+            (b.duration_days ? ' · ' + b.duration_days + ' يوماً' : '') + '</span></div>' +
+      '</div>' +
+      (b.message ? '<p class="bd-m">' + esc(b.message) + '</p>' : '') +
+      /* لا رابط إلى صفحة المشروع العامّة: العزل بنيوي.
+         ما يحتاجه صاحب العرض معروض هنا من ردّ /company/bids نفسه. */
+      '<div class="bd-f">' +
+        '<span class="ac-tag ' + (won ? 'ac-tag-on' : 'ac-tag-off') + '">' +
+          (won ? svg(I.check, 11) : '') + esc(LABEL[b.status] || b.status) + '</span>' +
+        '<span class="ac-item-m"><i>' + svg(I.market, 11) +
+          'ميزانية المشروع: ' + esc(budgetText(b)) + '</i></span>' +
+      '</div></div>';
+  }).join('');
+}
+
+async function load() {
+  try {
+    BIDS = await AC.api('/company/bids');
+    render();
+  } catch (e) {
+    $('body').className = '';
+    $('body').innerHTML = AC.errorState(AC.errText(e));
+    AC.onRetry($('body'), load);
+  }
+}
+load();
+})();
+</script>
+</body>
+</html>

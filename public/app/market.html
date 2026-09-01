@@ -1,0 +1,221 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>سوق المشاريع — بُنيان</title>
+<meta name="robots" content="noindex, nofollow">
+<meta name="theme-color" content="#F4F2ED" media="(prefers-color-scheme: light)">
+<meta name="theme-color" content="#15120E" media="(prefers-color-scheme: dark)">
+<link rel="stylesheet" href="../tokens.css">
+<script>
+  (function(){ var t=localStorage.getItem('bn-theme')||'light';
+    document.documentElement.setAttribute('data-theme',t); })();
+</script>
+<script src="../guard.js" data-require="company"></script>
+<style>
+.mk-filters { display:flex; gap:var(--bn-s2); overflow-x:auto; padding-block-end:var(--bn-s2);
+  margin-block-end:var(--bn-s5); scrollbar-width:none; }
+.mk-filters::-webkit-scrollbar { display:none; }
+.mk-pill { flex:none; display:inline-flex; align-items:center; gap:7px; min-height:44px;
+  padding-inline:var(--bn-s4); border-radius:var(--bn-r-pill); border:1px solid var(--bn-line);
+  background:transparent; cursor:pointer; color:var(--bn-ink-2);
+  font:400 13px/1 var(--bn-font); white-space:nowrap;
+  transition:border-color var(--bn-fast), color var(--bn-fast), background var(--bn-fast); }
+.mk-pill:hover:not([disabled]) { border-color:var(--bn-ac-line); color:var(--bn-ac); }
+.mk-pill.is-on { background:var(--bn-ac); color:var(--bn-ac-on); border-color:transparent; }
+.mk-pill[disabled] { opacity:.42; cursor:not-allowed; }
+.mk-n { font:500 11px/1 var(--bn-mono); font-variant-numeric:tabular-nums; opacity:.72; }
+
+.mk-cards { display:grid; grid-template-columns:repeat(auto-fill,minmax(280px,1fr));
+  gap:var(--bn-s3); }
+.mk-card { display:flex; flex-direction:column; gap:var(--bn-s3); padding:var(--bn-s5);
+  border-radius:var(--bn-r-lg); }
+.mk-top { display:flex; align-items:center; justify-content:space-between; gap:var(--bn-s3); }
+.mk-t { font:600 15.5px/1.5 var(--bn-font); margin:0;
+  display:-webkit-box; -webkit-line-clamp:2; -webkit-box-orient:vertical; overflow:hidden; }
+.mk-bud { display:flex; align-items:baseline; gap:7px; flex-wrap:wrap; margin-block-start:auto; }
+.mk-bud-n { font:700 20px/1.2 var(--bn-mono); color:var(--bn-ac);
+  font-variant-numeric:tabular-nums; direction:ltr; }
+.mk-bud-c { font:var(--bn-t-cap); color:var(--bn-ink-3); }
+.mk-m { display:flex; align-items:center; gap:var(--bn-s4); flex-wrap:wrap;
+  padding-block-start:var(--bn-s3); border-block-start:1px solid var(--bn-line-soft);
+  font:var(--bn-t-cap); color:var(--bn-ink-2); }
+.mk-m i { display:inline-flex; align-items:center; gap:5px; font-style:normal; }
+.mk-act { display:flex; gap:var(--bn-s2); }
+.mk-act .bn-btn { flex:1; }
+</style>
+</head>
+<body class="bn-body">
+
+<div class="bn-backdrop" aria-hidden="true"></div>
+
+<main class="ac-wrap" id="main">
+  <div class="ac-head">
+    <h1>سوق المشاريع</h1>
+    <p>مشاريع مفتوحة للعروض. قدّم عرضك مباشرة — عرض واحد لكل مشروع.</p>
+  </div>
+  <div id="quota"></div>
+  <div class="mk-filters" id="filters"></div>
+  <div id="body"></div>
+</main>
+
+<script src="app-core.js"></script>
+<script src="nav-app.js"></script>
+<script>
+(function () {
+'use strict';
+const AC = window.AppCore;
+const $ = (id) => document.getElementById(id);
+const esc = AC.esc, svg = AC.svg, I = AC.icons, num = AC.num;
+
+/* ══ السوق من منظور الشركة ══
+   الفلترة على الخادم (city + category)، والعدّاد من total الذي
+   يحسبه الخادم بالشرط نفسه — لا عدّ في المتصفّح. */
+
+let CITY = '', ALL = [], MYBIDS = new Set(), QUOTA = null;
+
+$('body').innerHTML = AC.skeleton(3, 150);
+
+function budget(p) {
+  const f = (n) => num(n);
+  let t = null;
+  if (p.budget_min != null && p.budget_max != null) t = f(p.budget_min) + ' – ' + f(p.budget_max);
+  else if (p.budget_min != null) t = f(p.budget_min) + '+';
+  else if (p.budget_max != null) t = '≤ ' + f(p.budget_max);
+  return t === null
+    ? '<div class="mk-bud"><span class="mk-bud-c">الميزانية غير محدَّدة</span></div>'
+    : '<div class="mk-bud"><span class="mk-bud-n">' + esc(t) + '</span>' +
+      '<span class="mk-bud-c">دينار</span></div>';
+}
+
+function quotaHTML(q) {
+  if (!q) return '';
+  if (q.leads_unlimited) return '';
+  const left = Math.max(0, q.leads_max - q.leads_used_this_month);
+  return '<div class="ac-stat bn-solid" style="margin-block-end:var(--bn-s5)">' +
+    '<div class="ac-stat-l">' + svg(I.market, 13) + ' فرص هذا الشهر</div>' +
+    '<div class="ac-stat-n">' + left + ' / ' + q.leads_max + '</div>' +
+    '<div class="ac-stat-d">' + (left ? 'متبقّية لك' :
+      'استنفدت فرص هذا الشهر — الترقية تفتح المزيد') + '</div></div>';
+}
+
+function renderFilters() {
+  const counts = {};
+  ALL.forEach(p => { if (p.city) counts[p.city] = (counts[p.city] || 0) + 1; });
+  const pills = ['<button class="mk-pill' + (CITY ? '' : ' is-on') + '" type="button" data-city="">' +
+    'كل المدن <span class="mk-n">' + ALL.length + '</span></button>'];
+  Object.keys(counts).sort().forEach(c => {
+    pills.push('<button class="mk-pill' + (CITY === c ? ' is-on' : '') +
+      '" type="button" data-city="' + esc(c) + '">' + esc(c) +
+      ' <span class="mk-n">' + counts[c] + '</span></button>');
+  });
+  $('filters').innerHTML = pills.join('');
+  $('filters').querySelectorAll('[data-city]').forEach(b => {
+    b.onclick = () => { CITY = b.dataset.city; load(false); };
+  });
+}
+
+function render(items) {
+  if (!items.length) {
+    $('body').className = '';
+    $('body').innerHTML = CITY
+      ? AC.emptyState('لا مشاريع في ' + CITY,
+          'جرّب مدينة أخرى أو أزل الفلتر.',
+          '<button class="bn-btn" type="button" data-clear>كل المدن</button>', I.market)
+      : AC.emptyState('لا مشاريع مفتوحة الآن',
+          'حين ينشر أصحاب المشاريع مشاريعهم ستظهر هنا.', '', I.market);
+    const c = $('body').querySelector('[data-clear]');
+    if (c) c.onclick = () => { CITY = ''; load(false); };
+    return;
+  }
+  $('body').className = 'mk-cards';
+  $('body').innerHTML = items.map(p => {
+    const bid = MYBIDS.has(String(p.id));
+    return '<div class="mk-card bn-solid">' +
+      '<div class="mk-top">' +
+        '<span class="ac-tag ' + (bid ? 'ac-tag-on' : 'ac-tag-off') + '">' +
+          (bid ? 'قدّمت عرضاً' : 'مفتوح للعروض') + '</span>' +
+        '<span class="ac-item-m"><i>' + svg(I.bid, 12) + p.bids_count +
+          (p.bids_count === 1 ? ' عرض' : ' عروض') + '</i></span>' +
+      '</div>' +
+      '<h3 class="mk-t">' + esc(p.title) + '</h3>' +
+      budget(p) +
+      '<div class="mk-m">' +
+        (p.city ? '<i>' + svg(I.pin, 12) + esc(p.city) + '</i>' : '') +
+        (p.category ? '<i>' + svg(I.tag, 12) + esc(p.category) + '</i>' : '') +
+      '</div>' +
+      '<div class="mk-act">' +
+        (bid
+          ? '<a class="bn-btn bn-btn-ghost bn-btn-sm" href="bids.html">عرضي</a>'
+          : '<button class="bn-btn bn-btn-sm" type="button" data-bid="' + esc(p.id) + '">قدّم عرضاً</button>') +
+      '</div></div>';
+  }).join('');
+
+  $('body').querySelectorAll('[data-bid]').forEach(b => {
+    b.onclick = () => bidSheet(b.dataset.bid, items.find(p => String(p.id) === b.dataset.bid));
+  });
+}
+
+function bidSheet(id, project) {
+  const s = AC.sheet('عرض على: ' + (project ? project.title : ''),
+    '<div class="ac-f2">' +
+      '<div class="ac-fr"><label for="bP">السعر (دينار) *</label>' +
+        '<input id="bP" type="number" min="1" step="1000" dir="ltr" inputmode="numeric"></div>' +
+      '<div class="ac-fr"><label for="bD">المدة (يوماً)</label>' +
+        '<input id="bD" type="number" min="1" step="1" dir="ltr" inputmode="numeric"></div>' +
+    '</div>' +
+    '<div class="ac-fr"><label for="bM">رسالة لصاحب المشروع</label>' +
+      '<textarea id="bM" maxlength="1000" placeholder="ما يميّز عرضك — الخبرة، المواد، الضمان"></textarea></div>' +
+    '<div class="ac-row-end"><button class="bn-btn" type="button" data-ok>إرسال العرض</button></div>');
+
+  s.el.querySelector('[data-ok]').onclick = async function () {
+    const price = Number(s.el.querySelector('#bP').value);
+    if (!price || price <= 0) { AC.toast('أدخل سعراً صالحاً.', 'err'); return; }
+    this.disabled = true; this.textContent = 'جارٍ الإرسال...';
+    try {
+      await AC.api('/projects/' + encodeURIComponent(id) + '/bid', { method:'POST', body: {
+        price: price,
+        duration_days: s.el.querySelector('#bD').value ? Number(s.el.querySelector('#bD').value) : null,
+        message: s.el.querySelector('#bM').value.trim() || ''
+      }});
+      s.close();
+      AC.toast('أُرسل عرضك.');
+      load(true);
+    } catch (e) {
+      this.disabled = false; this.textContent = 'إرسال العرض';
+      AC.toast(AC.errText(e), 'err');
+    }
+  };
+}
+
+async function load(refreshQuota) {
+  try {
+    const q = new URLSearchParams({ per_page: '60' });
+    if (CITY) q.set('city', CITY);
+
+    const [listed, all, bids, quota] = await Promise.all([
+      AC.api('/projects?' + q),
+      CITY ? AC.api('/projects?per_page=100') : null,
+      (refreshQuota || !MYBIDS.size) ? AC.api('/company/bids').catch(() => []) : null,
+      (refreshQuota || !QUOTA) ? AC.api('/company/subscription/usage').catch(() => null) : null
+    ]);
+
+    ALL = (all || listed).items;
+    if (bids) MYBIDS = new Set(bids.map(b => String(b.project_id)));
+    if (quota) QUOTA = quota;
+
+    $('quota').innerHTML = quotaHTML(QUOTA);
+    renderFilters();
+    render(listed.items);
+  } catch (e) {
+    $('body').className = '';
+    $('body').innerHTML = AC.errorState(AC.errText(e));
+    AC.onRetry($('body'), () => load(true));
+  }
+}
+load(true);
+})();
+</script>
+</body>
+</html>

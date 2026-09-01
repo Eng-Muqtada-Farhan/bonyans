@@ -1,0 +1,219 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>ملف شركتي — بُنيان</title>
+<meta name="robots" content="noindex, nofollow">
+<meta name="theme-color" content="#F4F2ED" media="(prefers-color-scheme: light)">
+<meta name="theme-color" content="#15120E" media="(prefers-color-scheme: dark)">
+<link rel="stylesheet" href="../tokens.css">
+<script>
+  (function(){ var t=localStorage.getItem('bn-theme')||'light';
+    document.documentElement.setAttribute('data-theme',t); })();
+</script>
+<script src="../guard.js" data-require="company"></script>
+<style>
+.pf-logo { display:flex; align-items:center; gap:var(--bn-s4);
+  margin-block-end:var(--bn-s6); }
+.pf-av { width:88px; height:88px; border-radius:var(--bn-r-lg); flex:none;
+  display:grid; place-items:center; overflow:hidden;
+  background:var(--bn-ac-bg); color:var(--bn-ac);
+  border:1px solid var(--bn-ac-line); font:700 30px/1 var(--bn-font); }
+.pf-av img { width:100%; height:100%; object-fit:cover; }
+.pf-logo-b { display:flex; flex-direction:column; gap:var(--bn-s2); align-items:flex-start; }
+.pf-hint { font:var(--bn-t-cap); color:var(--bn-ink-3); line-height:1.7; max-width:40ch; }
+/* «معاينة ملفي العام» — الاستثناء المعتمد الوحيد (DESIGN §٤):
+   يعيش هنا بجوار الحفظ، ويفتح في لسان جديد فلا تُغادَر اللوحة. */
+.pf-actions { display:flex; align-items:center; justify-content:flex-end;
+  gap:var(--bn-s2); flex-wrap:wrap; margin-block-start:var(--bn-s6);
+  padding-block-start:var(--bn-s5); border-block-start:1px solid var(--bn-line-soft); }
+.pf-preview { display:inline-flex; align-items:center; justify-content:center; gap:7px;
+  min-height:44px; padding-inline:var(--bn-s4); border:1px solid var(--bn-line);
+  border-radius:var(--bn-r); background:transparent; color:var(--bn-ink-2);
+  text-decoration:none; font:400 13.5px/1 var(--bn-font);
+  transition:color var(--bn-fast), border-color var(--bn-fast); }
+.pf-preview:hover { color:var(--bn-ac); border-color:var(--bn-ac-line); }
+</style>
+</head>
+<body class="bn-body">
+
+<div class="bn-backdrop" aria-hidden="true"></div>
+
+<main class="ac-wrap" id="main">
+  <div class="ac-head">
+    <h1>ملف شركتي</h1>
+    <p>هذه البيانات هي ما يراه عميلك في صفحتك العامّة. الحقل الفارغ لا يُعرض عليه.</p>
+  </div>
+  <div id="body">
+    <div class="ac-skel" style="height:88px"></div>
+    <div class="ac-skel" style="height:300px"></div>
+  </div>
+</main>
+
+<script src="app-core.js"></script>
+<script src="nav-app.js"></script>
+<script>
+(function () {
+'use strict';
+const AC = window.AppCore;
+const $ = (id) => document.getElementById(id);
+const esc = AC.esc, svg = AC.svg, I = AC.icons;
+
+const CITIES = ['بغداد','البصرة','أربيل','الموصل','النجف','كربلاء','السليمانية',
+                'دهوك','كركوك','الأنبار','بابل','ذي قار','ديالى','واسط',
+                'ميسان','المثنى','القادسية','صلاح الدين'];
+
+let ME = null, logoURL = '';
+
+function field(id, label, value, opts) {
+  opts = opts || {};
+  const tag = opts.textarea ? 'textarea' : 'input';
+  return '<div class="ac-fr"><label for="' + id + '">' + esc(label) + '</label>' +
+    '<' + tag + ' id="' + id + '"' +
+      (opts.type ? ' type="' + opts.type + '"' : '') +
+      (opts.dir ? ' dir="' + opts.dir + '"' : '') +
+      (opts.max ? ' maxlength="' + opts.max + '"' : '') +
+      (opts.ph ? ' placeholder="' + esc(opts.ph) + '"' : '') +
+      (opts.textarea ? '>' + esc(value || '') + '</textarea>'
+                     : ' value="' + esc(value || '') + '">') +
+    (opts.hint ? '<div class="ac-fr-hint">' + esc(opts.hint) + '</div>' : '') +
+    '</div>';
+}
+
+function render(me) {
+  ME = me;
+  logoURL = me.image_url || '';
+  $('body').className = '';
+  $('body').innerHTML =
+    '<div class="pf-logo">' +
+      '<div class="pf-av" id="av">' +
+        (logoURL ? '<img src="' + esc(logoURL) + '" alt="">' : esc(AC.initials(me.name))) +
+      '</div>' +
+      '<div class="pf-logo-b">' +
+        '<button class="bn-btn bn-btn-ghost bn-btn-sm" type="button" id="pickLogo">' +
+          svg(I.upload, 15) + ' رفع شعار</button>' +
+        (logoURL ? '<button class="bn-btn bn-btn-ghost bn-btn-sm" type="button" id="rmLogo">' +
+          svg(I.trash, 14) + ' إزالة</button>' : '') +
+        '<span class="pf-hint">مربّع الحرف يظهر ما لم يُرفع شعار — تمثيل نصّي لا صورة مزيّفة.</span>' +
+      '</div>' +
+      '<input type="file" id="logoFile" accept="image/*" hidden>' +
+    '</div>' +
+
+    '<form class="ac-form" id="form">' +
+      field('fName', 'اسم الشركة *', me.name, { max: 120 }) +
+      '<div class="ac-f2">' +
+        '<div class="ac-fr"><label for="fCity">المدينة</label><select id="fCity">' +
+          '<option value="">اختر المدينة</option>' +
+          CITIES.map(c => '<option' + (c === me.city ? ' selected' : '') + '>' + esc(c) + '</option>').join('') +
+        '</select></div>' +
+        '<div class="ac-fr"><label for="fSpec">التخصص</label>' +
+          '<select id="fSpec"><option value="">جارٍ التحميل...</option></select></div>' +
+      '</div>' +
+      '<div class="ac-f2">' +
+        field('fPhone', 'رقم الهاتف', me.phone, { dir:'ltr', ph:'07XXXXXXXXX',
+          hint:'يُستعمل لزر واتساب في صفحتك العامّة — رقم غير صالح لا يُبنى له زر.' }) +
+        field('fEmail', 'البريد الإلكتروني', me.email, { type:'email', dir:'ltr' }) +
+      '</div>' +
+      '<div class="ac-f2">' +
+        field('fWebsite', 'الموقع الإلكتروني', me.website, { dir:'ltr', ph:'https://' }) +
+        field('fMap', 'رابط الموقع على الخريطة', me.map_link, { dir:'ltr', ph:'https://maps.google.com/...' }) +
+      '</div>' +
+      field('fDesc', 'نبذة عن الشركة', me.desc || me.description, { textarea:true, max:2000,
+        ph:'خبرتكم، تخصصكم، ما يميّزكم' }) +
+
+      '<div class="pf-actions">' +
+        '<a class="pf-preview" href="../company_profile.html?id=' + esc(me.id) + '"' +
+          ' target="_blank" rel="noopener">' + svg(I.eye, 15) + ' معاينة ملفي العام</a>' +
+        '<button class="bn-btn" type="submit" id="saveBtn">حفظ التغييرات</button>' +
+      '</div>' +
+    '</form>';
+
+  wire();
+  loadSpecs(me.spec);
+}
+
+async function loadSpecs(current) {
+  const sel = document.getElementById('fSpec');
+  try {
+    const cats = await fetch('/categories').then(r => r.json());
+    sel.innerHTML = '<option value="">اختر التخصص</option>' +
+      cats.map(c => '<option' + (c.name_ar === current ? ' selected' : '') + '>' +
+        esc(c.name_ar) + '</option>').join('');
+  } catch (e) {
+    sel.innerHTML = '<option value="' + esc(current || '') + '" selected>' +
+      esc(current || 'تعذّر تحميل التخصصات') + '</option>';
+  }
+}
+
+function wire() {
+  const file = document.getElementById('logoFile');
+  document.getElementById('pickLogo').onclick = () => file.click();
+  file.onchange = async function () {
+    const f = this.files && this.files[0];
+    if (!f) return;
+    const btn = document.getElementById('pickLogo');
+    btn.disabled = true; btn.textContent = 'جارٍ الرفع...';
+    try {
+      logoURL = await AC.uploadImage(f);
+      document.getElementById('av').innerHTML = '<img src="' + esc(logoURL) + '" alt="">';
+      AC.toast('رُفع الشعار — اضغط حفظ لتثبيته.');
+    } catch (e) {
+      AC.toast(AC.errText(e), 'err');
+    } finally {
+      btn.disabled = false;
+      btn.innerHTML = svg(I.upload, 15) + ' رفع شعار';
+      this.value = '';
+    }
+  };
+  const rm = document.getElementById('rmLogo');
+  if (rm) rm.onclick = function () {
+    logoURL = '';
+    document.getElementById('av').innerHTML = esc(AC.initials(ME.name));
+    this.remove();
+    AC.toast('أُزيل الشعار — اضغط حفظ لتثبيته.');
+  };
+
+  document.getElementById('form').onsubmit = async function (e) {
+    e.preventDefault();
+    const name = document.getElementById('fName').value.trim();
+    if (!name) { AC.toast('اسم الشركة مطلوب.', 'err'); return; }
+    const btn = document.getElementById('saveBtn');
+    btn.disabled = true; btn.textContent = 'جارٍ الحفظ...';
+    try {
+      /* نصّ فارغ لا null: الخادم يُسقط null بوصفه «لم يُرسَل»،
+         فبلا هذا لا يستطيع أحد تفريغ حقل ملأه سابقاً. */
+      await AC.api('/company/me', { method:'PUT', body: {
+        name: name,
+        city: document.getElementById('fCity').value,
+        spec: document.getElementById('fSpec').value,
+        phone: document.getElementById('fPhone').value.trim(),
+        email: document.getElementById('fEmail').value.trim(),
+        website: document.getElementById('fWebsite').value.trim(),
+        map_link: document.getElementById('fMap').value.trim(),
+        desc: document.getElementById('fDesc').value.trim(),
+        image_url: logoURL
+      }});
+      AC.toast('حُفظت التغييرات.');
+    } catch (err) {
+      AC.toast(AC.errText(err), 'err');
+    } finally {
+      btn.disabled = false; btn.textContent = 'حفظ التغييرات';
+    }
+  };
+}
+
+async function load() {
+  try {
+    render(await AC.api('/company/me'));
+  } catch (e) {
+    $('body').className = '';
+    $('body').innerHTML = AC.errorState(AC.errText(e));
+    AC.onRetry($('body'), load);
+  }
+}
+load();
+})();
+</script>
+</body>
+</html>

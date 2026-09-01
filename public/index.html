@@ -655,7 +655,9 @@ async function submitCompany() {
 
     toast('تم تسجيل شركتك بنجاح');
     closeRegModal(); resetRegForm();
-    setTimeout(() => { location.href = 'company_dashboard.html'; }, 1600);
+    /* الوجهة صارت لوحة /app المفكَّكة — company_dashboard.html
+       الأحادية لم تعد سطح الشركة. */
+    setTimeout(() => { location.href = 'app/index.html'; }, 1600);
   } catch (err) {
     toast(err.message || 'حدث خطأ، أعد المحاولة', true);
   } finally {

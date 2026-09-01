@@ -1,0 +1,173 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>التقييمات — بُنيان</title>
+<meta name="robots" content="noindex, nofollow">
+<meta name="theme-color" content="#F4F2ED" media="(prefers-color-scheme: light)">
+<meta name="theme-color" content="#15120E" media="(prefers-color-scheme: dark)">
+<link rel="stylesheet" href="../tokens.css">
+<script>
+  (function(){ var t=localStorage.getItem('bn-theme')||'light';
+    document.documentElement.setAttribute('data-theme',t); })();
+</script>
+<script src="../guard.js" data-require="company"></script>
+<style>
+.rv-sum { display:flex; align-items:center; gap:var(--bn-s6); flex-wrap:wrap;
+  padding:var(--bn-s5); border-radius:var(--bn-r-lg); margin-block-end:var(--bn-s6); }
+.rv-avg { text-align:center; }
+.rv-avg-n { font:700 34px/1.1 var(--bn-mono); color:var(--bn-ac);
+  font-variant-numeric:tabular-nums; letter-spacing:-.02em; }
+.rv-avg-d { font:var(--bn-t-cap); color:var(--bn-ink-3); margin-block-start:4px; }
+.rv-bars { flex:1; min-width:200px; display:flex; flex-direction:column; gap:5px; }
+.rv-bar { display:flex; align-items:center; gap:var(--bn-s3); font:var(--bn-t-cap);
+  color:var(--bn-ink-3); }
+.rv-bar-t { flex:1; height:6px; border-radius:999px; background:var(--bn-line-soft);
+  overflow:hidden; }
+.rv-bar-t span { display:block; height:100%; background:var(--bn-ac); }
+.rv-bar-n { width:22px; text-align:end; font-variant-numeric:tabular-nums; }
+
+.rv { padding:var(--bn-s5); border-radius:var(--bn-r-lg); }
+.rv-h { display:flex; align-items:center; justify-content:space-between;
+  gap:var(--bn-s3); margin-block-end:var(--bn-s2); }
+.rv-who { font:500 14px/1.4 var(--bn-font); }
+.rv-when { font:var(--bn-t-cap); color:var(--bn-ink-3); margin-block-start:3px; }
+.stars { display:inline-flex; gap:2px; color:var(--bn-ac); flex:none; }
+.stars .off { color:var(--bn-ink-3); opacity:.4; }
+.rv-c { font-size:13.5px; color:var(--bn-ink-2); line-height:1.8; margin:8px 0 0; }
+.rv-reply { margin-block-start:var(--bn-s3); padding:var(--bn-s3) var(--bn-s4);
+  border-radius:var(--bn-r); background:var(--bn-ac-bg);
+  border-inline-start:2px solid var(--bn-ac-line); }
+.rv-reply-t { font:var(--bn-t-cap); color:var(--bn-ac); margin-block-end:5px; }
+.rv-reply p { font-size:13px; color:var(--bn-ink-2); line-height:1.75; margin:0; }
+.rv-f { margin-block-start:var(--bn-s4); padding-block-start:var(--bn-s3);
+  border-block-start:1px solid var(--bn-line-soft); display:flex;
+  justify-content:flex-end; }
+</style>
+</head>
+<body class="bn-body">
+
+<div class="bn-backdrop" aria-hidden="true"></div>
+
+<main class="ac-wrap" id="main">
+  <div class="ac-head">
+    <h1>التقييمات</h1>
+    <p>ما كتبه عملاؤك. ردّك يظهر تحت التقييم في صفحتك العامّة — ردٌّ مهذّب على نقد عادل أقوى من التقييم نفسه.</p>
+  </div>
+  <div id="sum"></div>
+  <div id="body"></div>
+</main>
+
+<script src="app-core.js"></script>
+<script src="nav-app.js"></script>
+<script>
+(function () {
+'use strict';
+const AC = window.AppCore;
+const $ = (id) => document.getElementById(id);
+const esc = AC.esc, svg = AC.svg, I = AC.icons, when = AC.when;
+
+let CID = null, REVIEWS = [];
+
+$('body').innerHTML = AC.skeleton(3, 120);
+
+function stars(n) {
+  let out = '';
+  for (let i = 1; i <= 5; i++) {
+    out += '<span class="' + (i <= Math.round(n) ? '' : 'off') + '">' + svg(I.star, 13) + '</span>';
+  }
+  return '<span class="stars">' + out + '</span>';
+}
+
+function renderSummary() {
+  const n = REVIEWS.length;
+  if (!n) { $('sum').innerHTML = ''; return; }
+  /* المعدّل من التقييمات المعروضة وحدها — لا من عمود rating
+     الذي افتراضه ٥ بلا مقيّم واحد (DESIGN §٥·٥). */
+  const avg = REVIEWS.reduce((s, r) => s + Number(r.rating || 0), 0) / n;
+  const buckets = [5,4,3,2,1].map(k => ({
+    k, c: REVIEWS.filter(r => Math.round(Number(r.rating)) === k).length
+  }));
+  $('sum').innerHTML = '<div class="rv-sum bn-solid">' +
+    '<div class="rv-avg"><div class="rv-avg-n">' + avg.toFixed(1) + '</div>' +
+      stars(avg) + '<div class="rv-avg-d">' + n + ' تقييم</div></div>' +
+    '<div class="rv-bars">' + buckets.map(b =>
+      '<div class="rv-bar"><span>' + b.k + '</span>' +
+        '<span class="rv-bar-t"><span style="width:' +
+          (n ? Math.round(b.c / n * 100) : 0) + '%"></span></span>' +
+        '<span class="rv-bar-n">' + b.c + '</span></div>').join('') +
+    '</div></div>';
+}
+
+function render() {
+  renderSummary();
+  if (!REVIEWS.length) {
+    $('body').className = '';
+    $('body').innerHTML = AC.emptyState('لا تقييمات بعد',
+      'التقييمات تأتي من عملاء تعاملوا معك عبر بُنيان.', '', I.star);
+    return;
+  }
+  $('body').className = 'ac-list';
+  $('body').innerHTML = REVIEWS.map(r =>
+    '<div class="rv bn-solid">' +
+      '<div class="rv-h">' +
+        '<div><div class="rv-who">' + esc(r.client_name) + '</div>' +
+          '<div class="rv-when">' + esc(when(r.created_at, {year:'numeric', month:'long'})) + '</div></div>' +
+        stars(Number(r.rating) || 0) +
+      '</div>' +
+      (r.comment ? '<p class="rv-c">' + esc(r.comment) + '</p>' : '') +
+      (r.reply
+        ? '<div class="rv-reply"><div class="rv-reply-t">ردّك</div>' +
+          '<p>' + esc(r.reply) + '</p></div>'
+        : '<div class="rv-f"><button class="bn-btn bn-btn-sm bn-btn-ghost" type="button"' +
+          ' data-reply="' + esc(r.id) + '">اكتب ردّاً</button></div>') +
+    '</div>').join('');
+
+  $('body').querySelectorAll('[data-reply]').forEach(b => {
+    b.onclick = () => replySheet(b.dataset.reply);
+  });
+}
+
+function replySheet(reviewId) {
+  const s = AC.sheet('ردّ على التقييم',
+    '<p class="ac-note" style="margin-block-end:var(--bn-s4)">' +
+      'يظهر ردّك تحت التقييم في صفحتك العامّة، ويقرؤه كل زائر.</p>' +
+    '<div class="ac-fr"><label for="rT">نصّ الردّ *</label>' +
+      '<textarea id="rT" maxlength="1000" placeholder="شكراً لملاحظتك — ..."></textarea></div>' +
+    '<div class="ac-row-end"><button class="bn-btn" type="button" data-ok>نشر الردّ</button></div>');
+
+  s.el.querySelector('[data-ok]').onclick = async function () {
+    const txt = s.el.querySelector('#rT').value.trim();
+    if (!txt) { AC.toast('اكتب نصّ الردّ.', 'err'); return; }
+    this.disabled = true; this.textContent = 'جارٍ النشر...';
+    try {
+      await AC.api('/reviews/' + encodeURIComponent(reviewId) + '/reply',
+        { method: 'POST', body: { reply: txt } });
+      s.close();
+      AC.toast('نُشر ردّك.');
+      load();
+    } catch (e) {
+      this.disabled = false; this.textContent = 'نشر الردّ';
+      AC.toast(AC.errText(e), 'err');
+    }
+  };
+}
+
+async function load() {
+  try {
+    if (!CID) CID = (await AC.api('/company/me')).id;
+    REVIEWS = await AC.api('/company/' + CID + '/reviews');
+    render();
+  } catch (e) {
+    $('sum').innerHTML = '';
+    $('body').className = '';
+    $('body').innerHTML = AC.errorState(AC.errText(e));
+    AC.onRetry($('body'), load);
+  }
+}
+load();
+})();
+</script>
+</body>
+</html>

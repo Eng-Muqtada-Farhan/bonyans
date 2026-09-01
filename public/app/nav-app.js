@@ -1,9 +1,9 @@
 /**
- * بُنيان — قائمة لوحة الشركة  ⛔ سطح مسوَّر
+ * بُنيان — قائمة لوحة الشركة  سطح مسوَّر
  * ═══════════════════════════════════════════════════════════════
  * المرجع: DESIGN.md §٤ §٥ §٦
  *
- * ⛔ قاعدة العزل ١ — لا رابط تصفّح للموقع العام في هذا الملف:
+ * قاعدة العزل ١ — لا رابط تصفّح للموقع العام في هذا الملف:
  *    لا دليل الشركات ولا سوق المشاريع ولا الصفحة الرئيسية،
  *    و«الشعار يؤدي إلى /app لا إلى /» (§٤ قاعدة ٤).
  *    العزل بنيوي: الرابط غير موجود أصلاً، لا مخفيّ بشرط.
@@ -81,6 +81,7 @@
   border-inline-end:1px solid var(--bn-glass-line);transition:transform var(--bn-mid)}
 .bna-head{padding:var(--bn-s5) var(--bn-s5) var(--bn-s4)}
 .bna-logo{display:inline-flex;align-items:center;gap:8px;text-decoration:none;
+  min-height:44px;
   color:var(--bn-ink);font:700 19px/1 var(--bn-font)}
 .bna-logo b{color:var(--bn-ac)}
 .bna-id{margin-block-start:var(--bn-s3)}
@@ -102,7 +103,7 @@
   border:0;background:0;color:var(--bn-ink-2);cursor:pointer;border-radius:var(--bn-r-sm);
   transition:color var(--bn-fast),background var(--bn-fast)}
 .bna-icon:hover{color:var(--bn-ac);background:var(--bn-ac-bg)}
-.bna-scrim{position:fixed;inset:0;z-index:295;background:rgba(0,0,0,.42);
+.bna-scrim{position:fixed;inset:0;z-index:295;background:var(--bn-scrim);
   opacity:0;pointer-events:none;transition:opacity var(--bn-mid)}
 
 body{padding-inline-start:244px}

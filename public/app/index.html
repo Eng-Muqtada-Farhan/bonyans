@@ -3,34 +3,171 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>لوحة الشركة — بُنيان</title>
+<title>لوحة القيادة — بُنيان</title>
+<meta name="robots" content="noindex, nofollow">
+<meta name="theme-color" content="#F4F2ED" media="(prefers-color-scheme: light)">
+<meta name="theme-color" content="#15120E" media="(prefers-color-scheme: dark)">
 <link rel="stylesheet" href="../tokens.css">
 <script>
   (function(){ var t=localStorage.getItem('bn-theme')||'light';
     document.documentElement.setAttribute('data-theme',t); })();
 </script>
-<style>
-  body { margin:0; background:var(--bn-bg); color:var(--bn-ink); font:var(--bn-t-body); }
-  .ph { padding: var(--bn-s10) var(--bn-s6); max-width: 62ch; }
-  .ph h1 { font: var(--bn-t-h1); margin: 0 0 var(--bn-s3); }
-  .ph p  { color: var(--bn-ink-2); margin: 0 0 var(--bn-s3); }
-</style>
 <script src="../guard.js" data-require="company"></script>
+<style>
+.dash-hero { display:flex; align-items:center; gap:var(--bn-s5);
+  margin-block-end:var(--bn-s8); }
+.dash-av { width:64px; height:64px; border-radius:var(--bn-r-lg); flex:none;
+  display:grid; place-items:center; overflow:hidden;
+  background:var(--bn-ac-bg); color:var(--bn-ac);
+  border:1px solid var(--bn-ac-line); font:700 24px/1 var(--bn-font); }
+.dash-av img { width:100%; height:100%; object-fit:cover; }
+.dash-n { font:var(--bn-t-h2); margin:0 0 5px; display:flex; align-items:center;
+  gap:8px; flex-wrap:wrap; }
+.dash-m { font:var(--bn-t-sm); color:var(--bn-ink-3); display:flex;
+  align-items:center; gap:var(--bn-s3); flex-wrap:wrap; }
+.dash-m i { display:inline-flex; align-items:center; gap:5px; font-style:normal; }
+@media(max-width:560px){ .dash-av{width:52px;height:52px;font-size:20px} .dash-n{font-size:20px} }
+
+.dash-quick { display:grid; grid-template-columns:repeat(auto-fit,minmax(190px,1fr));
+  gap:var(--bn-s3); }
+.qa { display:flex; align-items:center; gap:var(--bn-s3); padding:var(--bn-s4);
+  border-radius:var(--bn-r-lg); text-decoration:none; color:inherit; min-height:44px;
+  transition:border-color var(--bn-fast), transform var(--bn-fast); }
+.qa:hover { border-color:var(--bn-ac-line); transform:translateY(-2px); }
+.qa-i { width:38px; height:38px; flex:none; display:grid; place-items:center;
+  border-radius:var(--bn-r-sm); background:var(--bn-ac-bg); color:var(--bn-ac); }
+.qa-t { font:500 14px/1.4 var(--bn-font); }
+.qa-d { font:var(--bn-t-cap); color:var(--bn-ink-3); margin-block-start:3px; }
+</style>
 </head>
 <body class="bn-body">
 
 <div class="bn-backdrop" aria-hidden="true"></div>
 
-<div id="bn-nav"></div>
-
-<main class="ph">
-  <h1>لوحة الشركة</h1>
-  <p>صفحة مؤقتة — نقطة تركيب القائمة فقط. المحتوى يُبنى في الخطوة ٦
-     بتفكيك <code>company_dashboard.html</code>.</p>
-  <p>هذا السطح مسوَّر: لا رابط للموقع العام في القائمة، والشعار يؤدي
-     إلى لوحة القيادة.</p>
+<main class="ac-wrap" id="main">
+  <div id="hero"></div>
+  <section class="ac-sec"><h2 class="ac-sec-t">أرقامك</h2><div id="stats"></div></section>
+  <section class="ac-sec"><h2 class="ac-sec-t">إجراءات سريعة</h2><div id="quick"></div></section>
+  <section class="ac-sec"><h2 class="ac-sec-t">آخر النشاط</h2><div id="activity"></div></section>
 </main>
 
+<script src="app-core.js"></script>
 <script src="nav-app.js"></script>
+<script>
+(function () {
+'use strict';
+const AC = window.AppCore;
+const $ = (id) => document.getElementById(id);
+const esc = AC.esc, svg = AC.svg, I = AC.icons, num = AC.num, when = AC.when;
+
+/* ══ لوحة القيادة — كل رقم من نداء حقيقي، ولا رقم بلا مصدر ══ */
+
+$('hero').innerHTML = '<div class="ac-skel" style="height:64px"></div>';
+$('stats').innerHTML = AC.skeleton(4, 92);
+$('activity').innerHTML = AC.skeleton(3, 60);
+
+function statCard(label, icon, value, note) {
+  return '<div class="ac-stat bn-solid">' +
+    '<div class="ac-stat-l">' + svg(icon, 13) + esc(label) + '</div>' +
+    '<div class="ac-stat-n">' + esc(value) + '</div>' +
+    (note ? '<div class="ac-stat-d">' + esc(note) + '</div>' : '') + '</div>';
+}
+
+/* الإجراءات السريعة — كلها وجهات داخل /app، لا رابط عام */
+const QUICK = [
+  { href:'profile.html',  icon:I.building, t:'ملف شركتي',    d:'الاسم والوصف ووسائل التواصل' },
+  { href:'gallery.html',  icon:I.image,    t:'معرض الأعمال',  d:'ارفع صور مشاريعك' },
+  { href:'market.html',   icon:I.market,   t:'سوق المشاريع',  d:'مشاريع مفتوحة للعروض' },
+  { href:'messages.html', icon:I.chat,     t:'الرسائل',       d:'محادثاتك مع العملاء' }
+];
+$('quick').className = 'dash-quick';
+$('quick').innerHTML = QUICK.map(q =>
+  '<a class="qa bn-solid" href="' + q.href + '">' +
+    '<span class="qa-i">' + svg(q.icon, 18) + '</span>' +
+    '<span><span class="qa-t">' + esc(q.t) + '</span>' +
+    '<span class="qa-d">' + esc(q.d) + '</span></span></a>').join('');
+
+const ACTION_LABEL = {
+  login: 'تسجيل دخول', profile_update: 'تحديث الملف',
+  gallery_add: 'إضافة صورة', gallery_delete: 'حذف صورة',
+  bid_submit: 'تقديم عرض', project_add: 'إضافة مشروع'
+};
+
+async function load() {
+  let me;
+  try {
+    me = await AC.api('/company/me');
+  } catch (e) {
+    $('hero').innerHTML = '';
+    $('stats').innerHTML = AC.errorState(AC.errText(e));
+    AC.onRetry($('stats'), load);
+    $('activity').innerHTML = '';
+    return;
+  }
+
+  $('hero').innerHTML = '<div class="dash-hero">' +
+    (me.image_url
+      ? '<div class="dash-av"><img src="' + esc(me.image_url) + '" alt=""></div>'
+      : '<div class="dash-av">' + esc(AC.initials(me.name)) + '</div>') +
+    '<div><h1 class="dash-n">' + esc(me.name) +
+      (me.verified ? '<span class="ac-tag ac-tag-on">' + svg(I.check, 11) + 'موثّقة</span>'
+                   : '<span class="ac-tag ac-tag-off">قيد المراجعة</span>') +
+    '</h1><div class="dash-m">' +
+      (me.city ? '<i>' + svg(I.pin, 12) + esc(me.city) + '</i>' : '') +
+      (me.spec ? '<i>' + svg(I.tag, 12) + esc(me.spec) + '</i>' : '') +
+    '</div></div></div>';
+
+  /* كل بطاقة من نداء مستقل: فشل واحد لا يُسقط البقية */
+  const [views, wa, bids, sub] = await Promise.all([
+    AC.api('/company/' + me.id + '/views').catch(() => null),
+    AC.api('/company/' + me.id + '/wa-stats').catch(() => null),
+    AC.api('/company/bids').catch(() => null),
+    AC.api('/company/subscription/usage').catch(() => null)
+  ]);
+
+  const cards = [];
+  cards.push(statCard('زيارات الملف', I.eye,
+    views ? num(views.count != null ? views.count : views.views || 0) : '—',
+    views ? null : 'تعذّر التحميل'));
+  cards.push(statCard('نقرات واتساب', I.wa,
+    wa ? num(wa.total_clicks) : '—', wa ? 'منذ البداية' : 'تعذّر التحميل'));
+  cards.push(statCard('عروضي', I.bid,
+    bids ? num(bids.length) : '—',
+    bids ? bids.filter(b => b.status === 'accepted').length + ' مقبول' : 'تعذّر التحميل'));
+  if (sub) {
+    cards.push(statCard('فرص هذا الشهر', I.market,
+      sub.leads_unlimited ? 'بلا حدّ' : sub.leads_used_this_month + ' / ' + sub.leads_max,
+      sub.images_unlimited ? 'الصور بلا حدّ'
+        : 'الصور ' + sub.images_used + ' / ' + sub.images_max));
+  } else {
+    cards.push(statCard('فرص هذا الشهر', I.market, '—', 'تعذّر التحميل'));
+  }
+  $('stats').className = 'ac-stats';
+  $('stats').innerHTML = cards.join('');
+
+  /* النشاط */
+  try {
+    const acts = await AC.api('/company/activity');
+    if (!acts.length) {
+      $('activity').innerHTML = AC.emptyState('لا نشاط مسجَّل بعد',
+        'ستظهر هنا آخر إجراءاتك على المنصّة.');
+      return;
+    }
+    $('activity').className = 'ac-list';
+    $('activity').innerHTML = acts.slice(0, 8).map(a =>
+      '<div class="ac-item bn-solid">' +
+        '<div class="ac-item-b"><div class="ac-item-t">' +
+          esc(ACTION_LABEL[a.action] || a.action) + '</div>' +
+        '<div class="ac-item-m"><i>' + svg(I.clock, 11) +
+          esc(when(a.created_at, {month:'short', day:'numeric', hour:'2-digit', minute:'2-digit'})) +
+        '</i></div></div></div>').join('');
+  } catch (e) {
+    $('activity').innerHTML = AC.errorState(AC.errText(e));
+    AC.onRetry($('activity'), load);
+  }
+}
+load();
+})();
+</script>
 </body>
 </html>

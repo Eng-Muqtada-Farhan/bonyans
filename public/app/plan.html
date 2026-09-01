@@ -1,0 +1,204 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>الاشتراك — بُنيان</title>
+<meta name="robots" content="noindex, nofollow">
+<meta name="theme-color" content="#F4F2ED" media="(prefers-color-scheme: light)">
+<meta name="theme-color" content="#15120E" media="(prefers-color-scheme: dark)">
+<link rel="stylesheet" href="../tokens.css">
+<script>
+  (function(){ var t=localStorage.getItem('bn-theme')||'light';
+    document.documentElement.setAttribute('data-theme',t); })();
+</script>
+<script src="../guard.js" data-require="company"></script>
+<style>
+.pl-now { padding:var(--bn-s5); border-radius:var(--bn-r-lg); margin-block-end:var(--bn-s6); }
+.pl-now-h { display:flex; align-items:center; justify-content:space-between;
+  gap:var(--bn-s3); flex-wrap:wrap; margin-block-end:var(--bn-s4); }
+.pl-now-n { font:700 22px/1.2 var(--bn-font); color:var(--bn-ac); }
+.pl-use { display:grid; grid-template-columns:repeat(auto-fit,minmax(180px,1fr));
+  gap:var(--bn-s4); }
+.pl-use-i { font:var(--bn-t-cap); color:var(--bn-ink-3); margin-block-end:6px; }
+.pl-use-n { font:600 15px/1.2 var(--bn-mono); font-variant-numeric:tabular-nums;
+  margin-block-end:6px; }
+.pl-bar { height:6px; border-radius:999px; background:var(--bn-line-soft); overflow:hidden; }
+.pl-bar span { display:block; height:100%; background:var(--bn-ac); }
+
+.pl-grid { display:grid; grid-template-columns:repeat(auto-fit,minmax(210px,1fr));
+  gap:var(--bn-s3); align-items:stretch; }
+.pl { position:relative; display:flex; flex-direction:column;
+  padding:var(--bn-s6) var(--bn-s5); border-radius:var(--bn-r-lg); }
+.pl.is-rec { background:var(--bn-ac); color:var(--bn-ac-on); border-color:transparent; }
+.pl.is-cur { border-color:var(--bn-ac); }
+.pl-badge { position:absolute; inset-block-start:-11px; inset-inline-start:50%;
+  transform:translateX(50%); padding:4px 12px; border-radius:var(--bn-r-pill);
+  background:var(--bn-ink); color:var(--bn-bg); font:var(--bn-t-cap); white-space:nowrap; }
+.pl-n { font:500 13px/1 var(--bn-font); letter-spacing:.06em;
+  color:var(--bn-ink-3); margin-block-end:var(--bn-s3); }
+.pl.is-rec .pl-n { color:var(--bn-ac-on); opacity:.85; }
+.pl-p { font:700 28px/1 var(--bn-mono); color:var(--bn-ac);
+  font-variant-numeric:tabular-nums; }
+.pl.is-rec .pl-p { color:var(--bn-ac-on); }
+.pl-u { font:var(--bn-t-cap); color:var(--bn-ink-3); margin-block:6px var(--bn-s4); }
+.pl.is-rec .pl-u { color:var(--bn-ac-on); opacity:.75; }
+.pl-f { list-style:none; margin:0 0 var(--bn-s5); padding:var(--bn-s4) 0 0;
+  border-block-start:1px solid var(--bn-line-soft); display:flex;
+  flex-direction:column; gap:9px; flex:1; }
+.pl.is-rec .pl-f { border-color:color-mix(in srgb, var(--bn-ac-on) 22%, transparent); }
+.pl-f li { display:flex; align-items:center; gap:8px; font:var(--bn-t-sm);
+  color:var(--bn-ink-2); }
+.pl.is-rec .pl-f li { color:var(--bn-ac-on); }
+.pl-f .no { color:var(--bn-ink-3); }
+.pl.is-rec .pl-f .no { color:var(--bn-ac-on); opacity:.55; }
+.pl .bn-btn { width:100%; }
+.pl.is-rec .bn-btn { background:var(--bn-ac-on); color:var(--bn-ac); }
+</style>
+</head>
+<body class="bn-body">
+
+<div class="bn-backdrop" aria-hidden="true"></div>
+
+<main class="ac-wrap" id="main">
+  <div class="ac-head">
+    <h1>الاشتراك</h1>
+    <p>باقتك الحالية واستهلاكها، والباقات المتاحة. الترقية تمرّ بمراجعة الإدارة.</p>
+  </div>
+  <div id="now"></div>
+  <section class="ac-sec"><h2 class="ac-sec-t">الباقات</h2><div id="plans"></div></section>
+</main>
+
+<script src="app-core.js"></script>
+<script src="nav-app.js"></script>
+<script>
+(function () {
+'use strict';
+const AC = window.AppCore;
+const $ = (id) => document.getElementById(id);
+const esc = AC.esc, svg = AC.svg, I = AC.icons, num = AC.num, when = AC.when;
+
+let SUB = null, PLANS = [], PENDING = null;
+
+$('now').innerHTML = '<div class="ac-skel" style="height:150px"></div>';
+$('plans').innerHTML = AC.skeleton(3, 260);
+
+function limit(v, unit) { return v === -1 ? 'بلا حدّ' : v + ' ' + unit; }
+
+function bar(used, max, unlimited, label) {
+  const pct = unlimited ? 0 : (max ? Math.min(100, Math.round(used / max * 100)) : 0);
+  return '<div><div class="pl-use-i">' + esc(label) + '</div>' +
+    '<div class="pl-use-n">' + (unlimited ? used + ' · بلا حدّ' : used + ' / ' + max) + '</div>' +
+    (unlimited ? '' : '<div class="pl-bar"><span style="width:' + pct + '%"></span></div>') +
+    '</div>';
+}
+
+function renderNow() {
+  const u = SUB.usage || {};
+  $('now').innerHTML = '<div class="pl-now bn-solid">' +
+    '<div class="pl-now-h">' +
+      '<div><div class="ac-stat-l">' + svg(I.card, 13) + ' باقتك الحالية</div>' +
+        '<div class="pl-now-n">' + esc(SUB.plan_name || SUB.plan_code) + '</div></div>' +
+      '<div style="text-align:end">' +
+        '<span class="ac-tag ' + (SUB.status === 'active' ? 'ac-tag-on' : 'ac-tag-off') + '">' +
+          (SUB.status === 'active' ? 'فعّالة' : 'مجانية') + '</span>' +
+        (SUB.expires_at
+          ? '<div class="ac-stat-d">تنتهي ' + esc(when(SUB.expires_at)) + '</div>' : '') +
+      '</div>' +
+    '</div>' +
+    '<div class="pl-use">' +
+      bar(u.images_used || 0, SUB.max_images, SUB.max_images === -1, 'الصور') +
+      bar(u.leads_used_this_month || 0, SUB.max_project_leads,
+          SUB.max_project_leads === -1, 'فرص المشاريع هذا الشهر') +
+    '</div>' +
+    (PENDING
+      ? '<p class="ac-note" style="margin-block-start:var(--bn-s4)">' +
+        'طلب ترقية إلى «' + esc(PENDING.plan_name || PENDING.plan_code || '') +
+        '» قيد المراجعة.</p>' : '') +
+    '</div>';
+}
+
+function renderPlans() {
+  $('plans').className = 'pl-grid';
+  $('plans').innerHTML = PLANS.map(p => {
+    const cur = p.code === SUB.plan_code;
+    const rec = Boolean(p.is_recommended);
+    /* الميزات غير المتاحة تُعرض بعلامة × لا تُحذف — المقارنة
+       تحتاج أن ترى ما ينقصك. */
+    const feats = [
+      { on: true, t: limit(p.max_images, 'صورة') },
+      { on: true, t: limit(p.max_project_leads, 'فرصة شهرياً') },
+      { on: Boolean(p.is_verified), t: 'شارة التوثيق' },
+      { on: Boolean(p.is_featured), t: 'ظهور مميز في الرئيسية' },
+      { on: (p.search_priority || 0) > 0, t: 'أولوية في نتائج البحث' }
+    ];
+    return '<div class="pl bn-solid' + (rec ? ' is-rec' : '') + (cur ? ' is-cur' : '') + '">' +
+      (rec ? '<span class="pl-badge">توصيتنا</span>' : '') +
+      '<div class="pl-n">' + esc(p.name || p.code) + '</div>' +
+      '<div class="pl-p">' + (Number(p.monthly_price) ? num(p.monthly_price) : 'مجاناً') + '</div>' +
+      '<div class="pl-u">' + (Number(p.monthly_price) ? 'دينار شهرياً' : 'للأبد') + '</div>' +
+      '<ul class="pl-f">' + feats.map(f =>
+        '<li>' + (f.on ? svg(I.check, 13) : '<span class="no">' + svg(I.x, 13) + '</span>') +
+        '<span' + (f.on ? '' : ' class="no"') + '>' + esc(f.t) + '</span></li>').join('') +
+      '</ul>' +
+      (cur
+        ? '<button class="bn-btn bn-btn-ghost" type="button" disabled>باقتك الحالية</button>'
+        : '<button class="bn-btn" type="button" data-req="' + esc(p.code) + '">اطلب الترقية</button>') +
+    '</div>';
+  }).join('');
+
+  $('plans').querySelectorAll('[data-req]').forEach(b => {
+    b.onclick = () => requestSheet(b.dataset.req);
+  });
+}
+
+function requestSheet(code) {
+  const plan = PLANS.find(p => p.code === code) || {};
+  const s = AC.sheet('طلب ترقية إلى ' + (plan.name || code),
+    '<p class="ac-note" style="margin-block-end:var(--bn-s4)">' +
+      'يصل طلبك إلى الإدارة للمراجعة. لا يُخصم شيء تلقائياً.</p>' +
+    '<div class="ac-fr"><label for="qN">ملاحظات (اختياري)</label>' +
+      '<textarea id="qN" maxlength="500" placeholder="مدّة الاشتراك المطلوبة، أو أي استفسار"></textarea></div>' +
+    '<div class="ac-row-end"><button class="bn-btn" type="button" data-ok>إرسال الطلب</button></div>');
+
+  s.el.querySelector('[data-ok]').onclick = async function () {
+    this.disabled = true; this.textContent = 'جارٍ الإرسال...';
+    try {
+      await AC.api('/subscription/request', { method:'POST', body: {
+        plan_code: code,
+        notes: s.el.querySelector('#qN').value.trim() || null
+      }});
+      s.close();
+      AC.toast('أُرسل طلبك — ستراجعه الإدارة.');
+      load();
+    } catch (e) {
+      this.disabled = false; this.textContent = 'إرسال الطلب';
+      AC.toast(AC.errText(e), 'err');
+    }
+  };
+}
+
+async function load() {
+  try {
+    const [sub, plans, pending] = await Promise.all([
+      AC.api('/company/subscription'),
+      fetch('/subscription/plans').then(r => r.json()),
+      AC.api('/subscription/request').catch(() => null)
+    ]);
+    SUB = sub;
+    PLANS = plans || [];
+    PENDING = pending && (pending.status === 'pending' ? pending : null);
+    renderNow();
+    renderPlans();
+  } catch (e) {
+    $('now').innerHTML = '';
+    $('plans').className = '';
+    $('plans').innerHTML = AC.errorState(AC.errText(e));
+    AC.onRetry($('plans'), load);
+  }
+}
+load();
+})();
+</script>
+</body>
+</html>

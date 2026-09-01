@@ -799,6 +799,9 @@ class CompanyCreate(BaseModel):
 class CompanyMeUpdateV2(BaseModel):
     name:         Optional[str] = None
     city:         Optional[str] = None
+    # التخصص من صفات الشركة نفسها وتضبطه عند التسجيل، فتعديله
+    # جزء من «ملف شركتي». كان غائباً عن النموذج فلا سبيل لتغييره.
+    spec:         Optional[str] = None
     phone:        Optional[str] = None
     email:        Optional[str] = None
     website:      Optional[str] = None
@@ -1390,6 +1393,10 @@ def company_bids_route(request: Request):
         d["project_title"]  = r.get("project_title") or ""
         d["project_city"]   = r.get("project_city") or ""
         d["project_status"] = r.get("project_status") or ""
+        # الاستعلام يجلبهما أصلاً؛ بلا تمريرهما تضطر شاشة «عروضي»
+        # لمغادرة سطح /app لمعرفة نطاق ميزانية المشروع.
+        d["budget_min"] = float(r["budget_min"]) if r.get("budget_min") is not None else None
+        d["budget_max"] = float(r["budget_max"]) if r.get("budget_max") is not None else None
         result.append(d)
     return result
 

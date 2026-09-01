@@ -1,0 +1,236 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>معرض الأعمال — بُنيان</title>
+<meta name="robots" content="noindex, nofollow">
+<meta name="theme-color" content="#F4F2ED" media="(prefers-color-scheme: light)">
+<meta name="theme-color" content="#15120E" media="(prefers-color-scheme: dark)">
+<link rel="stylesheet" href="../tokens.css">
+<script>
+  (function(){ var t=localStorage.getItem('bn-theme')||'light';
+    document.documentElement.setAttribute('data-theme',t); })();
+</script>
+<script src="../guard.js" data-require="company"></script>
+<style>
+.gl-quota { display:flex; align-items:center; gap:var(--bn-s3); flex-wrap:wrap;
+  padding:var(--bn-s4); border-radius:var(--bn-r-lg); margin-block-end:var(--bn-s6); }
+.gl-bar { flex:1; min-width:140px; height:6px; border-radius:999px;
+  background:var(--bn-line-soft); overflow:hidden; }
+.gl-bar span { display:block; height:100%; background:var(--bn-ac); }
+.gl-quota-t { font:var(--bn-t-sm); color:var(--bn-ink-2); font-variant-numeric:tabular-nums; }
+
+.gl-grid { display:grid; grid-template-columns:repeat(auto-fill,minmax(170px,1fr));
+  gap:var(--bn-s3); }
+.gl-cell { position:relative; border-radius:var(--bn-r-lg); overflow:hidden;
+  border:1px solid var(--bn-line-soft); aspect-ratio:4/3; background:var(--bn-glass-tint); }
+.gl-cell img { width:100%; height:100%; object-fit:cover; display:block; }
+.gl-cap { position:absolute; inset-block-end:0; inset-inline:0;
+  padding:22px var(--bn-s3) 8px; color:var(--bn-on-photo); font:var(--bn-t-cap);
+  background:linear-gradient(to top, var(--bn-photo-veil), transparent); }
+.gl-del { position:absolute; inset-block-start:8px; inset-inline-end:8px;
+  width:44px; height:44px; display:grid; place-items:center; border-radius:50%;
+  border:0; cursor:pointer; background:var(--bn-photo-btn); color:var(--bn-on-photo); }
+.gl-del:hover { background:var(--bn-photo-btn-h); }
+.gl-proj { margin-block-end:var(--bn-s6); }
+.gl-proj-h { display:flex; align-items:center; justify-content:space-between;
+  gap:var(--bn-s3); flex-wrap:wrap; margin-block-end:var(--bn-s3); }
+.gl-proj-t { font:500 15px/1.4 var(--bn-font); display:flex; align-items:center; gap:8px; }
+</style>
+</head>
+<body class="bn-body">
+
+<div class="bn-backdrop" aria-hidden="true"></div>
+
+<main class="ac-wrap" id="main">
+  <div class="ac-head ac-head-row">
+    <div>
+      <h1>معرض الأعمال</h1>
+      <p>صور مشاريعك المنفَّذة. تظهر في صفحتك العامّة، وهي أقوى ما يقنع العميل.</p>
+    </div>
+    <button class="bn-btn" type="button" id="addProjBtn" hidden>مشروع جديد</button>
+  </div>
+  <div id="quota"></div>
+  <div id="body"></div>
+</main>
+
+<script src="app-core.js"></script>
+<script src="nav-app.js"></script>
+<script>
+(function () {
+'use strict';
+const AC = window.AppCore;
+const $ = (id) => document.getElementById(id);
+const esc = AC.esc, svg = AC.svg, I = AC.icons;
+
+/* ══ المعرض ══
+   كل صورة تنتمي إلى مشروع (company_gallery.project_id غير قابل
+   للإفلات)، فالشاشة تدير المشاريع والصور معاً: لا مشروع ← لا صورة. */
+
+const STAGE = { before:'قبل', during:'أثناء', after:'بعد', other:'أخرى' };
+let PROJECTS = [], IMAGES = [], QUOTA = null;
+
+$('body').innerHTML = AC.skeleton(2, 150);
+
+function quotaHTML(q) {
+  if (!q) return '';
+  if (q.images_unlimited) {
+    return '<div class="gl-quota bn-solid"><span class="gl-quota-t">' +
+      svg(I.image, 13) + ' ' + q.images_used + ' صورة · باقتك بلا حدّ</span></div>';
+  }
+  const pct = q.images_max ? Math.min(100, Math.round(q.images_used / q.images_max * 100)) : 0;
+  return '<div class="gl-quota bn-solid">' +
+    '<span class="gl-quota-t">' + q.images_used + ' من ' + q.images_max + ' صورة</span>' +
+    '<span class="gl-bar"><span style="width:' + pct + '%"></span></span>' +
+    (q.images_used >= q.images_max
+      ? '<a class="bn-btn bn-btn-sm bn-btn-ghost" href="plan.html">ترقية الباقة</a>' : '') +
+    '</div>';
+}
+
+function render() {
+  $('quota').innerHTML = quotaHTML(QUOTA);
+  $('addProjBtn').hidden = false;
+
+  if (!PROJECTS.length) {
+    $('body').className = '';
+    $('body').innerHTML = AC.emptyState(
+      'لم تُضف مشروعاً بعد',
+      'كل صورة تنتمي إلى مشروع. أضف مشروعك الأول ثم ارفع صوره.',
+      '<button class="bn-btn" type="button" data-add>أضف مشروعاً</button>', I.image);
+    $('body').querySelector('[data-add]').onclick = projectSheet;
+    return;
+  }
+
+  $('body').className = '';
+  $('body').innerHTML = PROJECTS.map(p => {
+    const imgs = IMAGES.filter(g => String(g.project_id) === String(p.id));
+    return '<section class="gl-proj">' +
+      '<div class="gl-proj-h">' +
+        '<div class="gl-proj-t">' + esc(p.title) +
+          '<span class="ac-tag ac-tag-off">' + imgs.length + ' صورة</span></div>' +
+        '<button class="bn-btn bn-btn-sm bn-btn-ghost" type="button" data-up="' + esc(p.id) + '">' +
+          svg(I.upload, 14) + ' رفع صورة</button>' +
+      '</div>' +
+      (imgs.length
+        ? '<div class="gl-grid">' + imgs.map(g =>
+            '<div class="gl-cell">' +
+              '<img src="' + esc(g.image_url) + '" alt="' + esc(g.title || p.title) + '" loading="lazy">' +
+              '<button class="gl-del" type="button" data-del="' + esc(g.id) + '"' +
+                ' aria-label="حذف الصورة">' + svg(I.trash, 16) + '</button>' +
+              ((g.title || g.stage)
+                ? '<div class="gl-cap">' + esc(g.title || '') +
+                  (g.stage ? ' · ' + esc(STAGE[g.stage] || g.stage) : '') + '</div>' : '') +
+            '</div>').join('') + '</div>'
+        : '<div class="ac-state"><div class="ac-state-t">لا صور لهذا المشروع بعد</div></div>') +
+    '</section>';
+  }).join('');
+
+  $('body').querySelectorAll('[data-up]').forEach(b => {
+    b.onclick = () => uploadSheet(b.dataset.up);
+  });
+  $('body').querySelectorAll('[data-del]').forEach(b => {
+    b.onclick = () => removeImage(b.dataset.del);
+  });
+}
+
+/* ── مشروع جديد ── */
+function projectSheet() {
+  const s = AC.sheet('مشروع جديد',
+    '<div class="ac-fr"><label for="pT">عنوان المشروع *</label>' +
+      '<input id="pT" maxlength="120" placeholder="دار سكنية في المنصور"></div>' +
+    '<div class="ac-fr"><label for="pL">الموقع</label>' +
+      '<input id="pL" maxlength="120" placeholder="بغداد — المنصور"></div>' +
+    '<div class="ac-fr"><label for="pD">وصف مختصر</label>' +
+      '<textarea id="pD" maxlength="1000"></textarea></div>' +
+    '<div class="ac-row-end"><button class="bn-btn" type="button" data-ok>إضافة</button></div>');
+  s.el.querySelector('[data-ok]').onclick = async function () {
+    const title = s.el.querySelector('#pT').value.trim();
+    if (!title) { AC.toast('عنوان المشروع مطلوب.', 'err'); return; }
+    this.disabled = true; this.textContent = 'جارٍ...';
+    try {
+      await AC.api('/company/projects', { method:'POST', body: {
+        title: title,
+        location: s.el.querySelector('#pL').value.trim() || null,
+        description: s.el.querySelector('#pD').value.trim() || null
+      }});
+      s.close();
+      AC.toast('أُضيف المشروع.');
+      load();
+    } catch (e) {
+      this.disabled = false; this.textContent = 'إضافة';
+      AC.toast(AC.errText(e), 'err');
+    }
+  };
+}
+$('addProjBtn').onclick = projectSheet;
+
+/* ── رفع صورة فعلي إلى ImageKit عبر /company/upload ── */
+function uploadSheet(projectId) {
+  const s = AC.sheet('رفع صورة',
+    '<div class="ac-fr"><label for="uF">الصورة *</label>' +
+      '<input id="uF" type="file" accept="image/jpeg,image/png,image/webp,image/gif">' +
+      '<div class="ac-fr-hint">JPG أو PNG أو WEBP أو GIF · حتى ٥ ميغابايت.</div></div>' +
+    '<div class="ac-f2">' +
+      '<div class="ac-fr"><label for="uT">عنوان الصورة</label><input id="uT" maxlength="120"></div>' +
+      '<div class="ac-fr"><label for="uS">المرحلة</label><select id="uS">' +
+        '<option value="">بلا تحديد</option>' +
+        Object.keys(STAGE).map(k => '<option value="' + k + '">' + STAGE[k] + '</option>').join('') +
+      '</select></div>' +
+    '</div>' +
+    '<div class="ac-row-end"><button class="bn-btn" type="button" data-ok>رفع</button></div>');
+
+  s.el.querySelector('[data-ok]').onclick = async function () {
+    const f = s.el.querySelector('#uF').files[0];
+    if (!f) { AC.toast('اختر صورة أولاً.', 'err'); return; }
+    this.disabled = true; this.textContent = 'جارٍ الرفع...';
+    try {
+      /* خطوتان: الملف إلى ImageKit عبر الخادم، ثم الرابط إلى المعرض */
+      const url = await AC.uploadImage(f);
+      await AC.api('/company/gallery', { method:'POST', body: {
+        project_id: Number(projectId),
+        image_url: url,
+        title: s.el.querySelector('#uT').value.trim() || null,
+        stage: s.el.querySelector('#uS').value || null
+      }});
+      s.close();
+      AC.toast('رُفعت الصورة.');
+      load();
+    } catch (e) {
+      this.disabled = false; this.textContent = 'رفع';
+      AC.toast(AC.errText(e), 'err');
+    }
+  };
+}
+
+async function removeImage(id) {
+  if (!await AC.confirm('حذف الصورة', 'ستُحذف من صفحتك العامّة أيضاً. لا رجعة.', 'حذف')) return;
+  try {
+    await AC.api('/company/gallery/' + encodeURIComponent(id), { method:'DELETE' });
+    AC.toast('حُذفت الصورة.');
+    load();
+  } catch (e) { AC.toast(AC.errText(e), 'err'); }
+}
+
+async function load() {
+  try {
+    const [projects, images, quota] = await Promise.all([
+      AC.api('/company/projects'),
+      AC.api('/company/gallery'),
+      AC.api('/company/subscription/usage').catch(() => null)
+    ]);
+    PROJECTS = projects || [];
+    IMAGES = images || [];
+    QUOTA = quota;
+    render();
+  } catch (e) {
+    $('body').className = '';
+    $('body').innerHTML = AC.errorState(AC.errText(e));
+    AC.onRetry($('body'), load);
+  }
+}
+load();
+})();
+</script>
+</body>
+</html>

@@ -1,0 +1,153 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>الإعدادات — بُنيان</title>
+<meta name="robots" content="noindex, nofollow">
+<meta name="theme-color" content="#F4F2ED" media="(prefers-color-scheme: light)">
+<meta name="theme-color" content="#15120E" media="(prefers-color-scheme: dark)">
+<link rel="stylesheet" href="../tokens.css">
+<script>
+  (function(){ var t=localStorage.getItem('bn-theme')||'light';
+    document.documentElement.setAttribute('data-theme',t); })();
+</script>
+<script src="../guard.js" data-require="company"></script>
+<style>
+.st-row { display:flex; align-items:center; justify-content:space-between;
+  gap:var(--bn-s4); flex-wrap:wrap; padding:var(--bn-s4) var(--bn-s5);
+  border-radius:var(--bn-r-lg); margin-block-end:var(--bn-s2); }
+.st-row-b { min-width:0; }
+.st-row-t { font:500 14px/1.4 var(--bn-font); }
+.st-row-d { font:var(--bn-t-cap); color:var(--bn-ink-3); margin-block-start:4px;
+  line-height:1.7; max-width:52ch; }
+.st-row-v { font:400 13.5px/1.4 var(--bn-mono); color:var(--bn-ink-2);
+  direction:ltr; text-align:end; }
+.st-seg { display:flex; gap:6px; flex:none; }
+.st-seg button { min-height:44px; min-width:64px; padding-inline:var(--bn-s3);
+  border:1px solid var(--bn-line); border-radius:var(--bn-r); background:transparent;
+  color:var(--bn-ink-2); cursor:pointer; font:400 13px/1 var(--bn-font);
+  display:inline-flex; align-items:center; justify-content:center; gap:6px;
+  transition:color var(--bn-fast), border-color var(--bn-fast), background var(--bn-fast); }
+.st-seg button:hover { color:var(--bn-ac); border-color:var(--bn-ac-line); }
+.st-seg button.is-on { background:var(--bn-ac); color:var(--bn-ac-on); border-color:transparent; }
+.st-danger { border-color:var(--bn-line); }
+.st-danger .st-row-t { color:var(--bn-ink); }
+</style>
+</head>
+<body class="bn-body">
+
+<div class="bn-backdrop" aria-hidden="true"></div>
+
+<main class="ac-wrap" id="main">
+  <div class="ac-head">
+    <h1>الإعدادات</h1>
+    <p>حسابك ومظهر اللوحة.</p>
+  </div>
+
+  <section class="ac-sec">
+    <h2 class="ac-sec-t">المظهر</h2>
+    <div class="st-row bn-solid">
+      <div class="st-row-b">
+        <div class="st-row-t">وضع العرض</div>
+        <div class="st-row-d">يُحفظ في هذا المتصفّح وحده.</div>
+      </div>
+      <div class="st-seg" id="theme"></div>
+    </div>
+  </section>
+
+  <section class="ac-sec">
+    <h2 class="ac-sec-t">الحساب</h2>
+    <div id="account"></div>
+  </section>
+
+  <section class="ac-sec">
+    <h2 class="ac-sec-t">الجلسة</h2>
+    <div class="st-row bn-solid st-danger">
+      <div class="st-row-b">
+        <div class="st-row-t">تسجيل الخروج</div>
+        <div class="st-row-d">ينهي جلستك في هذا المتصفّح.</div>
+      </div>
+      <button class="bn-btn bn-btn-ghost" type="button" id="logoutBtn">تسجيل الخروج</button>
+    </div>
+  </section>
+</main>
+
+<script src="app-core.js"></script>
+<script src="nav-app.js"></script>
+<script>
+(function () {
+'use strict';
+const AC = window.AppCore;
+const $ = (id) => document.getElementById(id);
+const esc = AC.esc, svg = AC.svg, I = AC.icons, when = AC.when;
+
+/* ── المظهر ── */
+const THEMES = [
+  { k:'light', t:'نهاري', i:'<circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M2 12h2M20 12h2M4.9 4.9l1.4 1.4M17.7 17.7l1.4 1.4M19.1 4.9l-1.4 1.4M6.3 17.7l-1.4 1.4"/>' },
+  { k:'dark',  t:'ليلي', i:'<path d="M20 13.5A8.5 8.5 0 1 1 10.5 4a6.7 6.7 0 0 0 9.5 9.5z"/>' }
+];
+function current() { try { return localStorage.getItem('bn-theme') || 'light'; } catch (e) { return 'light'; } }
+function renderTheme() {
+  const now = current();
+  $('theme').innerHTML = THEMES.map(t =>
+    '<button type="button" data-t="' + t.k + '"' + (now === t.k ? ' class="is-on"' : '') + '>' +
+      svg(t.i, 15) + esc(t.t) + '</button>').join('');
+  $('theme').querySelectorAll('[data-t]').forEach(b => {
+    b.onclick = () => {
+      try { localStorage.setItem('bn-theme', b.dataset.t); } catch (e) {}
+      document.documentElement.setAttribute('data-theme', b.dataset.t);
+      renderTheme();
+    };
+  });
+}
+renderTheme();
+
+/* ── الحساب — للقراءة: لا مسار خادمي لتغيير البريد أو كلمة المرور
+   بعد. لا نعرض حقلاً لا يقابله مسار (§٥·٥). ── */
+$('account').innerHTML = AC.skeleton(2, 78);
+
+function row(title, desc, valueHTML) {
+  return '<div class="st-row bn-solid">' +
+    '<div class="st-row-b"><div class="st-row-t">' + esc(title) + '</div>' +
+      (desc ? '<div class="st-row-d">' + esc(desc) + '</div>' : '') + '</div>' +
+    '<div class="st-row-v">' + valueHTML + '</div></div>';
+}
+
+async function loadAccount() {
+  try {
+    const me = await AC.api('/company/me');
+    $('account').innerHTML =
+      row('اسم الشركة', 'يُعدَّل من «ملف شركتي».', esc(me.name)) +
+      row('البريد المسجَّل', '', esc(me.email || '—')) +
+      row('حالة الحساب',
+          me.status === 'approved' ? 'حسابك معتمد وظاهر في الدليل العام.'
+                                   : 'حسابك قيد مراجعة الإدارة.',
+          '<span class="ac-tag ' + (me.status === 'approved' ? 'ac-tag-on' : 'ac-tag-off') + '">' +
+            (me.status === 'approved' ? 'معتمد' : 'قيد المراجعة') + '</span>') +
+      row('تاريخ التسجيل', '', esc(when(me.created_at)));
+  } catch (e) {
+    $('account').innerHTML = AC.errorState(AC.errText(e));
+    AC.onRetry($('account'), loadAccount);
+  }
+}
+loadAccount();
+
+/* ── الخروج ──
+   الوجهة ../login.html هي الاستثناء المصرَّح به: العزل يحكم
+   الجلسة لا نهايتها. */
+$('logoutBtn').onclick = async function () {
+  if (!await AC.confirm('تسجيل الخروج', 'ستحتاج إلى إدخال بياناتك مجدداً.', 'خروج')) return;
+  try { await fetch('/logout', { method: 'POST' }); } catch (e) {}
+  try {
+    localStorage.removeItem('COMPANY_TOKEN');
+    localStorage.removeItem('company_id');
+    localStorage.removeItem('project_user_token');
+    localStorage.removeItem('project_user_id');
+  } catch (e) {}
+  location.replace('../login.html');
+};
+})();
+</script>
+</body>
+</html>
