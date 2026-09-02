@@ -147,6 +147,8 @@ body { margin:0; background:var(--bn-bg); color:var(--bn-ink);
   border:1px solid var(--bn-line-soft); margin-block-end:var(--bn-s3); }
 
 /* ── تواصل صاحب المشروع — لمن له حق فقط ── */
+.report-row { display:flex; justify-content:flex-end;
+  margin-block-start:var(--bn-s5); }
 .contact { display:flex; gap:var(--bn-s2); flex-wrap:wrap; }
 .contact a { display:inline-flex; align-items:center; justify-content:center;
   gap:7px; min-height:44px; padding-inline:var(--bn-s4);
@@ -167,6 +169,12 @@ body { margin:0; background:var(--bn-bg); color:var(--bn-ink);
   <div class="skel"></div>
 </main>
 
+<footer class="bn-legal-foot">
+  <a href="privacy.html">سياسة الخصوصية</a>
+  <a href="terms.html">شروط الاستخدام</a>
+</footer>
+
+<script src="report.js"></script>
 <script src="guard.js"></script>
 <script src="bn-filters.js"></script>
 <script src="nav-public.js"></script>
@@ -408,8 +416,12 @@ function render(p, bids, view) {
       (view === 'owner' && bids.length ? ' <span class="n">(' + bids.length + ')</span>' : '') +
       '</h2>' + panelHTML(p, bids, view) + '</section>' +
 
-    contactHTML(p, bids, view);
+    contactHTML(p, bids, view) +
 
+    /* الإبلاغ عن المشروع — شرط Apple ١٫٢ */
+    '<div class="report-row">' + BunyanReport.button('project', p.id, 'إبلاغ عن هذا المشروع') + '</div>';
+
+  BunyanReport.wire($('main'));
   wire(p);
 }
 

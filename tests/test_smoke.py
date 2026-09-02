@@ -558,3 +558,352 @@ def test_34_verify_and_change_tokens_do_not_cross(client):
             db.execute(text("DELETE FROM email_tokens WHERE user_id=:u"), {"u": uid})
             db.execute(text("UPDATE users SET is_email_verified=true WHERE id=:u"), {"u": uid})
             db.commit()
+
+
+# ══════════════════════════════════════════════════════════════
+# ٣٥–٤٦ · شروط المتجرين: الموافقة · الحذف · الإبلاغ والحجب
+#
+# الحذف أخطر كود في المشروع: يمحو بيانات نهائياً. كل مسار فيه
+# مُختبَر — الرفض بلا كلمة مرور، والرفض بلا العبارة، وما يبقى
+# بعد الحذف بالتحديد لا بالعموم.
+# ══════════════════════════════════════════════════════════════
+
+CONFIRM = "حذف حسابي"
+
+
+def _mk_user(email, password="TempPass!2026", name="مستخدم اختبار حذف"):
+    """حساب مؤقّت للحذف — لا نلمس حسابات البذر في اختبار مدمّر."""
+    with main.SessionLocal() as db:
+        db.execute(text("DELETE FROM users WHERE lower(email)=:e"), {"e": email.lower()})
+        db.commit()
+        uid = db.execute(text("""
+            INSERT INTO users (email, display_name, password_hash, provider, is_active,
+                               is_email_verified, terms_accepted_at, terms_version)
+            VALUES (:e, :n, :p, 'email', true, true, now(), :v)
+            RETURNING id
+        """), {"e": email.lower(), "n": name,
+               "p": main.pwd_context.hash(password), "v": main.LEGAL_VERSION}).scalar()
+        db.execute(text("INSERT INTO profiles (user_id, role) VALUES (:u,'client')"),
+                   {"u": uid})
+        db.commit()
+    return uid
+
+
+def _drop_user(uid):
+    with main.SessionLocal() as db:
+        db.execute(text("DELETE FROM users WHERE id=:u"), {"u": uid})
+        db.commit()
+
+
+def _login(client, email, password="TempPass!2026"):
+    _wipe_rate_limits()
+    r = client.post("/auth/login", json={"email": email, "password": password})
+    assert r.status_code == 200, r.text
+    return r.json()["token"]
+
+
+# ── الموافقة القانونية ──────────────────────────────────────────
+
+def test_35_register_requires_terms(client):
+    """لا تسجيل بلا موافقة — الحارس على الخادم لا على المربّع."""
+    email = "terms-test@nowhere.test"
+    with main.SessionLocal() as db:
+        db.execute(text("DELETE FROM users WHERE lower(email)=:e"), {"e": email})
+        db.commit()
+    bad = client.post("/auth/register", json={
+        "email": email, "password": "GoodPass!2026", "display_name": "بلا موافقة"})
+    assert bad.status_code == 400
+    with main.SessionLocal() as db:
+        n = db.execute(text("SELECT count(*) FROM users WHERE lower(email)=:e"),
+                       {"e": email}).scalar()
+    assert n == 0, "أُنشئ حساب بلا موافقة"
+
+
+def test_36_register_records_consent(client):
+    """الموافقة تُخزَّن بوقتها وبنسخة الوثيقة."""
+    email = "terms-ok@nowhere.test"
+    with main.SessionLocal() as db:
+        db.execute(text("DELETE FROM users WHERE lower(email)=:e"), {"e": email})
+        db.commit()
+    r = client.post("/auth/register", json={
+        "email": email, "password": "GoodPass!2026",
+        "display_name": "موافق", "accept_terms": True})
+    assert r.status_code == 200, r.text
+    try:
+        with main.SessionLocal() as db:
+            row = db.execute(text(
+                "SELECT terms_accepted_at, terms_version FROM users WHERE lower(email)=:e"
+            ), {"e": email}).mappings().fetchone()
+        assert row["terms_accepted_at"] is not None
+        assert row["terms_version"] == main.LEGAL_VERSION
+    finally:
+        with main.SessionLocal() as db:
+            db.execute(text("DELETE FROM users WHERE lower(email)=:e"), {"e": email})
+            db.commit()
+
+
+def test_37_legal_pages_public(client):
+    """الصفحتان تعملان بلا تسجيل دخول — شرط المتجرين."""
+    for path in ("/privacy.html", "/terms.html"):
+        r = client.get(path, headers=PAGE)
+        assert r.status_code == 200, path
+        assert "بُنيان" in r.text
+
+
+# ── حذف الحساب ──────────────────────────────────────────────────
+
+def test_38_delete_requires_password(client):
+    """كلمة مرور خاطئة لا تحذف شيئاً."""
+    uid = _mk_user("del-pw@nowhere.test")
+    try:
+        tok = _login(client, "del-pw@nowhere.test")
+        r = client.request("DELETE", "/account", headers=bearer(tok),
+                           json={"password": "wrong", "confirm": CONFIRM})
+        assert r.status_code == 401
+        with main.SessionLocal() as db:
+            active = db.execute(text("SELECT is_active FROM users WHERE id=:u"),
+                                {"u": uid}).scalar()
+        assert active is True, "عُطِّل الحساب رغم فشل كلمة المرور"
+    finally:
+        _drop_user(uid)
+
+
+def test_39_delete_requires_typed_confirmation(client):
+    """العبارة المكتوبة شرط — نقرة وحدها لا تمحو حساباً."""
+    uid = _mk_user("del-confirm@nowhere.test")
+    try:
+        tok = _login(client, "del-confirm@nowhere.test")
+        for bad in ("", "نعم", "delete", "حذف"):
+            r = client.request("DELETE", "/account", headers=bearer(tok),
+                               json={"password": "TempPass!2026", "confirm": bad})
+            assert r.status_code == 400, bad
+        with main.SessionLocal() as db:
+            active = db.execute(text("SELECT is_active FROM users WHERE id=:u"),
+                                {"u": uid}).scalar()
+        assert active is True
+    finally:
+        _drop_user(uid)
+
+
+def test_40_delete_anonymizes_and_locks_out(client):
+    """
+    الحذف يُفقد الحساب هويته ونفاذه فوراً، ويسجّل موعد المحو.
+    """
+    uid = _mk_user("del-ok@nowhere.test")
+    try:
+        tok = _login(client, "del-ok@nowhere.test")
+        r = client.request("DELETE", "/account", headers=bearer(tok),
+                           json={"password": "TempPass!2026", "confirm": CONFIRM})
+        assert r.status_code == 200, r.text
+        assert "purge_after" in r.json()
+
+        with main.SessionLocal() as db:
+            u = db.execute(text(
+                "SELECT email, password_hash, display_name, is_active, "
+                "deletion_requested_at, anonymized_at FROM users WHERE id=:u"
+            ), {"u": uid}).mappings().fetchone()
+        assert u["is_active"] is False
+        assert u["password_hash"] is None, "بقيت تجزئة كلمة المرور"
+        assert "del-ok@nowhere.test" not in (u["email"] or ""), "بقي البريد الأصلي"
+        assert u["display_name"] == main.ANON_LABEL
+        assert u["deletion_requested_at"] is not None
+        assert u["anonymized_at"] is not None
+
+        # الرمز القديم لم يعد ينفذ — الصلاحية من قاعدة البيانات
+        assert client.get("/auth/me", headers=bearer(tok)).status_code == 401
+        # ولا دخول بالبريد القديم
+        _wipe_rate_limits()
+        assert client.post("/auth/login", json={
+            "email": "del-ok@nowhere.test", "password": "TempPass!2026"
+        }).status_code == 401
+    finally:
+        _drop_user(uid)
+
+
+def test_41_delete_keeps_reviews_anonymized(client):
+    """
+    التقييمات تُجهَّل ولا تُحذف — حذفها يشوّه سمعة قُدِّرت بها
+    شركة (LEGAL-DRAFT §٦).
+    """
+    name = "مقيّم اختبار الحذف"
+    uid = _mk_user("del-review@nowhere.test", name=name)
+    with main.SessionLocal() as db:
+        cid = db.execute(text("SELECT id FROM companies LIMIT 1")).scalar()
+        rid = db.execute(text("""
+            INSERT INTO reviews (company_id, client_name, rating, comment, status)
+            VALUES (:c, :n, 4, 'تقييم اختبار الحذف', 'approved') RETURNING id
+        """), {"c": cid, "n": name}).scalar()
+        db.commit()
+    try:
+        tok = _login(client, "del-review@nowhere.test")
+        assert client.request("DELETE", "/account", headers=bearer(tok),
+                              json={"password": "TempPass!2026",
+                                    "confirm": CONFIRM}).status_code == 200
+        with main.SessionLocal() as db:
+            row = db.execute(text(
+                "SELECT client_name, comment FROM reviews WHERE id=:r"), {"r": rid}
+            ).mappings().fetchone()
+        assert row is not None, "حُذف التقييم — والسياسة تقول يُجهَّل"
+        assert row["client_name"] == main.ANON_LABEL, "لم يُجهَّل اسم المقيّم"
+        assert row["comment"] == "تقييم اختبار الحذف", "ضاع نصّ التقييم"
+    finally:
+        with main.SessionLocal() as db:
+            db.execute(text("DELETE FROM reviews WHERE id=:r"), {"r": rid})
+            db.commit()
+        _drop_user(uid)
+
+
+def test_42_delete_anonymizes_projects_not_bids(client):
+    """
+    مشروع صاحب الحساب يُجهَّل ولا يُحذف: عروض الشركات عليه جزء
+    من سجلّها هي، ومحوه يمحو تاريخاً ليس ملكاً للمنسحب وحده.
+    """
+    uid = _mk_user("del-proj@nowhere.test")
+    with main.SessionLocal() as db:
+        pid = db.execute(text("""
+            INSERT INTO projects (title, category, city, country, contact_name,
+                                  contact_phone, contact_email, status, owner_user_id)
+            VALUES ('مشروع اختبار الحذف','مقاولات عامة','بغداد','IQ',
+                    'صاحب','07000000123','x@y.test','published',:u)
+            RETURNING id
+        """), {"u": uid}).scalar()
+        cid = db.execute(text("SELECT id FROM companies LIMIT 1")).scalar()
+        bid = db.execute(text("""
+            INSERT INTO project_bids (project_id, company_id, price, status)
+            VALUES (:p, :c, 5000, 'submitted') RETURNING id
+        """), {"p": pid, "c": cid}).scalar()
+        db.commit()
+    try:
+        tok = _login(client, "del-proj@nowhere.test")
+        assert client.request("DELETE", "/account", headers=bearer(tok),
+                              json={"password": "TempPass!2026",
+                                    "confirm": CONFIRM}).status_code == 200
+        with main.SessionLocal() as db:
+            p = db.execute(text(
+                "SELECT contact_name, contact_phone, contact_email, owner_user_id, status "
+                "FROM projects WHERE id=:p"), {"p": pid}).mappings().fetchone()
+            b = db.execute(text("SELECT id FROM project_bids WHERE id=:b"),
+                           {"b": bid}).first()
+        assert p is not None, "حُذف المشروع"
+        assert p["contact_phone"] == "" and p["contact_email"] == ""
+        assert p["contact_name"] == main.ANON_LABEL
+        assert p["owner_user_id"] is None
+        assert p["status"] == "closed", "بقي مفتوحاً للعروض بلا صاحب"
+        assert b is not None, "ضاع عرض الشركة مع حذف حساب صاحب المشروع"
+    finally:
+        with main.SessionLocal() as db:
+            db.execute(text("DELETE FROM project_bids WHERE id=:b"), {"b": bid})
+            db.execute(text("DELETE FROM projects WHERE id=:p"), {"p": pid})
+            db.commit()
+        _drop_user(uid)
+
+
+def test_43_purge_only_after_grace(client):
+    """المحو النهائي لا يقع قبل انقضاء الثلاثين يوماً."""
+    uid = _mk_user("del-grace@nowhere.test")
+    try:
+        with main.SessionLocal() as db:
+            db.execute(text(
+                "UPDATE users SET deletion_requested_at = now() WHERE id=:u"), {"u": uid})
+            db.commit()
+        main.purge_deleted_accounts()
+        with main.SessionLocal() as db:
+            still = db.execute(text("SELECT 1 FROM users WHERE id=:u"), {"u": uid}).first()
+        assert still is not None, "مُحي الحساب قبل انقضاء المهلة"
+
+        with main.SessionLocal() as db:
+            db.execute(text("UPDATE users SET deletion_requested_at = now() - "
+                            "interval '31 days' WHERE id=:u"), {"u": uid})
+            db.commit()
+        main.purge_deleted_accounts()
+        with main.SessionLocal() as db:
+            gone = db.execute(text("SELECT 1 FROM users WHERE id=:u"), {"u": uid}).first()
+        assert gone is None, "لم يُمحَ بعد انقضاء المهلة"
+    finally:
+        _drop_user(uid)
+
+
+# ── الإبلاغ والحجب ──────────────────────────────────────────────
+
+def test_44_report_requires_auth_and_valid_input(client, user_token):
+    """بلاغ بلا حساب مرفوض، وبنوع أو سبب مجهول مرفوض."""
+    assert client.post("/report", json={
+        "target_type": "company", "target_id": 1, "reason": "spam"}).status_code == 401
+    assert client.post("/report", headers=bearer(user_token), json={
+        "target_type": "planet", "target_id": 1, "reason": "spam"}).status_code == 400
+    assert client.post("/report", headers=bearer(user_token), json={
+        "target_type": "company", "target_id": 1, "reason": "because"}).status_code == 400
+
+
+def test_45_report_is_recorded_once_and_visible_to_admin(client, user_token, admin_token):
+    """البلاغ يُسجَّل، ويتكرّر بلا ضجيج، ويظهر للإدارة بعمره."""
+    with main.SessionLocal() as db:
+        db.execute(text("DELETE FROM reports WHERE details = 'بلاغ اختبار'"))
+        db.execute(text("DELETE FROM rate_limits WHERE key LIKE 'report:%'"))
+        db.commit()
+        cid = db.execute(text("SELECT id FROM companies LIMIT 1")).scalar()
+
+    body = {"target_type": "company", "target_id": cid,
+            "reason": "fake_info", "details": "بلاغ اختبار"}
+    first = client.post("/report", headers=bearer(user_token), json=body)
+    assert first.status_code == 200, first.text
+    again = client.post("/report", headers=bearer(user_token), json=body)
+    assert again.status_code == 200, "التكرار كشف نفسه بردّ مختلف"
+
+    with main.SessionLocal() as db:
+        n = db.execute(text(
+            "SELECT count(*) FROM reports WHERE target_type='company' AND target_id=:c"
+        ), {"c": cid}).scalar()
+    assert n == 1, "سُجّل البلاغ مرّتين"
+
+    listed = client.get("/admin/reports", headers=bearer(admin_token))
+    assert listed.status_code == 200
+    row = [r for r in listed.json() if r["target_id"] == cid]
+    assert row, "لم يظهر البلاغ للإدارة"
+    assert "age_hours" in row[0], "عمر البلاغ غائب — التزام ٢٤ ساعة غير مرئي"
+    assert row[0]["reason_label"] == "بيانات كاذبة"
+
+    rid = row[0]["id"]
+    done = client.put(f"/admin/reports/{rid}", headers=bearer(admin_token),
+                      json={"status": "actioned", "note": "اختبار"})
+    assert done.status_code == 200
+    with main.SessionLocal() as db:
+        st = db.execute(text("SELECT status FROM reports WHERE id=:i"), {"i": rid}).scalar()
+        db.execute(text("DELETE FROM reports WHERE id=:i"), {"i": rid})
+        db.commit()
+    assert st == "actioned"
+
+
+def test_46_block_prevents_messaging_both_ways(client, user_token):
+    """الحجب يمنع المراسلة، ورفعه يعيدها."""
+    with main.SessionLocal() as db:
+        me = db.execute(text("SELECT id FROM users WHERE lower(email)='client@seed.test'")).scalar()
+        cid = db.execute(text("""
+            SELECT company_id FROM profiles WHERE role='company' ORDER BY created_at LIMIT 1
+        """)).scalar()
+        owner = db.execute(text("""
+            SELECT user_id FROM profiles WHERE company_id=:c AND role='company'
+            ORDER BY created_at LIMIT 1
+        """), {"c": cid}).scalar()
+        db.execute(text("DELETE FROM blocks WHERE blocker_id=:a OR blocked_id=:a"), {"a": me})
+        db.commit()
+
+    assert client.post(f"/block/{me}", headers=bearer(user_token)).status_code == 400  # نفسه
+
+    blocked = client.post(f"/block/{owner}", headers=bearer(user_token))
+    assert blocked.status_code == 200, blocked.text
+
+    listed = client.get("/blocks", headers=bearer(user_token))
+    assert listed.status_code == 200
+    assert any(b["user_id"] == owner for b in listed.json())
+
+    denied = client.post("/conversations", headers=bearer(user_token),
+                         json={"company_id": cid, "message": "مرحباً"})
+    assert denied.status_code == 403, "المراسلة نجحت رغم الحجب"
+
+    assert client.request("DELETE", f"/block/{owner}",
+                          headers=bearer(user_token)).status_code == 200
+    with main.SessionLocal() as db:
+        left = db.execute(text("SELECT count(*) FROM blocks WHERE blocker_id=:a"),
+                          {"a": me}).scalar()
+    assert left == 0

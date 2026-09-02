@@ -787,6 +787,9 @@ class UserRegister(BaseModel):
     password:     str
     display_name: Optional[str] = None
     phone:        Optional[str] = None
+    # الموافقة على الشروط والخصوصية — شرط تسجيل لا خيار.
+    # يُخزَّن وقتها ونسخة الوثيقة ليُعرف من وافق على أيّها.
+    accept_terms: bool = False
 
 
 class UserLogin(BaseModel):
@@ -1656,6 +1659,10 @@ def auth_register(payload: UserRegister, request: Request):
         raise HTTPException(status_code=400, detail="Email and password are required")
     if len(payload.password) < 8:
         raise HTTPException(status_code=400, detail="Password must be at least 8 characters")
+    # لا تسجيل بلا موافقة — الحارس على الخادم لا على المربّع وحده
+    if not payload.accept_terms:
+        raise HTTPException(status_code=400,
+                            detail="يلزم قبول شروط الاستخدام وسياسة الخصوصية.")
 
     hashed = pwd_context.hash(payload.password)
     with SessionLocal() as db:
@@ -1667,14 +1674,17 @@ def auth_register(payload: UserRegister, request: Request):
             raise HTTPException(status_code=409, detail="An account with this email already exists")
 
         result = db.execute(text("""
-            INSERT INTO users (email, display_name, phone, password_hash, provider)
-            VALUES (:email, :display_name, :phone, :password_hash, 'email')
+            INSERT INTO users (email, display_name, phone, password_hash, provider,
+                               terms_accepted_at, terms_version)
+            VALUES (:email, :display_name, :phone, :password_hash, 'email',
+                    now(), :legal_version)
             RETURNING id, email, display_name, created_at
         """), {
             "email":        email,
             "display_name": payload.display_name or "",
             "phone":        payload.phone or None,
             "password_hash": hashed,
+            "legal_version": LEGAL_VERSION,
         })
         row = result.mappings().fetchone()
         # كل مستخدم جديد صاحب مشروع حتى يصير له ملفّ شركة
@@ -2183,6 +2193,328 @@ def confirm_email_change(payload: TokenOnly, request: Request):
         write_audit_log(db, "user", str(row["user_id"]), "email_changed", request)
         db.commit()
     return {"message": "تغيّر بريدك. سجّل الدخول بالبريد الجديد."}
+
+
+# ══════════════════════════════════════════════════════════════════════════════
+# حذف الحساب — شرط Apple ٥٫١٫١
+#
+# المرجع: LEGAL-DRAFT.md §٥ و§٦ — والسياسة المكتوبة هي العقد:
+#   · بيانات الحساب تُحذف خلال ٣٠ يوماً
+#   · سجلّ التدقيق يبقى مجهَّلاً ١٢ شهراً
+#   · التقييمات تُجهَّل ولا تُحذف — حذفها يشوّه سمعة قُدِّرت بها شركة
+#   · الرسائل تبقى في نسخة المستلم كما في أي محادثة
+#
+# فالحذف مرحلتان: تجهيل فوري (يفقد الحساب هويته ونفاذه لحظة
+# الطلب — فلا انتظار على المستخدم) ثم محو نهائي بعد ٣٠ يوماً.
+# محوٌ فوري كامل يخالف السياسة ويُفقد الطرف الآخر سجلّه.
+#
+# ما يحدث لبيانات الشركة — قرار مكتوب لا مسكوت عنه:
+#   · الشركة تخرج من الدليل فوراً (status='deleted') فلا يراسلها
+#     أحد بعد رحيل صاحبها
+#   · معرضها ومشاريعها تُحذف معها — محتوى نشره هو عن نفسه
+#   · عروضها على مشاريع الآخرين تبقى مجهَّلة: العرض جزء من سجلّ
+#     صاحب المشروع، وحذفه يمحو تاريخاً ليس ملكاً للمنسحب وحده
+#   · رسائلها تبقى في نسخة المستلم، ومرسِلها مجهَّل
+# ══════════════════════════════════════════════════════════════════════════════
+
+# نسخة الوثائق القانونية. تُخزَّن مع كل موافقة: حين تتغيّر
+# الشروط نعرف من وافق على أيّها (LEGAL-DRAFT · ملاحظات التنفيذ).
+LEGAL_VERSION = "1.0"
+
+DELETION_GRACE = timedelta(days=30)
+ANON_LABEL = "حساب محذوف"
+
+
+class DeleteAccount(BaseModel):
+    password: str
+    confirm:  str          # يجب أن تساوي "حذف حسابي" — تأكيد مقصود لا نقرة
+
+
+@app.delete("/account")
+def delete_account(payload: DeleteAccount, request: Request):
+    ident = require_role(request, ROLE_USER, ROLE_COMPANY)
+
+    if (payload.confirm or "").strip() != "حذف حسابي":
+        raise HTTPException(status_code=400,
+                            detail='اكتب «حذف حسابي» للتأكيد.')
+
+    with SessionLocal() as db:
+        u = db.execute(text(
+            "SELECT email, password_hash, display_name FROM users WHERE id=:i"
+        ), {"i": ident.uid}).mappings().fetchone()
+    if not u or not u["password_hash"] or \
+       not pwd_context.verify(payload.password, u["password_hash"]):
+        with SessionLocal() as db:
+            write_audit_log(db, "user", str(ident.uid), "account_delete_fail", request)
+            db.commit()
+        raise HTTPException(status_code=401, detail="كلمة المرور غير صحيحة.")
+
+    original_email = u["email"]
+    purge_at = datetime.now(timezone.utc) + DELETION_GRACE
+
+    with SessionLocal() as db:
+        # ١ · التقييمات تُجهَّل ولا تُحذف (LEGAL-DRAFT §٦).
+        #    reviews.client_name نصّ حرّ بلا رابط إلى users في المخطط
+        #    الحالي، فالتجهيل بالاسم. حدّه معروف: تشابه الأسماء قد
+        #    يجهّل تقييم غيره — ودمج reviews مع users دَينٌ مسجَّل.
+        if u["display_name"]:
+            db.execute(text("UPDATE reviews SET client_name = :anon WHERE client_name = :n"),
+                       {"anon": ANON_LABEL, "n": u["display_name"]})
+
+        # ٢ · مشاريعه كصاحب مشروع: تُجهَّل ولا تُحذف — عروض الشركات
+        #     عليها جزء من سجلّها هي
+        db.execute(text("""
+            UPDATE projects
+            SET contact_name = :anon, contact_phone = '', contact_email = '',
+                owner_user_id = NULL, status = CASE
+                    WHEN status = 'published' THEN 'closed' ELSE status END,
+                updated_at = now()
+            WHERE owner_user_id = :uid
+        """), {"anon": ANON_LABEL, "uid": ident.uid})
+
+        # ٣ · إن كان صاحب شركة: تخرج من الدليل ويُحذف ما نشره عنها
+        cids = [r[0] for r in db.execute(text(
+            "SELECT company_id FROM profiles WHERE user_id=:uid AND role='company'"
+        ), {"uid": ident.uid}).fetchall()]
+        for cid in cids:
+            others = db.execute(text(
+                "SELECT count(*) FROM profiles WHERE company_id=:c AND user_id<>:u"
+            ), {"c": cid, "u": ident.uid}).scalar()
+            if others:
+                continue        # للشركة مالك آخر — لا تُمَس
+            db.execute(text("DELETE FROM company_gallery WHERE company_id=:c"), {"c": cid})
+            db.execute(text("DELETE FROM company_projects WHERE company_id=:c"), {"c": cid})
+            db.execute(text("""
+                UPDATE companies
+                SET status='deleted', verified=0, verification_status='deleted',
+                    phone='', email='', website='', map_link='', image_url=''
+                WHERE id=:c
+            """), {"c": cid})
+
+        # ٤ · الرسائل تبقى في نسخة المستلم — الهوية وحدها تُجهَّل
+        #     (لا عمود اسم في chat_messages، فالتجهيل يقع على users)
+
+        # ٥ · تجهيل الحساب نفسه: يفقد هويته ونفاذه فوراً
+        db.execute(text("""
+            UPDATE users
+            SET email = :ph, password_hash = NULL, display_name = :anon,
+                phone = NULL, avatar_url = '', is_active = false,
+                is_email_verified = false,
+                deletion_requested_at = now(), anonymized_at = now(),
+                updated_at = now()
+            WHERE id = :uid
+        """), {"ph": f"deleted+{ident.uid}@deleted.invalid",
+               "anon": ANON_LABEL, "uid": ident.uid})
+
+        write_audit_log(db, "user", str(ident.uid), "account_deleted", request)
+        db.commit()
+
+    # رسالة تأكيد إلى العنوان الأصلي — آخر ما يصله منّا
+    if not mailer.account_deleted(original_email, purge_at.strftime("%Y-%m-%d")):
+        with SessionLocal() as db:
+            write_audit_log(db, "user", str(ident.uid), "mail_failed:account_deleted", request)
+            db.commit()
+
+    resp = JSONResponse({
+        "message": "حُذف حسابك. تُمحى بياناتك نهائياً خلال ٣٠ يوماً.",
+        "purge_after": purge_at.date().isoformat(),
+    })
+    clear_session_cookie(resp)
+    return resp
+
+
+def purge_deleted_accounts() -> int:
+    """
+    المحو النهائي بعد ٣٠ يوماً — يُستدعى من مهمّة دورية.
+
+    منفصل عن الطلب: الحذف الفوري يُنهي وصول المستخدم، والمحو
+    يجري بعد المهلة التي تعد بها السياسة.
+    """
+    with SessionLocal() as db:
+        rows = db.execute(text("""
+            SELECT id FROM users
+            WHERE deletion_requested_at IS NOT NULL
+              AND deletion_requested_at < now() - interval '30 days'
+        """)).fetchall()
+        for (uid,) in rows:
+            # سجلّ التدقيق يبقى ١٢ شهراً مجهَّلاً (LEGAL-DRAFT §٥)
+            db.execute(text("DELETE FROM users WHERE id = :u"), {"u": uid})
+        db.commit()
+    return len(rows)
+
+
+# ══════════════════════════════════════════════════════════════════════════════
+# الإبلاغ والحجب — شرط Apple ١٫٢
+# التزام «المراجعة خلال ٢٤ ساعة» مكتوب في الشروط §٥، فالطابور
+# يعرض عمر كل بلاغ ليُرى التأخّر لا ليُكتشَف بعد فوات الأجل.
+# ══════════════════════════════════════════════════════════════════════════════
+
+REPORT_TARGETS = {"company", "project", "review", "message"}
+REPORT_REASONS = {
+    "fake_info":   "بيانات كاذبة",
+    "not_owner":   "صور أو أعمال ليست له",
+    "fake_review": "تقييم مزيّف",
+    "offensive":   "محتوى مسيء",
+    "harassment":  "مضايقة",
+    "spam":        "إزعاج متكرّر",
+    "other":       "سبب آخر",
+}
+
+
+class ReportCreate(BaseModel):
+    target_type: str
+    target_id:   int
+    reason:      str
+    details:     Optional[str] = None
+
+
+@app.post("/report")
+def submit_report(payload: ReportCreate, request: Request):
+    ident = require_role(request, ROLE_USER, ROLE_COMPANY)
+    if payload.target_type not in REPORT_TARGETS:
+        raise HTTPException(status_code=400, detail="نوع بلاغ غير معروف.")
+    if payload.reason not in REPORT_REASONS:
+        raise HTTPException(status_code=400, detail="سبب بلاغ غير معروف.")
+
+    ip = get_client_ip(request)
+    if not check_rate_limit(f"report:uid:{ident.uid}", 10, 3600):
+        raise HTTPException(status_code=429, detail="بلاغات كثيرة — انتظر قبل المحاولة مجدداً.")
+
+    with SessionLocal() as db:
+        try:
+            db.execute(text("""
+                INSERT INTO reports (reporter_id, target_type, target_id, reason, details, ip_hash)
+                VALUES (:r, :tt, :ti, :rs, :d, :ip)
+            """), {
+                "r": ident.uid, "tt": payload.target_type, "ti": payload.target_id,
+                "rs": payload.reason, "d": (payload.details or "").strip()[:2000] or None,
+                "ip": hashlib.sha256(ip.encode()).hexdigest()[:16],
+            })
+            write_audit_log(db, "user", str(ident.uid),
+                            f"report:{payload.target_type}:{payload.target_id}", request)
+            db.commit()
+        except IntegrityError:
+            db.rollback()
+            # بلاغ مكرّر: لا نكشف ذلك بردّ مختلف يُغري بالتجريب
+            return {"message": "وصلنا بلاغك. نراجعه خلال ٢٤ ساعة."}
+    return {"message": "وصلنا بلاغك. نراجعه خلال ٢٤ ساعة."}
+
+
+@app.post("/block/{user_id}")
+def block_user(user_id: int, request: Request):
+    ident = require_role(request, ROLE_USER, ROLE_COMPANY)
+    if user_id == ident.uid:
+        raise HTTPException(status_code=400, detail="لا يمكنك حجب نفسك.")
+    with SessionLocal() as db:
+        exists = db.execute(text("SELECT 1 FROM users WHERE id=:i"), {"i": user_id}).first()
+        if not exists:
+            raise HTTPException(status_code=404, detail="المستخدم غير موجود.")
+        db.execute(text("""
+            INSERT INTO blocks (blocker_id, blocked_id) VALUES (:a, :b)
+            ON CONFLICT DO NOTHING
+        """), {"a": ident.uid, "b": user_id})
+        write_audit_log(db, "user", str(ident.uid), f"block:{user_id}", request)
+        db.commit()
+    return {"message": "حُجب المستخدم. لن يستطيع مراسلتك."}
+
+
+@app.delete("/block/{user_id}")
+def unblock_user(user_id: int, request: Request):
+    ident = require_role(request, ROLE_USER, ROLE_COMPANY)
+    with SessionLocal() as db:
+        db.execute(text("DELETE FROM blocks WHERE blocker_id=:a AND blocked_id=:b"),
+                   {"a": ident.uid, "b": user_id})
+        write_audit_log(db, "user", str(ident.uid), f"unblock:{user_id}", request)
+        db.commit()
+    return {"message": "رُفع الحجب."}
+
+
+@app.get("/blocks")
+def list_blocks(request: Request):
+    ident = require_role(request, ROLE_USER, ROLE_COMPANY)
+    with SessionLocal() as db:
+        rows = db.execute(text("""
+            SELECT b.blocked_id, u.display_name, b.created_at
+            FROM blocks b JOIN users u ON u.id = b.blocked_id
+            WHERE b.blocker_id = :a ORDER BY b.created_at DESC
+        """), {"a": ident.uid}).mappings().fetchall()
+    return [{"user_id": r["blocked_id"], "name": r["display_name"] or "",
+             "created_at": str(r["created_at"])} for r in rows]
+
+
+def _blocked_between(db, a: int, b: int) -> bool:
+    """الحجب يمنع الاتجاهين: من حَجَب لا يُراسَل ولا يُراسِل."""
+    if a is None or b is None:
+        return False
+    return db.execute(text("""
+        SELECT 1 FROM blocks
+        WHERE (blocker_id=:a AND blocked_id=:b) OR (blocker_id=:b AND blocked_id=:a)
+        LIMIT 1
+    """), {"a": a, "b": b}).first() is not None
+
+
+@app.get("/admin/reports")
+def admin_list_reports(request: Request, status: Optional[str] = None):
+    require_admin(request)
+    where = "WHERE r.status = :status" if status else ""
+    params = {"status": status} if status else {}
+    with SessionLocal() as db:
+        rows = db.execute(text(f"""
+            SELECT r.*, u.display_name AS reporter_name,
+                   EXTRACT(EPOCH FROM (now() - r.created_at)) / 3600 AS age_hours
+            FROM reports r
+            LEFT JOIN users u ON u.id = r.reporter_id
+            {where}
+            ORDER BY r.status = 'open' DESC, r.created_at ASC
+            LIMIT 300
+        """), params).mappings().fetchall()
+    return [{
+        "id": r["id"], "target_type": r["target_type"], "target_id": r["target_id"],
+        "reason": r["reason"], "reason_label": REPORT_REASONS.get(r["reason"], r["reason"]),
+        "details": r["details"] or "", "status": r["status"],
+        "reporter_name": r["reporter_name"] or "",
+        "age_hours": round(float(r["age_hours"] or 0), 1),
+        "resolved_note": r["resolved_note"] or "",
+        "created_at": str(r["created_at"]),
+    } for r in rows]
+
+
+class ReportResolve(BaseModel):
+    status: str            # actioned | dismissed
+    note:   Optional[str] = None
+
+
+@app.put("/admin/reports/{report_id}")
+def resolve_report(report_id: int, payload: ReportResolve, request: Request):
+    require_admin(request)
+    if payload.status not in ("actioned", "dismissed"):
+        raise HTTPException(status_code=400, detail="حالة غير معروفة.")
+    with SessionLocal() as db:
+        r = db.execute(text("UPDATE reports SET status=:s, resolved_at=now(), "
+                            "resolved_note=:n WHERE id=:i RETURNING id"),
+                       {"s": payload.status, "n": (payload.note or "").strip()[:1000] or None,
+                        "i": report_id}).first()
+        if not r:
+            raise HTTPException(status_code=404, detail="البلاغ غير موجود.")
+        write_audit_log(db, "admin", ADMIN_USERNAME,
+                        f"report_{payload.status}:{report_id}", request)
+        db.commit()
+    return {"message": "حُدِّث البلاغ.", "id": report_id, "status": payload.status}
+
+
+@app.get("/legal/contact")
+def legal_contact():
+    """
+    بريد الدعم ونسخة الوثائق — من الإعداد لا مكتوبين في الصفحة.
+
+    عنوان مكتوب داخل HTML يبقى بعد تبديله في .env فيوجّه المستخدم
+    إلى صندوق لا يُقرأ — وهو أسوأ من غياب العنوان.
+    """
+    support = os.getenv("SUPPORT_EMAIL", "")
+    return {
+        "support_email": support if "@" in support else "",
+        "legal_version": LEGAL_VERSION,
+    }
 
 
 # ── Project Requests (public submission, future bidding system) ───────────────
@@ -3042,6 +3374,13 @@ def start_conversation(payload: ConversationCreate, request: Request):
         raise HTTPException(status_code=403, detail="Only clients can start conversations")
     uid = actor_id
     with SessionLocal() as db:
+        # الحجب يمنع بدء المحادثة أصلاً (Apple ١٫٢)
+        owner = db.execute(text(
+            "SELECT user_id FROM profiles WHERE company_id=:c AND role='company' "
+            "ORDER BY created_at LIMIT 1"), {"c": payload.company_id}).scalar()
+        if _blocked_between(db, uid, owner):
+            raise HTTPException(status_code=403, detail="لا يمكن مراسلة هذا الحساب.")
+
         existing = db.execute(text("""
             SELECT id FROM conversations
             WHERE client_user_id=:uid AND company_id=:cid
@@ -3132,6 +3471,20 @@ def send_message(conv_id: int, payload: MessageCreate, request: Request):
         ), {"id": conv_id}).mappings().first()
         if not conv:
             raise HTTPException(status_code=404, detail="Not found")
+
+        # الحجب يمنع الاتجاهين: من حَجَب لا يُراسِل ولا يُراسَل.
+        # يُفحص عند كل رسالة لا عند بدء المحادثة وحده، فالحجب قد
+        # يقع بعد أن بدأت.
+        other = db.execute(text(
+            "SELECT user_id FROM profiles WHERE company_id=:c AND role='company' "
+            "ORDER BY created_at LIMIT 1"), {"c": conv["company_id"]}).scalar()
+        me_uid = actor_id if role == "user" else other
+        peer = other if role == "user" else conv["client_user_id"]
+        if role == "user" and _blocked_between(db, actor_id, other):
+            raise HTTPException(status_code=403, detail="لا يمكن مراسلة هذا الحساب.")
+        if role == "company" and _blocked_between(db, other, conv["client_user_id"]):
+            raise HTTPException(status_code=403, detail="لا يمكن مراسلة هذا الحساب.")
+
         if role == "user":
             if conv["client_user_id"] != actor_id:
                 raise HTTPException(status_code=403, detail="Forbidden")

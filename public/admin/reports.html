@@ -25,6 +25,20 @@
   margin:0 0 var(--bn-s4); padding:var(--bn-s3) var(--bn-s4);
   border-radius:var(--bn-r); background:var(--bn-glass-tint); }
 .rv-act { display:flex; gap:var(--bn-s2); flex-wrap:wrap; justify-content:flex-end; }
+.rp { padding:var(--bn-s5); border-radius:var(--bn-r-lg); }
+.rp.is-late { border-color:var(--bn-err-line); }
+.rp-h { display:flex; align-items:flex-start; justify-content:space-between;
+  gap:var(--bn-s4); flex-wrap:wrap; margin-block-end:var(--bn-s3); }
+.rp-t { font:500 14.5px/1.4 var(--bn-font); margin:0 0 4px; }
+.rp-age { font:500 12px/1 var(--bn-mono); font-variant-numeric:tabular-nums;
+  padding:5px 10px; border-radius:var(--bn-r-pill); white-space:nowrap;
+  color:var(--bn-ink-3); border:1px solid var(--bn-line); }
+.rp-age.is-late { color:var(--bn-err); border-color:var(--bn-err-line);
+  background:var(--bn-err-bg); }
+.rp-d { font-size:13.5px; color:var(--bn-ink-2); line-height:1.8;
+  margin:0 0 var(--bn-s4); padding:var(--bn-s3) var(--bn-s4);
+  border-radius:var(--bn-r); background:var(--bn-glass-tint); }
+.rp-act { display:flex; gap:var(--bn-s2); flex-wrap:wrap; justify-content:flex-end; }
 .rv-note { padding:var(--bn-s4) var(--bn-s5); border-radius:var(--bn-r-lg);
   border:1px dashed var(--bn-line); margin-block-end:var(--bn-s6);
   font:var(--bn-t-sm); color:var(--bn-ink-3); line-height:1.8; }
@@ -40,16 +54,19 @@
     <p>ما يحتاج إشرافك على المحتوى الذي ينشره المستخدمون.</p>
   </div>
 
-  <!-- لا نخترع ما لا يوجد: نظام الإبلاغ عن مستخدم أو محتوى
-       (جدول بلاغات) لم يُبنَ بعد وهو في شروط ما قبل النشر في
-       SCOPE.md. المعروض هنا ما يوجد فعلاً: مراجعة التقييمات. -->
-  <div class="rv-note">
-    الإبلاغ عن مستخدم أو محتوى لم يُبنَ بعد — هو من شروط ما قبل النشر.
-    ما يُعرض هنا اليوم هو تقييمات المستخدمين التي تنتظر مراجعتك قبل ظهورها.
-  </div>
+  <section class="ad-sec">
+    <h2 class="ad-sec-t">بلاغات المستخدمين</h2>
+    <p class="ad-sec-d">الشروط §٥ تعد بالمراجعة خلال ٢٤ ساعة، فعمر كل بلاغ ظاهر
+    — يُرى التأخّر لا يُكتشَف بعد فوات الأجل.</p>
+    <div class="ad-tabs" id="rTabs"></div>
+    <div id="reports"></div>
+  </section>
 
-  <div class="ad-tabs" id="tabs"></div>
-  <div id="body"></div>
+  <section class="ad-sec">
+    <h2 class="ad-sec-t">مراجعة التقييمات</h2>
+    <div class="ad-tabs" id="tabs"></div>
+    <div id="body"></div>
+  </section>
 </main>
 
 <script src="admin-core.js"></script>
@@ -133,6 +150,99 @@ function render() {
     };
   });
 }
+
+/* ══ بلاغات المستخدمين ══ */
+const TARGET = { company:'ملف شركة', project:'مشروع', review:'تقييم', message:'رسالة' };
+const RSTAT  = { open:'مفتوح', actioned:'اتُّخذ إجراء', dismissed:'مرفوض' };
+const RTABS  = [ {k:'open',t:'مفتوحة'}, {k:'actioned',t:'اتُّخذ فيها إجراء'},
+                 {k:'dismissed',t:'مرفوضة'}, {k:'all',t:'الكل'} ];
+let REPORTS = [], RTAB = 'open';
+
+function renderRTabs() {
+  $('rTabs').innerHTML = RTABS.map(t => {
+    const n = t.k === 'all' ? REPORTS.length : REPORTS.filter(r => r.status === t.k).length;
+    const late = t.k === 'open' && REPORTS.some(r => r.status === 'open' && r.age_hours > 24);
+    return '<button class="ad-tab' + (RTAB === t.k ? ' is-on' : '') +
+      '" type="button" data-rtab="' + t.k + '">' + esc(t.t) +
+      ' <span class="ad-tab-n">' + n + '</span>' +
+      (late ? ' ' + svg(I.alert, 12) : '') + '</button>';
+  }).join('');
+  $('rTabs').querySelectorAll('[data-rtab]').forEach(b => {
+    b.onclick = () => { RTAB = b.dataset.rtab; renderReports(); };
+  });
+}
+
+function renderReports() {
+  renderRTabs();
+  const list = RTAB === 'all' ? REPORTS : REPORTS.filter(r => r.status === RTAB);
+  if (!list.length) {
+    $('reports').className = '';
+    $('reports').innerHTML = AD.emptyState(
+      RTAB === 'open' ? 'لا بلاغات مفتوحة' : 'لا بلاغات في هذه الحالة',
+      RTAB === 'open' ? 'كل ما وصل روجع.' : '', '', I.check);
+    return;
+  }
+  $('reports').className = 'ad-list';
+  $('reports').innerHTML = list.map(r => {
+    /* التأخّر يُقاس بالتزام ٢٤ ساعة المكتوب في الشروط §٥ */
+    const late = r.status === 'open' && r.age_hours > 24;
+    const age = r.age_hours < 1 ? 'أقل من ساعة'
+              : r.age_hours < 24 ? Math.round(r.age_hours) + ' ساعة'
+              : Math.floor(r.age_hours / 24) + ' يوم';
+    return '<div class="rp bn-solid' + (late ? ' is-late' : '') + '">' +
+      '<div class="rp-h">' +
+        '<div style="min-width:0;flex:1">' +
+          '<h3 class="rp-t">' + esc(TARGET[r.target_type] || r.target_type) +
+            ' · رقم ' + esc(r.target_id) + '</h3>' +
+          '<div class="ad-item-m">' +
+            '<span class="ad-tag ad-tag-off">' + esc(r.reason_label) + '</span>' +
+            (r.reporter_name ? '<i>' + svg(I.users, 11) + esc(r.reporter_name) + '</i>' : '') +
+            '<span class="ad-tag ' + (r.status === 'open' ? 'ad-tag-off' : 'ad-tag-on') + '">' +
+              esc(RSTAT[r.status] || r.status) + '</span>' +
+          '</div>' +
+        '</div>' +
+        '<span class="rp-age' + (late ? ' is-late' : '') + '">' +
+          (late ? svg(I.alert, 11) + ' ' : '') + esc(age) + '</span>' +
+      '</div>' +
+      (r.details ? '<p class="rp-d">' + esc(r.details) + '</p>' : '') +
+      (r.resolved_note ? '<p class="rp-d">القرار: ' + esc(r.resolved_note) + '</p>' : '') +
+      (r.status === 'open'
+        ? '<div class="rp-act">' +
+            '<button class="bn-btn bn-btn-sm bn-btn-ghost" type="button" data-dismiss="' + esc(r.id) + '">رفض البلاغ</button>' +
+            '<button class="bn-btn bn-btn-sm" type="button" data-action="' + esc(r.id) + '">اتُّخذ إجراء</button>' +
+          '</div>'
+        : '') +
+    '</div>';
+  }).join('');
+
+  $('reports').querySelectorAll('[data-action]').forEach(b => {
+    b.onclick = function () {
+      AD.runAction(this, () => AD.api('/admin/reports/' + this.dataset.action,
+        { method: 'PUT', body: { status: 'actioned' } }),
+        { loading: 'جارٍ', success: 'تمّ', then: loadReports });
+    };
+  });
+  $('reports').querySelectorAll('[data-dismiss]').forEach(b => {
+    b.onclick = function () {
+      AD.runAction(this, () => AD.api('/admin/reports/' + this.dataset.dismiss,
+        { method: 'PUT', body: { status: 'dismissed' } }),
+        { loading: 'جارٍ', success: 'رُفض', then: loadReports });
+    };
+  });
+}
+
+async function loadReports() {
+  try {
+    REPORTS = await AD.api('/admin/reports');
+    renderReports();
+  } catch (e) {
+    $('reports').className = '';
+    $('reports').innerHTML = AD.errorState(AD.errText(e));
+    AD.onRetry($('reports'), loadReports);
+  }
+}
+$('reports').innerHTML = AD.skeleton(2, 120);
+loadReports();
 
 async function load() {
   try {

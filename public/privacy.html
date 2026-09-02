@@ -1,0 +1,207 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>سياسة الخصوصية — بُنيان</title>
+<meta name="description" content="ما تجمعه بُنيان من بيانات، ولماذا، وكيف نحميه، وما حقوقك عليه.">
+<meta property="og:title" content="سياسة الخصوصية — بُنيان">
+<meta property="og:type" content="website">
+<link rel="manifest" href="manifest.json">
+<meta name="theme-color" content="#F4F2ED" media="(prefers-color-scheme: light)">
+<meta name="theme-color" content="#15120E" media="(prefers-color-scheme: dark)">
+<link rel="apple-touch-icon" href="icons/icon-192.png">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" data-bn-font
+      href="https://fonts.googleapis.com/css2?family=Tajawal:wght@300;400;500;700&display=swap">
+<link rel="stylesheet" href="tokens.css">
+<link rel="stylesheet" href="legal.css">
+<script>
+  (function(){ var t=localStorage.getItem('bn-theme')||'light';
+    document.documentElement.setAttribute('data-theme',t); })();
+</script>
+</head>
+<body class="bn-body">
+
+<div class="bn-backdrop" aria-hidden="true"></div>
+<div id="bn-nav"></div>
+
+<main class="lg-wrap">
+  <header class="lg-head">
+    <h1>سياسة الخصوصية</h1>
+    <div class="lg-meta">
+      <i>النسخة ١٫٠</i>
+      <i>آخر تحديث: ٢ أيلول ٢٠٢٦</i>
+    </div>
+    <p class="lg-lead">
+      منصّة بُنيان تربط أصحاب المشاريع بشركات المقاولات في العراق.
+      توضّح هذه السياسة ما نجمعه من بيانات، ولماذا، وكيف نحميه، وما حقوقك عليه.
+    </p>
+  </header>
+
+  <div class="lg-draft">
+    مسوّدة قيد المراجعة القانونية. النصّ يعكس ما تعمل به المنصّة فعلاً اليوم،
+    ويُحدَّث بعد مراجعة مختصّ بالقانون العراقي.
+  </div>
+
+  <nav class="lg-toc bn-solid" aria-label="أقسام الوثيقة">
+    <div class="lg-toc-t">الأقسام</div>
+    <ol>
+      <li><a href="#s1">١ · ما نجمعه</a></li>
+      <li><a href="#s2">٢ · لماذا نجمعه</a></li>
+      <li><a href="#s3">٣ · من يرى ماذا</a></li>
+      <li><a href="#s4">٤ · أين تُخزَّن</a></li>
+      <li><a href="#s5">٥ · مدة الاحتفاظ</a></li>
+      <li><a href="#s6">٦ · حقوقك</a></li>
+      <li><a href="#s7">٧ · ملفات الارتباط</a></li>
+      <li><a href="#s8">٨ · الأطفال</a></li>
+      <li><a href="#s9">٩ · تغيير السياسة</a></li>
+      <li><a href="#s10">١٠ · التواصل</a></li>
+    </ol>
+  </nav>
+
+  <section class="lg-sec" id="s1">
+    <h2>١ · ما نجمعه</h2>
+
+    <h3>تعطينا إياه بنفسك</h3>
+    <div class="lg-tw"><table class="lg-t">
+      <tr><th>البيان</th><th>متى</th></tr>
+      <tr><td>البريد الإلكتروني</td><td>عند إنشاء الحساب</td></tr>
+      <tr><td>كلمة المرور</td><td>تُخزَّن <strong>مشفَّرة بـ bcrypt</strong> — لا نراها ولا نستطيع استرجاعها</td></tr>
+      <tr><td>اسم الشركة · المدينة · التخصص · الهاتف · الوصف</td><td>عند إنشاء ملف الشركة</td></tr>
+      <tr><td>صور الأعمال</td><td>عند رفعها في المعرض</td></tr>
+      <tr><td>تفاصيل المشروع · الميزانية · الموقع</td><td>عند طرح مشروع</td></tr>
+      <tr><td>نصوص الرسائل والعروض والتقييمات</td><td>أثناء الاستخدام</td></tr>
+    </table></div>
+
+    <h3>يُجمَع تلقائياً</h3>
+    <div class="lg-tw"><table class="lg-t">
+      <tr><th>البيان</th><th>الغرض</th></tr>
+      <tr><td><strong>بصمة عنوان IP</strong> (مجزّأة لا كاملة)</td><td>كشف الهجمات وحدّ المحاولات</td></tr>
+      <tr><td>وقت الدخول ونوع الجهاز</td><td>الأمان وسجلّ التدقيق</td></tr>
+      <tr><td>نقرات واتساب ومشاهدات الملف</td><td>إحصاءات للشركة عن ملفها</td></tr>
+    </table></div>
+
+    <p><strong>لا نجمع:</strong> موقعك الجغرافي · جهات اتصالك · ملفاتك خارج ما ترفعه ·
+    بيانات بطاقات دفع (لا نعالج مدفوعات داخل المنصّة).</p>
+  </section>
+
+  <section class="lg-sec" id="s2">
+    <h2>٢ · لماذا نجمعه</h2>
+    <ul>
+      <li><strong>تشغيل حسابك</strong> — الدخول، والملف، والصلاحيات</li>
+      <li><strong>الغرض الذي جئت لأجله</strong> — عرض الشركات، وإيصال العروض، وتمكين التواصل</li>
+      <li><strong>الأمان</strong> — كشف محاولات الاختراق وحدّ المحاولات المتكرّرة</li>
+      <li><strong>التواصل معك</strong> — رسائل الحساب فقط: تفعيل، استعادة كلمة مرور، تنبيهات أمنية</li>
+    </ul>
+    <p><strong>لا نرسل رسائل تسويقية بلا موافقتك، ولا نبيع بياناتك لأحد. أبداً.</strong></p>
+  </section>
+
+  <section class="lg-sec" id="s3">
+    <h2>٣ · من يرى ماذا</h2>
+    <div class="lg-tw"><table class="lg-t">
+      <tr><th>البيان</th><th>من يراه</th></tr>
+      <tr><td>اسم الشركة · المدينة · التخصص · التقييم · الصور</td><td><strong>علني</strong> — لكل زائر ولمحرّكات البحث</td></tr>
+      <tr><td>هاتف الشركة</td><td>علني — الشركة تنشره لتُستقبَل به</td></tr>
+      <tr><td><strong>هاتف صاحب المشروع وبريده</strong></td><td><strong>صاحب المشروع · الشركة التي قُبل عرضها · الإدارة فقط</strong></td></tr>
+      <tr><td>نصوص الرسائل</td><td>طرفا المحادثة · الإدارة عند بلاغ</td></tr>
+      <tr><td>بريدك وكلمة مرورك</td><td><strong>أنت وحدك</strong> — كلمة المرور لا يراها أحد إطلاقاً</td></tr>
+    </table></div>
+  </section>
+
+  <section class="lg-sec" id="s4">
+    <h2>٤ · أين تُخزَّن</h2>
+    <div class="lg-tw"><table class="lg-t">
+      <tr><th>الخدمة</th><th>ما تحفظه</th><th>الموقع</th></tr>
+      <tr><td><strong>Neon</strong></td><td>قاعدة البيانات</td><td>أوروبا (فرانكفورت)</td></tr>
+      <tr><td><strong>ImageKit</strong></td><td>الصور المرفوعة</td><td>خوادم المزوّد</td></tr>
+      <tr><td><strong>Resend</strong></td><td>إرسال رسائل الحساب</td><td>خوادم المزوّد</td></tr>
+    </table></div>
+    <p>كلها تُنقَل <strong>مشفَّرة (HTTPS)</strong>. لا نشارك بياناتك مع أي طرف آخر إلا:</p>
+    <ul>
+      <li>بأمر قضائي من جهة مختصّة</li>
+      <li>أو لمنع ضرر جسيم أو احتيال</li>
+    </ul>
+  </section>
+
+  <section class="lg-sec" id="s5">
+    <h2>٥ · مدة الاحتفاظ</h2>
+    <div class="lg-tw"><table class="lg-t">
+      <tr><th>البيان</th><th>المدة</th></tr>
+      <tr><td>بيانات الحساب</td><td>ما دام حسابك قائماً</td></tr>
+      <tr><td>بعد حذف الحساب</td><td><strong>تُحذف خلال ٣٠ يوماً</strong></td></tr>
+      <tr><td>سجلّ التدقيق الأمني</td><td>١٢ شهراً (بصمة IP مجزّأة، بلا هوية)</td></tr>
+      <tr><td>المشاريع والعروض المنتهية</td><td>٢٤ شهراً ثم تُخفى هويتها</td></tr>
+    </table></div>
+  </section>
+
+  <section class="lg-sec" id="s6">
+    <h2>٦ · حقوقك</h2>
+    <ul>
+      <li><strong>الاطّلاع</strong> — اطلب نسخة من بياناتك على بريد الدعم</li>
+      <li><strong>التصحيح</strong> — عدّل ملفك من الإعدادات مباشرةً</li>
+      <li><strong>الحذف</strong> — احذف حسابك بنفسك من <strong>الإعدادات ← حذف الحساب</strong>. لا تحتاج إذناً منّا</li>
+      <li><strong>الاعتراض</strong> — راسلنا إن رأيت استعمالاً لا يوافقك</li>
+    </ul>
+
+    <div class="lg-call">
+      <h3>ما لا يُحذف عند حذف حسابك</h3>
+      <ul>
+        <li><strong>سجلّ التدقيق الأمني</strong> — يُحتفظ به مجهّلاً للحماية القانونية</li>
+        <li><strong>الرسائل التي أرسلتَها لغيرك</strong> — تبقى في نسخة المستلم كما في أي محادثة</li>
+        <li><strong>التقييمات التي كتبتَها</strong> — تُجهَّل ولا تُحذف، لأن حذفها يشوّه سمعة قُدِّرت بها شركة</li>
+      </ul>
+    </div>
+  </section>
+
+  <section class="lg-sec" id="s7">
+    <h2>٧ · ملفات الارتباط</h2>
+    <p>نستخدم <strong>كعكة جلسة واحدة</strong> (<code>bn_sess</code>) لإبقائك مسجّل الدخول.
+    محميّة بـ <code>HttpOnly</code> و<code>SameSite</code> و<code>Secure</code>،
+    وتنتهي بعد <strong>سبعة أيام</strong> أو عند الخروج.</p>
+    <p><strong>لا نستخدم كعكات تتبّع ولا إعلانات ولا تحليلات طرف ثالث.</strong></p>
+  </section>
+
+  <section class="lg-sec" id="s8">
+    <h2>٨ · الأطفال</h2>
+    <p>بُنيان <strong>للبالغين ١٨ سنة فأكثر</strong>. لا نجمع بيانات القاصرين عن قصد.
+    إن علمنا بحساب لقاصر حذفناه.</p>
+  </section>
+
+  <section class="lg-sec" id="s9">
+    <h2>٩ · تغيير هذه السياسة</h2>
+    <p>نُخطرك بالبريد قبل أي تغيير جوهري بـ <strong>٣٠ يوماً</strong>.
+    استمرارك في الاستخدام بعدها موافقة على النسخة الجديدة.</p>
+  </section>
+
+  <section class="lg-sec" id="s10">
+    <h2>١٠ · التواصل</h2>
+    <p id="contact">بريد الدعم يُعرض هنا بعد تثبيت النطاق الرسمي.</p>
+  </section>
+
+  <div class="lg-foot">
+    <a href="terms.html">شروط الاستخدام</a>
+    <span>بُنيان — صُنع في العراق</span>
+  </div>
+</main>
+
+<script src="nav-public.js"></script>
+<script>
+(function () {
+  'use strict';
+  /* بريد الدعم من إعداد الخادم لا مكتوباً في الصفحة: عنوان
+     مكتوب هنا يبقى بعد تبديله في .env فيوجّه المستخدم إلى
+     صندوق لا يُقرأ. */
+  fetch('/legal/contact').then(function (r) { return r.ok ? r.json() : null; })
+    .then(function (d) {
+      if (!d || !d.support_email) return;
+      var el = document.getElementById('contact');
+      el.innerHTML = 'للأسئلة عن خصوصيتك أو لطلب نسخة من بياناتك:' +
+        '<a class="lg-mail" href="mailto:' + d.support_email + '" dir="ltr">' +
+        d.support_email + '</a>';
+    }).catch(function () {});
+})();
+</script>
+</body>
+</html>

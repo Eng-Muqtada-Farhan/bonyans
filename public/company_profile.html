@@ -131,6 +131,8 @@ body { margin:0; background:var(--bn-bg); color:var(--bn-ink);
 .skel { height:96px; border-radius:var(--bn-r-lg); background:var(--bn-glass-tint);
   border:1px solid var(--bn-line-soft); margin-block-end:var(--bn-s3); }
 
+.report-row { display:flex; justify-content:flex-end;
+  margin-block-start:var(--bn-s3); }
 .toast { position:fixed; inset-block-end:var(--bn-s6); inset-inline:0;
   margin-inline:auto; width:max-content; max-width:88vw; z-index:500;
   padding:12px var(--bn-s5); border-radius:var(--bn-r-pill);
@@ -151,8 +153,14 @@ body { margin:0; background:var(--bn-bg); color:var(--bn-ink);
   <div class="skel"></div>
 </main>
 
+<footer class="bn-legal-foot">
+  <a href="privacy.html">سياسة الخصوصية</a>
+  <a href="terms.html">شروط الاستخدام</a>
+</footer>
+
 <div class="toast" id="toast"><span id="toastMsg"></span></div>
 
+<script src="report.js"></script>
 <script src="nav-public.js"></script>
 <script>
 (function () {
@@ -314,6 +322,7 @@ function render(d, reviews) {
           (r.comment ? '<p class="rev-c">' + esc(r.comment) + '</p>' : '') +
           (r.reply ? '<div class="rev-reply"><div class="rev-reply-t">ردّ الشركة</div>' +
                      '<p>' + esc(r.reply) + '</p></div>' : '') +
+          '<div class="report-row">' + BunyanReport.button('review', r.id) + '</div>' +
         '</div>').join('') + '</div>'
     : '<div class="empty">' + svg(IC.chat, 32) +
         '<div class="empty-t">لا تقييمات بعد</div>' +
@@ -347,7 +356,12 @@ function render(d, reviews) {
     '<section class="sec"><h2 class="sec-t">معرض الأعمال</h2>' + galHTML + '</section>' +
 
     '<section class="sec"><h2 class="sec-t">التقييمات' +
-      (n ? ' <span class="rate-c">(' + n + ')</span>' : '') + '</h2>' + revHTML + '</section>';
+      (n ? ' <span class="rate-c">(' + n + ')</span>' : '') + '</h2>' + revHTML + '</section>' +
+
+    /* الإبلاغ عن الملف — شرط Apple ١٫٢ */
+    '<div class="report-row">' + BunyanReport.button('company', c.id, 'إبلاغ عن هذا الملف') + '</div>';
+
+  BunyanReport.wire($('main'));
 
   /* نقرة واتساب تُسجَّل ثم يفتح الرابط طبيعياً */
   const waBtn = document.querySelector('[data-wa]');

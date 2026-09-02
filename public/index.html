@@ -36,6 +36,18 @@ body { margin:0; background:var(--bn-bg); color:var(--bn-ink);
 .wrap { max-width:1080px; margin-inline:auto; padding-inline:var(--bn-s5); }
 @media(max-width:560px){ .wrap { padding-inline:var(--bn-s4); } }
 
+/* ── مربّع الموافقة القانونية ───────────────────────────────
+   غير مؤشَّر مسبقاً، والروابط تفتح في لسان جديد فلا يفقد
+   المستخدم ما ملأه من النموذج حين يقرأ الوثيقة. */
+.bn-consent { display:flex; align-items:flex-start; gap:10px;
+  min-height:44px; padding-block:var(--bn-s3); cursor:pointer;
+  font:var(--bn-t-sm); color:var(--bn-ink-2); line-height:1.8; }
+.bn-consent input { width:20px; height:20px; margin:2px 0 0; flex:none;
+  accent-color:var(--bn-ac); cursor:pointer; }
+.bn-consent a { color:var(--bn-ac); }
+.bn-consent.is-error { color:var(--bn-err); }
+.bn-consent.is-error input { outline:2px solid var(--bn-err); outline-offset:2px; }
+
 /* ── البطل ─────────────────────────────────────────────────── */
 .hero { padding-block:var(--bn-s14) var(--bn-s10); text-align:center; }
 .hero-tag { display:inline-flex; align-items:center; gap:7px;
@@ -171,7 +183,7 @@ body { margin:0; background:var(--bn-bg); color:var(--bn-ink);
 /* ── التذييل ───────────────────────────────────────────────── */
 .foot { border-block-start:1px solid var(--bn-line-soft);
   padding-block:var(--bn-s8) var(--bn-s14); margin-block-start:var(--bn-s14); }
-.foot-grid { display:grid; grid-template-columns:1.6fr 1fr 1fr; gap:var(--bn-s8); }
+.foot-grid { display:grid; grid-template-columns:1.6fr 1fr 1fr 1fr; gap:var(--bn-s8); }
 @media(max-width:700px){ .foot-grid { grid-template-columns:1fr 1fr; gap:var(--bn-s6); } }
 .foot-logo { font:700 19px/1 var(--bn-font); margin-block-end:var(--bn-s3); }
 .foot-logo b { color:var(--bn-ac); }
@@ -311,6 +323,11 @@ body { margin:0; background:var(--bn-bg); color:var(--bn-ink);
         <a href="login.html">تسجيل الدخول</a>
         <a href="#" onclick="openRegModal();return false">سجّل شركتك</a>
       </div>
+      <div>
+        <h4>قانوني</h4>
+        <a href="privacy.html">سياسة الخصوصية</a>
+        <a href="terms.html">شروط الاستخدام</a>
+      </div>
     </div>
     <div class="foot-base">بُنيان — صُنع في العراق</div>
   </div>
@@ -343,6 +360,14 @@ body { margin:0; background:var(--bn-bg); color:var(--bn-ink);
       <div class="bn-input"><textarea id="f-desc" rows="3"></textarea></div></div>
     <div class="bn-field"><label for="f-image">شعار الشركة (اختياري)</label>
       <div class="bn-input"><input id="f-image" type="file" accept="image/*"></div></div>
+    <label class="bn-consent" for="f-terms">
+      <input type="checkbox" id="f-terms">
+      <span>أوافق على
+        <a href="terms.html" target="_blank" rel="noopener">شروط الاستخدام</a>
+        و<a href="privacy.html" target="_blank" rel="noopener">سياسة الخصوصية</a>.
+      </span>
+    </label>
+
     <button class="bn-btn bn-btn-block" type="button" id="submitBtn" onclick="submitCompany()">
       <span id="submitText">تسجيل الشركة</span>
     </button>
@@ -578,6 +603,8 @@ document.addEventListener('keydown', e => {
 function resetRegForm() {
   ['f-name','f-city','f-phone','f-email','f-password','f-password2','f-desc']
     .forEach(id => { const el = $(id); if (el) el.value = ''; });
+  const tc = $('f-terms');
+  if (tc) { tc.checked = false; tc.closest('.bn-consent').classList.remove('is-error'); }
   document.querySelectorAll('#specChips .chip.is-on').forEach(c => c.classList.remove('is-on'));
 }
 function toast(msg, isErr) {
@@ -604,6 +631,18 @@ async function submitCompany() {
   if (pw.length < 8) { toast('كلمة المرور يجب أن تكون 8 أحرف على الأقل', true); return; }
   if (pw !== pw2)    { toast('كلمتا المرور غير متطابقتين', true); return; }
 
+  /* لا تسجيل بلا موافقة. الحارس هنا للتجربة، والحارس الحقيقي
+     على الخادم يرفض الطلب بلا accept_terms. */
+  const terms = $('f-terms');
+  const termsWrap = terms.closest('.bn-consent');
+  if (!terms.checked) {
+    termsWrap.classList.add('is-error');
+    toast('يلزم قبول شروط الاستخدام وسياسة الخصوصية', true);
+    terms.focus();
+    return;
+  }
+  termsWrap.classList.remove('is-error');
+
   const btn = $('submitBtn'), txt = $('submitText');
   btn.disabled = true;
 
@@ -617,7 +656,8 @@ async function submitCompany() {
     txt.textContent = 'جارٍ إنشاء الحساب...';
     const ar = await fetch(API + '/auth/register', {
       method: 'POST', headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ email, password: pw, display_name: name }),
+      body: JSON.stringify({ email, password: pw, display_name: name,
+                             accept_terms: true }),
       signal: AbortSignal.timeout(10000)
     });
     if (!ar.ok) throw new Error((await ar.json().catch(() => ({}))).detail || 'خطأ في إنشاء الحساب');

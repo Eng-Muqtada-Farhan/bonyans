@@ -39,6 +39,28 @@
   border-radius:var(--bn-r-pill);font:var(--bn-t-cap);white-space:nowrap}
 .sec-tag-on{background:var(--bn-ac-bg);color:var(--bn-ac);border:1px solid var(--bn-ac-line)}
 .sec-tag-off{background:transparent;color:var(--bn-ink-3);border:1px solid var(--bn-line)}
+
+/* منطقة الخطر — الأحمر هنا وظيفي لا لون علامة (tokens §الحالات) */
+.sec-danger{border-color:var(--bn-err-line)}
+.sec-danger h3{color:var(--bn-err)}
+.sec-list{margin:0 0 var(--bn-s4);padding-inline-start:var(--bn-s5);max-width:56ch}
+.sec-list li{font:var(--bn-t-cap);color:var(--bn-ink-3);line-height:1.9;margin-block-end:4px}
+.sec-list b{color:var(--bn-ink-2)}
+/* رابط قائم بذاته على سطره — هدف لمس كامل. الروابط داخل
+   الجمل معفاة (WCAG ٢٫٥٫٨) لأن رفعها يكسر إيقاع السطر. */
+.sec-link{display:inline-flex;align-items:center;min-height:44px;color:var(--bn-ac)}
+.sec-btn-danger{color:var(--bn-err);border-color:var(--bn-err-line)}
+.sec-btn-danger:hover:not(:disabled){background:var(--bn-err-bg);color:var(--bn-err)}
+.bn-btn.sec-btn-danger:disabled{opacity:.45;cursor:not-allowed}
+
+.sec-ov{position:fixed;inset:0;z-index:700;display:flex;align-items:center;
+  justify-content:center;background:var(--bn-scrim);opacity:0;
+  transition:opacity var(--bn-mid)}
+.sec-ov.is-on{opacity:1}
+.sec-sheet{width:100%;max-width:460px;margin:var(--bn-s5);padding:var(--bn-s6);
+  background:var(--bn-surface);border:1px solid var(--bn-err-line);
+  border-radius:var(--bn-r-lg);box-shadow:var(--bn-sh-3)}
+.sec-sheet h2{font:var(--bn-t-h3);margin:0 0 var(--bn-s3);color:var(--bn-err)}
 `;
 
   function injectCSS() {
@@ -116,6 +138,27 @@
               '<input id="secEmailPw" type="password" required dir="ltr" autocomplete="current-password"></div>' +
             '<div class="sec-end"><button class="bn-btn" type="submit">إرسال رابط التأكيد</button></div>' +
           '</form>' +
+        '</div>' +
+
+        /* ── حذف الحساب — شرط Apple ٥٫١٫١ ──
+           داخل التطبيق، بكلمة المرور، وبكتابة عبارة صريحة.
+           نقرة واحدة لا تكفي لإجراء لا رجعة فيه. */
+        '<div class="sec-form sec-danger">' +
+          '<h3>حذف الحساب</h3>' +
+          '<p class="note">' +
+            'يُغلق حسابك فوراً وتُزال بياناتك الشخصية، وتُمحى نهائياً خلال ٣٠ يوماً.' +
+          '</p>' +
+          '<ul class="sec-list">' +
+            '<li>تقييماتك تبقى <b>مجهَّلة</b> — حذفها يشوّه سمعة قُدِّرت بها شركة</li>' +
+            '<li>رسائلك تبقى في نسخة المستلم كما في أي محادثة</li>' +
+            '<li>سجلّ التدقيق الأمني يبقى مجهَّلاً ١٢ شهراً</li>' +
+          '</ul>' +
+          '<p class="note"><a class="sec-link" href="/privacy.html#s6" ' +
+            'target="_blank" rel="noopener">تفاصيل ما يُحذف وما يبقى</a></p>' +
+          '<div class="sec-end">' +
+            '<button class="bn-btn bn-btn-ghost sec-btn-danger" type="button" data-del>' +
+              'حذف حسابي نهائياً</button>' +
+          '</div>' +
         '</div>';
 
       var rs = el.querySelector('[data-resend]');
@@ -148,6 +191,8 @@
         finally { b.disabled = false; b.textContent = 'حفظ كلمة المرور'; }
       };
 
+      el.querySelector('[data-del]').onclick = function () { deleteSheet(); };
+
       el.querySelector('[data-em]').onsubmit = async function (e) {
         e.preventDefault();
         var b = this.querySelector('button');
@@ -163,6 +208,59 @@
           toast(d && d.message ? d.message : 'أُرسل رابط التأكيد إلى بريدك الجديد.');
         } catch (err) { toast(errText(err), 'err'); }
         finally { b.disabled = false; b.textContent = 'إرسال رابط التأكيد'; }
+      };
+    }
+
+    /* نافذة الحذف — تأكيدان: كلمة المرور وعبارة مكتوبة بيد
+       المستخدم. لا زرّ وحده يمحو حساباً. */
+    function deleteSheet() {
+      var ov = document.createElement('div');
+      ov.className = 'sec-ov';
+      ov.innerHTML =
+        '<div class="sec-sheet" role="dialog" aria-modal="true">' +
+          '<h2>حذف الحساب نهائياً</h2>' +
+          '<p class="note">هذا إجراء لا رجعة فيه. اكتب <b>حذف حسابي</b> للتأكيد.</p>' +
+          '<div class="sec-fr"><label for="delPw">كلمة المرور</label>' +
+            '<input id="delPw" type="password" dir="ltr" autocomplete="current-password"></div>' +
+          '<div class="sec-fr"><label for="delTxt">اكتب: حذف حسابي</label>' +
+            '<input id="delTxt" type="text" autocomplete="off"></div>' +
+          '<div class="sec-end">' +
+            '<button class="bn-btn bn-btn-ghost" type="button" data-no>إلغاء</button>' +
+            '<button class="bn-btn sec-btn-danger" type="button" data-yes disabled>حذف نهائياً</button>' +
+          '</div>' +
+        '</div>';
+      document.body.appendChild(ov);
+      requestAnimationFrame(function () { ov.classList.add('is-on'); });
+
+      var yes = ov.querySelector('[data-yes]');
+      var txt = ov.querySelector('#delTxt');
+      /* الزرّ معطَّل حتى تُكتب العبارة — لا نقرة بالخطأ */
+      txt.addEventListener('input', function () {
+        yes.disabled = this.value.trim() !== 'حذف حسابي';
+      });
+      function close() { ov.classList.remove('is-on'); setTimeout(function () { ov.remove(); }, 200); }
+      ov.querySelector('[data-no]').onclick = close;
+      ov.onclick = function (e) { if (e.target === ov) close(); };
+      txt.focus();
+
+      yes.onclick = async function () {
+        var b = this;
+        b.disabled = true; b.textContent = 'جارٍ الحذف...';
+        try {
+          var d = await api('/account', { method: 'DELETE', body: {
+            password: ov.querySelector('#delPw').value,
+            confirm:  txt.value.trim()
+          }});
+          try { localStorage.clear(); } catch (e) {}
+          ov.querySelector('.sec-sheet').innerHTML =
+            '<h2>حُذف حسابك</h2><p class="note">' +
+            esc((d && d.message) || 'حُذف حسابك.') + '</p>' +
+            '<div class="sec-end"><a class="bn-btn" href="/index.html">إلى الصفحة الرئيسية</a></div>';
+          setTimeout(function () { location.replace('/index.html'); }, 4000);
+        } catch (e) {
+          b.disabled = false; b.textContent = 'حذف نهائياً';
+          toast(errText(e), 'err');
+        }
       };
     }
 
