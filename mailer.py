@@ -20,12 +20,48 @@ import httpx
 
 log = logging.getLogger("bunyan.mail")
 
-RESEND_API_KEY = os.getenv("RESEND_API_KEY", "")
-# onboarding@resend.dev هو مرسِل Resend التجريبي: لا يصل إلا بريد
-# صاحب الحساب. بوابة نشر في SCOPE.md تُلزم بتبديله بنطاق موثَّق.
-MAIL_FROM      = os.getenv("MAIL_FROM", "onboarding@resend.dev")
-SUPPORT_EMAIL  = os.getenv("SUPPORT_EMAIL", MAIL_FROM)
-BASE_URL       = os.getenv("PUBLIC_BASE_URL", "http://127.0.0.1:8000").rstrip("/")
+# ── الإعداد يُقرأ عند الاستدعاء لا عند الاستيراد ──
+# main.py يستورد mailer قبل load_dotenv()، فقراءةٌ وقت الاستيراد
+# تلتقط القيم الافتراضية وتترك RESEND_API_KEY فارغاً ولو كان
+# مضبوطاً في .env — وتفشل الرسائل لسبب لا علاقة له بالمفتاح.
+# القراءة الكسولة تجعل ترتيب الاستيراد بلا أثر.
+
+def _env(name: str, default: str = "") -> str:
+    return os.getenv(name, default)
+
+
+def api_key() -> str:
+    return _env("RESEND_API_KEY")
+
+
+def mail_from() -> str:
+    # onboarding@resend.dev مرسِل Resend التجريبي: لا يصل إلا بريد
+    # صاحب الحساب. بوابة نشر في SCOPE.md تُلزم بنطاق موثَّق.
+    return _env("MAIL_FROM", "onboarding@resend.dev")
+
+
+def support_email() -> str:
+    return _env("SUPPORT_EMAIL") or mail_from()
+
+
+def base_url() -> str:
+    return _env("PUBLIC_BASE_URL", "http://127.0.0.1:8000").rstrip("/")
+
+
+def __getattr__(name):
+    """
+    توافق مع من يقرأ mailer.MAIL_FROM كقيمة — يُحسب عند الطلب.
+    (PEP 562: يُستدعى فقط حين لا يوجد الاسم في الوحدة.)
+    """
+    mapping = {
+        "RESEND_API_KEY": api_key,
+        "MAIL_FROM":      mail_from,
+        "SUPPORT_EMAIL":  support_email,
+        "BASE_URL":       base_url,
+    }
+    if name in mapping:
+        return mapping[name]()
+    raise AttributeError(name)
 
 RESEND_ENDPOINT = "https://api.resend.com/emails"
 
@@ -33,7 +69,7 @@ BRONZE = "#96703C"   # اللون الوحيد المسموح في البريد 
 
 
 def mail_enabled() -> bool:
-    return bool(RESEND_API_KEY)
+    return bool(api_key())
 
 
 def send(to: str, subject: str, text: str, html: str) -> bool:
@@ -50,9 +86,9 @@ def send(to: str, subject: str, text: str, html: str) -> bool:
     try:
         r = httpx.post(
             RESEND_ENDPOINT,
-            headers={"Authorization": f"Bearer {RESEND_API_KEY}",
+            headers={"Authorization": f"Bearer {api_key()}",
                      "Content-Type": "application/json"},
-            json={"from": MAIL_FROM, "to": [to], "subject": subject,
+            json={"from": mail_from(), "to": [to], "subject": subject,
                   "text": text, "html": html},
             timeout=15.0,
         )
@@ -268,7 +304,7 @@ def email_change_alert(to: str) -> bool:
 
 إن لم تكن أنت، فقد يكون أحدهم وصل إلى حسابك:
   ١. غيّر كلمة مرورك فوراً
-  ٢. راسلنا على {SUPPORT_EMAIL}
+  ٢. راسلنا على {support_email()}
 
 —
 بُنيان"""
@@ -280,7 +316,7 @@ def email_change_alert(to: str) -> bool:
         + _para("إن لم تكن أنت، فقد يكون أحدهم وصل إلى حسابك:<br>"
                 "١. غيّر كلمة مرورك فوراً<br>"
                 f'٢. راسلنا على <span dir="ltr" style="color:{BRONZE};">'
-                f"{_esc(SUPPORT_EMAIL)}</span>", 13, "#6b6459")
+                f"{_esc(support_email())}</span>", 13, "#6b6459")
     )
     return send(to, subject, text, html)
 
@@ -307,7 +343,7 @@ def account_deleted(to: str, purge_date: str) -> bool:
   · تقييماتك التي كتبتها — مجهَّلة، لأن حذفها يشوّه سمعة قُدِّرت بها شركة
   · رسائلك — في نسخة المستلم، كما في أي محادثة
 
-إن لم تكن أنت من طلب الحذف، راسلنا فوراً على {SUPPORT_EMAIL}.
+إن لم تكن أنت من طلب الحذف، راسلنا فوراً على {support_email()}.
 
 —
 بُنيان"""
@@ -323,7 +359,7 @@ def account_deleted(to: str, purge_date: str) -> bool:
                 "· تقييماتك التي كتبتها — مجهَّلة، لأن حذفها يشوّه سمعة قُدِّرت بها شركة<br>"
                 "· رسائلك — في نسخة المستلم، كما في أي محادثة", 13, "#6b6459")
         + _para(f'إن لم تكن أنت من طلب الحذف، راسلنا فوراً على '
-                f'<span dir="ltr" style="color:{BRONZE};">{_esc(SUPPORT_EMAIL)}</span>.',
+                f'<span dir="ltr" style="color:{BRONZE};">{_esc(support_email())}</span>.',
                 13, "#6b6459")
     )
     return send(to, subject, text, html)

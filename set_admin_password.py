@@ -40,6 +40,12 @@ def generate_password(length: int = GEN_LEN) -> str:
     return "".join(secrets.choice(GEN_ALPHABET) for _ in range(length))
 
 
+def drop_var(text: str, name: str) -> str:
+    """يحذف كل أسطر المتغيّر — ولو تكرّر."""
+    pattern = re.compile(r"(?m)^[ \t]*" + re.escape(name) + r"[ \t]*=.*\r?\n?")
+    return pattern.sub("", text)
+
+
 def set_var(text: str, key: str, value: str) -> str:
     """يستبدل قيمة المتغيّر إن وُجد، أو يضيفه في النهاية."""
     pattern = re.compile(rf"(?m)^{re.escape(key)}=.*$")
@@ -75,11 +81,15 @@ def main() -> int:
     hashed = bcrypt.hashpw(pw1.encode("utf-8"), bcrypt.gensalt()).decode("utf-8")
 
     text = io.open(ENV_PATH, encoding="utf-8").read()
-    text = set_var(text, "ADMIN_PASSWORD", pw1)
+    # الكلمة الصريحة لا تُكتب: الدخول يتحقّق من التجزئة وحدها،
+    # فنصٌّ صريح في .env مسؤولية بلا فائدة. ويُحذف ما خلّفه
+    # تدوير سابق.
+    text = drop_var(text, "ADMIN_PASSWORD")
     text = set_var(text, "ADMIN_PASSWORD_HASH", hashed)
     io.open(ENV_PATH, "w", encoding="utf-8", newline="").write(text)
 
-    print(f"\nتم. كُتب ADMIN_PASSWORD ({len(pw1)} محرفاً) و ADMIN_PASSWORD_HASH في {ENV_PATH}")
+    print("\nتم. كُتبت ADMIN_PASSWORD_HASH في " + ENV_PATH)
+    print(f"الكلمة {len(pw1)} محرفاً — ولا تُخزَّن صريحة في .env.")
     print("أعد تشغيل الخادم ليقرأ القيم الجديدة.")
     return 0
 

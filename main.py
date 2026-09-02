@@ -25,7 +25,8 @@ load_dotenv()
 
 # ── Auth ──────────────────────────────────────────────────────────────────────
 ADMIN_USERNAME = os.getenv("ADMIN_USERNAME", "admin")
-ADMIN_PASSWORD = os.getenv("ADMIN_PASSWORD", "")
+# الكلمة الصريحة لا تُقرأ: الدخول يتحقّق من ADMIN_PASSWORD_HASH
+# وحدها. متغيّر يُقرأ ولا يُستعمل يوهم بأن للنصّ الصريح دوراً.
 JWT_SECRET     = os.getenv("JWT_SECRET", "")
 
 if not JWT_SECRET:
