@@ -907,3 +907,146 @@ def test_46_block_prevents_messaging_both_ways(client, user_token):
         left = db.execute(text("SELECT count(*) FROM blocks WHERE blocker_id=:a"),
                           {"a": me}).scalar()
     assert left == 0
+
+
+# ══════════════════════════════════════════════════════════════
+# الجولة أ — ثغرات حيّة وعزل الأسطح
+# ══════════════════════════════════════════════════════════════
+
+def test_47_website_map_link_reject_javascript_scheme(client, admin_token, company_token):
+    """
+    website وmap_link يُرفضان إن لم يبدآ بـhttp:// أو https:// —
+    قائمة سماح لا قائمة منع. هذا هو مسار XSS المخزّنة عبر
+    javascript: الذي كان يصل إلى كل زائر على صفحة الشركة العامة.
+    """
+    # POST /companies (إنشاء إداري)
+    body = {"name": SMOKE_PREFIX + "شركة رابط خبيث", "city": "بغداد",
+            "phone": "07000000098", "spec": "مقاولات عامة", "desc": "اختبار",
+            "website": "javascript:alert(document.cookie)"}
+    r = client.post("/companies", json=body, headers=bearer(admin_token))
+    assert r.status_code == 422, "قبل رابط javascript: في الإنشاء الإداري"
+
+    body2 = {**body, "website": "", "map_link": "javascript:alert(1)"}
+    r2 = client.post("/companies", json=body2, headers=bearer(admin_token))
+    assert r2.status_code == 422, "قبل رابط javascript: في map_link عند الإنشاء"
+
+    # نداء سليم يُقبل ويُنظَّف فوراً — يثبت أن القائمة سماح لا حجب عام
+    ok = client.post("/companies", json={**body, "website": "https://example.com"},
+                     headers=bearer(admin_token))
+    assert ok.status_code == 200, "رابط https:// سليم رُفض خطأً"
+    with main.SessionLocal() as db:
+        db.execute(text("DELETE FROM companies WHERE id=:i"), {"i": ok.json()["id"]})
+        db.commit()
+
+    # PUT /company/me (تعديل الشركة نفسها بعد الاعتماد)
+    before = client.get("/company/me", headers=bearer(company_token)).json()
+    bad = client.put("/company/me", headers=bearer(company_token),
+                     json={"website": "javascript:alert(document.cookie)"})
+    assert bad.status_code == 422, "قبل رابط javascript: في PUT /company/me"
+
+    bad2 = client.put("/company/me", headers=bearer(company_token),
+                      json={"map_link": "javaScript:alert(1)"})
+    assert bad2.status_code == 422, "قبل رابط javascript: بحروف كبيرة في map_link"
+
+    good = client.put("/company/me", headers=bearer(company_token),
+                      json={"website": "https://example.com"})
+    assert good.status_code == 200, "رابط https:// سليم رُفض خطأً في /company/me"
+
+    # استعادة القيمة الأصلية — لا نترك أثراً في حساب البذرة
+    client.put("/company/me", headers=bearer(company_token),
+              json={"website": before.get("website") or ""})
+
+
+def test_48_free_text_fields_have_max_length(client, admin_token):
+    """
+    حقل نصّي حرّ بلا حدّ أقصى يعني صفّاً بحجم ميغابايت — كل نموذج
+    Pydantic في main.py يحمل الآن max_length معقولاً.
+    """
+    body = {"name": SMOKE_PREFIX + "شركة", "city": "بغداد",
+            "phone": "07000000097", "spec": "مقاولات عامة",
+            "desc": "س" * 5001}  # الحدّ ٥٠٠٠
+    r = client.post("/companies", json=body, headers=bearer(admin_token))
+    assert r.status_code == 422, "وصف أطول من الحدّ الأقصى قُبل"
+
+    body2 = {**body, "desc": "اختبار", "phone": "0" * 31}  # الحدّ ٣٠
+    r2 = client.post("/companies", json=body2, headers=bearer(admin_token))
+    assert r2.status_code == 422, "هاتف أطول من الحدّ الأقصى قُبل"
+
+
+def test_49_page_upper_bound_prevents_offset_overflow(client):
+    """
+    page بلا حدّ أعلى كان يُنتج OFFSET يتجاوز bigint فيُسقط الطلب
+    بخطأ 500 غير معالَج (main.py: /companies و /projects).
+    """
+    r = client.get("/companies", params={"page": 99999999999999999999, "per_page": 20})
+    assert r.status_code == 200, f"page ضخم أسقط /companies: {r.status_code}"
+    assert r.json()["items"] == []
+
+    r2 = client.get("/projects", params={"page": 99999999999999999999, "per_page": 20})
+    assert r2.status_code == 200, f"page ضخم أسقط /projects: {r2.status_code}"
+    assert r2.json()["items"] == []
+
+
+def test_50_wa_stats_requires_matching_company_or_admin(client, admin_token, company_token):
+    """
+    wa-stats كانت تتحقّق فقط من وجود ترويسة Authorization — أي طلب
+    بترويسة عشوائية يقرأ إحصاءات أي شركة. صار يستعمل الحارس نفسه
+    المستعمل في /company/{id}/views المجاور: resolve_identity +
+    مقارنة company_id.
+    """
+    me = client.get("/company/me", headers=bearer(company_token)).json()
+    cid = me["id"]
+
+    forged = client.get(f"/company/{cid}/wa-stats",
+                        headers={"Authorization": "Bearer garbage-not-a-jwt"})
+    assert forged.status_code == 401, "ترويسة عشوائية أعادت غير 401"
+
+    no_auth = client.get(f"/company/{cid}/wa-stats")
+    assert no_auth.status_code == 401
+
+    own = client.get(f"/company/{cid}/wa-stats", headers=bearer(company_token))
+    assert own.status_code == 200, "الشركة رُفضت عن إحصاءاتها هي"
+
+    with main.SessionLocal() as db:
+        other_cid = db.execute(
+            text("SELECT id FROM companies WHERE id != :c ORDER BY id LIMIT 1"),
+            {"c": cid}
+        ).scalar()
+    assert other_cid, "تحتاج بيانات البذر: شركة ثانية على الأقل"
+    other = client.get(f"/company/{other_cid}/wa-stats", headers=bearer(company_token))
+    assert other.status_code == 403, "شركة رأت إحصاءات شركة غيرها"
+
+    admin_view = client.get(f"/company/{cid}/wa-stats", headers=bearer(admin_token))
+    assert admin_view.status_code == 200, "المدير رُفض عن إحصاءات شركة"
+
+
+def test_51_500_responses_do_not_leak_exception_text(client, company_token, monkeypatch):
+    """
+    main.py:434 و1181 و2846 كانت تُعيد str(e) الخام في جسم استجابة
+    500 — قد يسرّب تفاصيل استعلام أو رسالة اتصال بقاعدة البيانات.
+    صار يُسجَّل في السجلّ، وتُعاد رسالة عامة للعميل.
+    """
+    secret = "SECRET_DB_CONNECTION_STRING_MUST_NOT_LEAK_TO_CLIENT"
+
+    def _boom(*a, **k):
+        raise RuntimeError(secret)
+
+    monkeypatch.setattr(main.imagekit.files, "upload", _boom)
+
+    png_bytes = b"\x89PNG\r\n\x1a\n" + b"0" * 32
+    r = client.post(
+        "/upload",
+        headers=bearer(company_token),
+        files={"file": ("test.png", png_bytes, "image/png")},
+    )
+    assert r.status_code == 500
+    assert secret not in r.text, "نصّ الاستثناء الخام تسرّب إلى العميل"
+    assert "فشل رفع الصورة" in r.text
+
+    # الموضعان الآخران (main.py: company_upload وsubmit_bid) بنفس
+    # النمط — فحص ساكن يمنع ارتداد أيّ منهما دون تشغيل مسار حيّ لكل واحد.
+    import inspect
+    src = inspect.getsource(main)
+    assert 'detail=f"Upload failed' not in src
+    assert 'detail=f"Image upload failed' not in src
+    assert 'detail=str(e)' not in src

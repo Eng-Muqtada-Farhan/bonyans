@@ -48,6 +48,34 @@ self.addEventListener('activate', event => {
   );
 });
 
+/* ── الأسطح المسوَّرة: صفحاتها لا تُخزَّن ولا تُستبدَل ──────────
+   /app /admin /me محمية بحارس على الخادم يفحص كل تنقّل (main.py:
+   surface_guard). لو خُزِّنت صفحاتها أو أُعيد أي بديل مخزَّن عند
+   انقطاع الشبكة، لتجاوز الحارسَ طلبٌ لم يصل الخادم أصلاً — وقد
+   أعاد الموقعَ العام (index.html) داخل لوحة شركة/إدارة فعلياً.
+   فتنقّل هذه الأسطح: شبكة فقط، بلا قراءة من المخزون ولا كتابة
+   فيه، وعند الانقطاع صفحة بديلة صغيرة محايدة لا الموقع العام. */
+function isSurfaceNav(request, pathname) {
+  return request.mode === 'navigate' &&
+    (pathname.startsWith('/app/') || pathname.startsWith('/admin/') || pathname.startsWith('/me/'));
+}
+
+function surfaceOfflinePage(pathname) {
+  const surface = pathname.startsWith('/admin/') ? 'admin' : pathname.startsWith('/me/') ? 'me' : 'app';
+  const title = surface === 'admin' ? 'لوحة الإدارة' : surface === 'me' ? 'منطقة صاحب المشروع' : 'لوحة الشركة';
+  const html = '<!doctype html><html lang="ar" dir="rtl"><head><meta charset="utf-8">' +
+    '<meta name="viewport" content="width=device-width, initial-scale=1">' +
+    '<title>لا يوجد اتصال — ' + title + '</title></head>' +
+    '<body style="font-family:system-ui,-apple-system,Tajawal,sans-serif;text-align:center;' +
+    'padding:80px 24px;color:#5b5347;background:#F4F2ED">' +
+    '<h1 style="font-size:19px;margin:0 0 8px">لا يوجد اتصال بالإنترنت</h1>' +
+    '<p style="margin:0 0 20px">' + title + ' تحتاج اتصالاً للتحقّق من جلستك.</p>' +
+    '<button onclick="location.reload()" style="border:0;border-radius:10px;padding:12px 22px;' +
+    'font:inherit;background:#96703C;color:#fff;min-height:44px">إعادة المحاولة</button>' +
+    '</body></html>';
+  return new Response(html, { status: 503, headers: { 'Content-Type': 'text/html; charset=utf-8' } });
+}
+
 /* ── Fetch: strategy by request type ──────────────── */
 self.addEventListener('fetch', event => {
   const url = new URL(event.request.url);
@@ -63,6 +91,14 @@ self.addEventListener('fetch', event => {
       status: 503,
       headers: { 'Content-Type': 'application/json' }
     })));
+    return;
+  }
+
+  /* تنقّل داخل /app أو /admin أو /me → شبكة فقط، بلا مخزون */
+  if (isSurfaceNav(event.request, url.pathname)) {
+    event.respondWith(
+      fetch(event.request).catch(() => surfaceOfflinePage(url.pathname))
+    );
     return;
   }
 

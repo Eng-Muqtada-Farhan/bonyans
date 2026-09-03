@@ -1,5 +1,6 @@
 import hashlib
 import io
+import logging
 import os
 import secrets
 from datetime import datetime, timedelta, timezone
@@ -16,12 +17,14 @@ from sqlalchemy.exc import IntegrityError
 from fastapi import FastAPI, HTTPException, Request, UploadFile, File
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse, RedirectResponse
-from pydantic import BaseModel
+from pydantic import BaseModel, Field, field_validator
 from imagekitio import ImageKit
 
 import mailer
 
 load_dotenv()
+
+log = logging.getLogger("bunyan.main")
 
 # ── Auth ──────────────────────────────────────────────────────────────────────
 ADMIN_USERNAME = os.getenv("ADMIN_USERNAME", "admin")
@@ -366,17 +369,37 @@ def row_to_company_dict(r: dict) -> dict:
 
 
 # ── Pydantic models ───────────────────────────────────────────────────────────
+
+def _require_http_url(v: Optional[str]) -> Optional[str]:
+    """
+    قائمة سماح لا قائمة منع: فارغ مسموح، وإلا يجب أن يبدأ
+    بـhttp:// أو https:// حرفياً. يمنع مخطط javascript: وغيره
+    من دخول حقل يُعرض لاحقاً كـhref في صفحة عامة.
+    """
+    if v is None:
+        return v
+    v = v.strip()
+    if not v:
+        return v
+    if not (v.startswith("http://") or v.startswith("https://")):
+        raise ValueError("الرابط يجب أن يبدأ بـhttp:// أو https://")
+    return v
+
+
 class Company(BaseModel):
-    name:      str
-    city:      str
-    phone:     str
-    spec:      str
-    desc:      str
-    email:     str           = ""
-    website:   str           = ""
-    map_link:  str           = ""
+    name:      str          = Field(..., max_length=200)
+    city:      str          = Field(..., max_length=100)
+    phone:     str          = Field(..., max_length=30)
+    spec:      str          = Field(..., max_length=200)
+    desc:      str          = Field(..., max_length=5000)
+    email:     str           = Field("", max_length=200)
+    website:   str           = Field("", max_length=500)
+    map_link:  str           = Field("", max_length=500)
     rating:    float         = 5
-    image_url: Optional[str] = ""
+    image_url: Optional[str] = Field("", max_length=500)
+
+    _v_website  = field_validator("website")(_require_http_url)
+    _v_map_link = field_validator("map_link")(_require_http_url)
 
 
 class CompanyStatusUpdate(BaseModel):
@@ -385,27 +408,27 @@ class CompanyStatusUpdate(BaseModel):
 
 # ── Phase 11 — Category Pydantic models ──────────────────────────────────────
 class CategoryCreate(BaseModel):
-    name_ar:    str
-    name_en:    str           = ""
-    icon:       str           = "🏗"
+    name_ar:    str          = Field(..., max_length=100)
+    name_en:    str          = Field("", max_length=100)
+    icon:       str          = Field("🏗", max_length=20)
     sort_order: int           = 0
 
 class CategoryUpdate(BaseModel):
-    name_ar:    Optional[str] = None
-    name_en:    Optional[str] = None
-    icon:       Optional[str] = None
+    name_ar:    Optional[str] = Field(None, max_length=100)
+    name_en:    Optional[str] = Field(None, max_length=100)
+    icon:       Optional[str] = Field(None, max_length=20)
     is_active:  Optional[bool]= None
     sort_order: Optional[int] = None
 
 
 class CompanyUpdate(BaseModel):
-    name:      Optional[str] = None
-    city:      Optional[str] = None
-    phone:     Optional[str] = None
-    desc:      Optional[str] = None
-    email:     Optional[str] = None
-    website:   Optional[str] = None
-    image_url: Optional[str] = None
+    name:      Optional[str] = Field(None, max_length=200)
+    city:      Optional[str] = Field(None, max_length=100)
+    phone:     Optional[str] = Field(None, max_length=30)
+    desc:      Optional[str] = Field(None, max_length=5000)
+    email:     Optional[str] = Field(None, max_length=200)
+    website:   Optional[str] = Field(None, max_length=500)
+    image_url: Optional[str] = Field(None, max_length=500)
 
 
 # ── ImageKit upload helper ────────────────────────────────────────────────────
@@ -432,7 +455,8 @@ def upload_to_imagekit(file_bytes: bytes, filename: str) -> str:
     except HTTPException:
         raise
     except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Image upload failed: {str(e)}")
+        log.error("upload_to_imagekit failed: %s", e)
+        raise HTTPException(status_code=500, detail="فشل رفع الصورة.")
 
 
 # ── Endpoints ─────────────────────────────────────────────────────────────────
@@ -551,7 +575,7 @@ def get_companies(
 
     الشكل: {items, page, per_page, total, pages}
     """
-    page     = max(page, 1)
+    page     = min(max(page, 1), 1_000_000)
     per_page = min(max(per_page, 1), 100)
     offset   = (page - 1) * per_page
 
@@ -738,104 +762,112 @@ def logout():
 class CompanyRegister(BaseModel):
     """Claim an existing approved company. Cannot create a new company."""
     company_id: int
-    email:      str
-    password:   str
+    email:      str = Field(..., max_length=200)
+    password:   str = Field(..., max_length=200)
 
 
 class CompanyLogin(BaseModel):
-    email:    str
-    password: str
+    email:    str = Field(..., max_length=200)
+    password: str = Field(..., max_length=200)
 
 
 class CompanyMeUpdate(BaseModel):
-    name:      Optional[str] = None
-    city:      Optional[str] = None
-    phone:     Optional[str] = None
-    email:     Optional[str] = None
-    website:   Optional[str] = None
-    map_link:  Optional[str] = None
-    desc:      Optional[str] = None
-    image_url: Optional[str] = None
+    name:      Optional[str] = Field(None, max_length=200)
+    city:      Optional[str] = Field(None, max_length=100)
+    phone:     Optional[str] = Field(None, max_length=30)
+    email:     Optional[str] = Field(None, max_length=200)
+    website:   Optional[str] = Field(None, max_length=500)
+    map_link:  Optional[str] = Field(None, max_length=500)
+    desc:      Optional[str] = Field(None, max_length=5000)
+    image_url: Optional[str] = Field(None, max_length=500)
+
+    _v_website  = field_validator("website")(_require_http_url)
+    _v_map_link = field_validator("map_link")(_require_http_url)
 
 
 class ProjectCreate(BaseModel):
-    title:           str
-    description:     Optional[str] = None
-    location:        Optional[str] = None
-    completion_date: Optional[str] = None
-    image_url:       Optional[str] = None
+    title:           str          = Field(..., max_length=300)
+    description:     Optional[str] = Field(None, max_length=5000)
+    location:        Optional[str] = Field(None, max_length=200)
+    completion_date: Optional[str] = Field(None, max_length=50)
+    image_url:       Optional[str] = Field(None, max_length=500)
 
 
 class ProjectUpdate(BaseModel):
-    title:           Optional[str] = None
-    description:     Optional[str] = None
-    location:        Optional[str] = None
-    completion_date: Optional[str] = None
-    image_url:       Optional[str] = None
+    title:           Optional[str] = Field(None, max_length=300)
+    description:     Optional[str] = Field(None, max_length=5000)
+    location:        Optional[str] = Field(None, max_length=200)
+    completion_date: Optional[str] = Field(None, max_length=50)
+    image_url:       Optional[str] = Field(None, max_length=500)
 
 
 class GalleryAdd(BaseModel):
-    image_url:  str
-    title:      Optional[str] = None
+    image_url:  str           = Field(..., max_length=500)
+    title:      Optional[str] = Field(None, max_length=200)
     project_id: int
-    stage:      Optional[str] = None  # 'before'|'during'|'after'|'other'|None→'other'
+    stage:      Optional[str] = Field(None, max_length=20)  # 'before'|'during'|'after'|'other'|None→'other'
 
 
 # ── Phase 5B: New auth Pydantic models ───────────────────────────────────────
 
 class UserRegister(BaseModel):
-    email:        str
-    password:     str
-    display_name: Optional[str] = None
-    phone:        Optional[str] = None
+    email:        str          = Field(..., max_length=200)
+    password:     str          = Field(..., max_length=200)
+    display_name: Optional[str] = Field(None, max_length=200)
+    phone:        Optional[str] = Field(None, max_length=30)
     # الموافقة على الشروط والخصوصية — شرط تسجيل لا خيار.
     # يُخزَّن وقتها ونسخة الوثيقة ليُعرف من وافق على أيّها.
     accept_terms: bool = False
 
 
 class UserLogin(BaseModel):
-    email:    str
-    password: str
+    email:    str = Field(..., max_length=200)
+    password: str = Field(..., max_length=200)
 
 
 class CompanyCreate(BaseModel):
-    name:      str
-    city:      str
-    phone:     str
-    spec:      str
-    desc:      Optional[str] = None
-    email:     Optional[str] = None
-    website:   Optional[str] = None
-    image_url: Optional[str] = None
+    name:      str          = Field(..., max_length=200)
+    city:      str          = Field(..., max_length=100)
+    phone:     str          = Field(..., max_length=30)
+    spec:      str          = Field(..., max_length=200)
+    desc:      Optional[str] = Field(None, max_length=5000)
+    email:     Optional[str] = Field(None, max_length=200)
+    website:   Optional[str] = Field(None, max_length=500)
+    image_url: Optional[str] = Field(None, max_length=500)
+
+    _v_website = field_validator("website")(_require_http_url)
 
 
 class CompanyMeUpdateV2(BaseModel):
-    name:         Optional[str] = None
-    city:         Optional[str] = None
+    name:         Optional[str] = Field(None, max_length=200)
+    city:         Optional[str] = Field(None, max_length=100)
     # التخصص من صفات الشركة نفسها وتضبطه عند التسجيل، فتعديله
     # جزء من «ملف شركتي». كان غائباً عن النموذج فلا سبيل لتغييره.
-    spec:         Optional[str] = None
-    phone:        Optional[str] = None
-    email:        Optional[str] = None
-    website:      Optional[str] = None
-    map_link:     Optional[str] = None
-    desc:         Optional[str] = None
-    image_url:    Optional[str] = None
-    cover_url:    Optional[str] = None
-    facebook_url: Optional[str] = None
-    instagram_url:Optional[str] = None
-    linkedin_url: Optional[str] = None
-    slug:         Optional[str] = None
+    spec:         Optional[str] = Field(None, max_length=200)
+    phone:        Optional[str] = Field(None, max_length=30)
+    email:        Optional[str] = Field(None, max_length=200)
+    website:      Optional[str] = Field(None, max_length=500)
+    map_link:     Optional[str] = Field(None, max_length=500)
+    desc:         Optional[str] = Field(None, max_length=5000)
+    image_url:    Optional[str] = Field(None, max_length=500)
+    cover_url:    Optional[str] = Field(None, max_length=500)
+    facebook_url: Optional[str] = Field(None, max_length=500)
+    instagram_url:Optional[str] = Field(None, max_length=500)
+    linkedin_url: Optional[str] = Field(None, max_length=500)
+    slug:         Optional[str] = Field(None, max_length=100)
+
+    _v_website  = field_validator("website")(_require_http_url)
+    _v_map_link = field_validator("map_link")(_require_http_url)
 
 
 class ProjectRequestCreate(BaseModel):
-    customer_name: str
-    phone:         str
-    email:         Optional[str] = None
-    city:          str
-    project_type:  str
-    description:   Optional[str] = None
-    budget:        Optional[str] = None
+    customer_name: str          = Field(..., max_length=200)
+    phone:         str          = Field(..., max_length=30)
+    email:         Optional[str] = Field(None, max_length=200)
+    city:          str          = Field(..., max_length=100)
+    project_type:  str          = Field(..., max_length=100)
+    description:   Optional[str] = Field(None, max_length=5000)
+    budget:        Optional[str] = Field(None, max_length=100)
 
 
 # ══════════════════════════════════════════════════════════════════════════════
@@ -1178,7 +1210,8 @@ async def company_upload(file: UploadFile = File(...), request: Request = None):
             file_path = getattr(result, "file_path", None) or getattr(result, "name", file.filename)
             url = IMAGEKIT_URL_ENDPOINT.rstrip("/") + "/" + file_path.lstrip("/")
     except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Upload failed: {e}")
+        log.error("company_upload failed: %s", e)
+        raise HTTPException(status_code=500, detail="فشل رفع الصورة.")
 
     return {"url": url}
 
@@ -1505,9 +1538,9 @@ def track_wa_click(company_id: int, request: Request):
 @app.get("/company/{company_id}/wa-stats")
 def get_wa_stats(company_id: int, request: Request):
     """Company owner or admin can see WA click stats."""
-    auth_header = request.headers.get("Authorization", "")
-    if not auth_header:
-        raise HTTPException(status_code=401, detail="auth required")
+    ident = resolve_identity(request)
+    if ident.role != ROLE_ADMIN and ident.cid != company_id:
+        raise HTTPException(status_code=403, detail="Forbidden")
     with SessionLocal() as db:
         total = db.execute(text(
             "SELECT COUNT(*) FROM whatsapp_clicks WHERE company_id=:cid"
@@ -1896,26 +1929,26 @@ def _base_url() -> str:
 
 
 class ForgotPassword(BaseModel):
-    email: str
+    email: str = Field(..., max_length=200)
 
 
 class ResetPassword(BaseModel):
-    token:    str
-    password: str
+    token:    str = Field(..., max_length=500)
+    password: str = Field(..., max_length=200)
 
 
 class ChangePassword(BaseModel):
-    current_password: str
-    new_password:     str
+    current_password: str = Field(..., max_length=200)
+    new_password:     str = Field(..., max_length=200)
 
 
 class ChangeEmail(BaseModel):
-    new_email: str
-    password:  str
+    new_email: str = Field(..., max_length=200)
+    password:  str = Field(..., max_length=200)
 
 
 class TokenOnly(BaseModel):
-    token: str
+    token: str = Field(..., max_length=500)
 
 
 def _valid_password(p: str) -> bool:
@@ -2227,8 +2260,8 @@ ANON_LABEL = "حساب محذوف"
 
 
 class DeleteAccount(BaseModel):
-    password: str
-    confirm:  str          # يجب أن تساوي "حذف حسابي" — تأكيد مقصود لا نقرة
+    password: str = Field(..., max_length=200)
+    confirm:  str = Field(..., max_length=50)          # يجب أن تساوي "حذف حسابي" — تأكيد مقصود لا نقرة
 
 
 @app.delete("/account")
@@ -2363,10 +2396,10 @@ REPORT_REASONS = {
 
 
 class ReportCreate(BaseModel):
-    target_type: str
+    target_type: str          = Field(..., max_length=20)
     target_id:   int
-    reason:      str
-    details:     Optional[str] = None
+    reason:      str          = Field(..., max_length=50)
+    details:     Optional[str] = Field(None, max_length=2000)
 
 
 @app.post("/report")
@@ -2481,8 +2514,8 @@ def admin_list_reports(request: Request, status: Optional[str] = None):
 
 
 class ReportResolve(BaseModel):
-    status: str            # actioned | dismissed
-    note:   Optional[str] = None
+    status: str            = Field(..., max_length=20)  # actioned | dismissed
+    note:   Optional[str] = Field(None, max_length=2000)
 
 
 @app.put("/admin/reports/{report_id}")
@@ -2558,26 +2591,26 @@ def get_project_requests(request: Request):
 # ── PROJECT MARKETPLACE (Phase 6) ────────────────────────────────────────────
 
 class MarketProjectCreate(BaseModel):
-    title: str
-    category: str
-    city: str
-    country: str = "IQ"
+    title: str          = Field(..., max_length=300)
+    category: str        = Field(..., max_length=100)
+    city: str            = Field(..., max_length=100)
+    country: str         = Field("IQ", max_length=5)
     budget_min: Optional[float] = None
     budget_max: Optional[float] = None
-    description: Optional[str] = None
-    contact_name: str
-    contact_phone: str
-    contact_email: Optional[str] = None
+    description: Optional[str] = Field(None, max_length=5000)
+    contact_name: str    = Field(..., max_length=200)
+    contact_phone: str   = Field(..., max_length=30)
+    contact_email: Optional[str] = Field(None, max_length=200)
 
 class ProjectBidCreate(BaseModel):
     price: float
     duration_days: Optional[int] = None
-    message: Optional[str] = None
+    message: Optional[str] = Field(None, max_length=2000)
 
 class ProjectBidUpdate(BaseModel):
     price: Optional[float] = None
     duration_days: Optional[int] = None
-    message: Optional[str] = None
+    message: Optional[str] = Field(None, max_length=2000)
 
 
 def row_to_project_dict(r: dict) -> dict:
@@ -2684,7 +2717,7 @@ def list_projects(
     per_page: int = 20,
 ):
     """الشكل: {items, page, per_page, total, pages}"""
-    page     = max(page, 1)
+    page     = min(max(page, 1), 1_000_000)
     per_page = min(max(per_page, 1), 100)
     offset   = (page - 1) * per_page
 
@@ -2843,7 +2876,8 @@ def submit_bid(project_id: int, payload: ProjectBidCreate, request: Request):
         except Exception as e:
             if "unique" in str(e).lower():
                 raise HTTPException(status_code=409, detail="You have already submitted a bid for this project")
-            raise HTTPException(status_code=500, detail=str(e))
+            log.error("submit_bid failed: %s", e)
+            raise HTTPException(status_code=500, detail="تعذّر تقديم العرض.")
 
     with SessionLocal() as db:
         bid_row = db.execute(text("""
@@ -3064,14 +3098,14 @@ async def admin_update_project_status(project_id: int, request: Request):
 # ── PHASE 7: SUBSCRIPTIONS & MONETIZATION ────────────────────────────────────
 
 class SubscriptionRequestCreate(BaseModel):
-    plan_code: str
-    notes: Optional[str] = None
+    plan_code: str = Field(..., max_length=50)
+    notes: Optional[str] = Field(None, max_length=2000)
 
 class AdminSubscriptionSet(BaseModel):
-    plan_code: str
+    plan_code: str = Field(..., max_length=50)
     months: int = 1
     is_founder: bool = False
-    notes: Optional[str] = None
+    notes: Optional[str] = Field(None, max_length=2000)
 
 
 @app.get("/subscription/plans")
@@ -3361,11 +3395,11 @@ def _resolve_auth(request: Request):
 class ConversationCreate(BaseModel):
     company_id: int
     project_id: Optional[int] = None
-    message: str
+    message: str = Field(..., max_length=5000)
 
 
 class MessageCreate(BaseModel):
-    message: str
+    message: str = Field(..., max_length=5000)
 
 
 @app.post("/conversations")
@@ -3620,14 +3654,14 @@ def mark_notification_read(notif_id: int, request: Request):
 
 class ReviewCreate(BaseModel):
     company_id: int
-    client_name: str
+    client_name: str = Field(..., max_length=200)
     project_id: Optional[int] = None
     rating: int
-    comment: Optional[str] = None
+    comment: Optional[str] = Field(None, max_length=3000)
 
 
 class ReviewReplyCreate(BaseModel):
-    reply: str
+    reply: str = Field(..., max_length=3000)
 
 
 @app.post("/reviews")

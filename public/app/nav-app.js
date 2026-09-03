@@ -49,6 +49,11 @@
            '" fill="none" stroke="currentColor" stroke-width="1.6" ' +
            'stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">' + d + '</svg>';
   }
+  function esc(s) {
+    return String(s == null ? '' : s).replace(/[&<>"']/g, function (c) {
+      return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c];
+    });
+  }
 
   /* ── الكتل الثلاث (DESIGN.md §٦) ────────────────────────────
      كل الوجهات نسبية داخل /app — لا مسار يغادر السطح. */
@@ -147,7 +152,7 @@ body{padding-inline-start:244px}
           '<a class="bna-logo" href="index.html">بُ<b>نيان</b></a>' +
           '<div class="bna-id">' +
             '<span class="bn-id bn-id-company">' + svg(I.building, 13) +
-              (name ? name : 'حساب شركة') +
+              (name ? esc(name) : 'حساب شركة') +
             '</span>' +
           '</div>' +
         '</div>' +

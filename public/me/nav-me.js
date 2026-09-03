@@ -37,6 +37,11 @@
       '" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" ' +
       'stroke-linejoin="round" aria-hidden="true">' + d + '</svg>';
   }
+  function esc(s) {
+    return String(s == null ? '' : s).replace(/[&<>"']/g, function (c) {
+      return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c];
+    });
+  }
 
   /* كل الوجهات نسبية داخل /me — لا مسار يغادر السطح */
   var LINKS = [
@@ -94,7 +99,7 @@
         /* الشعار يؤدي إلى /me لا إلى الموقع العام (§٤ قاعدة ٤) */
         '<a class="bnm-logo" href="index.html">بُ<b>نيان</b></a>' +
         '<span class="bnm-id">' + svg(I.user, 13) +
-          (name ? name : 'صاحب مشروع') + '</span>' +
+          (name ? esc(name) : 'صاحب مشروع') + '</span>' +
         '<span class="bnm-sp"></span>' +
         '<button class="bnm-icon" type="button" data-bnm-theme aria-label="تبديل السمة"></button>' +
         '<button class="bnm-icon" type="button" data-bnm-out aria-label="خروج">' + svg(I.logout) + '</button>' +
