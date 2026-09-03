@@ -25,7 +25,7 @@
   /* النص */
   --bn-ink:         #1D1A15;
   --bn-ink-2:       #6C655A;
-  --bn-ink-3:       #9A9285;
+  --bn-ink-3:       #746C60; /* رُفع من #9A9285 — الأصلي فشل WCAG AA (2.75:1 دون 4.5:1) */
 
   /* الحدود */
   --bn-line:        #E0DCD3;
@@ -107,7 +107,7 @@
 
     --bn-ink:         #F0ECE4;
     --bn-ink-2:       #B0A796;
-    --bn-ink-3:       #7D7566;
+    --bn-ink-3:       #8F8675; /* رُفع من #7D7566 — الأصلي فشل WCAG AA (3.67:1 دون 4.5:1) */
 
     --bn-line:        #332C24;
     --bn-line-soft:   #2A241E;
@@ -135,7 +135,7 @@
 :root[data-theme="dark"] {
   --bn-bg:#15120E; --bn-bg-sunk:#1D1915; --bn-surface:#221D18;
   --bn-glass:rgba(42,36,29,.58); --bn-glass-line:rgba(255,255,255,.09); --bn-glass-tint:rgba(255,255,255,.05);
-  --bn-ink:#F0ECE4; --bn-ink-2:#B0A796; --bn-ink-3:#7D7566;
+  --bn-ink:#F0ECE4; --bn-ink-2:#B0A796; --bn-ink-3:#8F8675;
   --bn-line:#332C24; --bn-line-soft:#2A241E;
   --bn-ac:#C9A96A; --bn-ac-2:#B08D57; --bn-ac-lite:#DCC48F;
   --bn-ac-bg:rgba(201,169,106,.11); --bn-ac-line:rgba(201,169,106,.26); --bn-ac-on:#15120E;

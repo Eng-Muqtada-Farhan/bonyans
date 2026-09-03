@@ -11,4 +11,4 @@ Disallow: /admin/
 Disallow: /login
 Disallow: /auth/
 
-Sitemap: https://bunyan.iq/sitemap.xml
+Sitemap: https://bonyans.com/sitemap.xml

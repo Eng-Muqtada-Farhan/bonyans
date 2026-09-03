@@ -981,9 +981,11 @@ def identity_from_claims(payload: dict) -> Optional[Identity]:
 
     with SessionLocal() as db:
         prof = db.execute(text("""
-            SELECT p.role, p.company_id, p.company_role
+            SELECT p.role, p.company_id, p.company_role,
+                   c.status AS company_status
             FROM profiles p
             JOIN users u ON u.id = p.user_id
+            LEFT JOIN companies c ON c.id = p.company_id
             WHERE p.user_id = :uid AND u.is_active = true
             ORDER BY (p.role = 'company') DESC, p.created_at
             LIMIT 1
@@ -992,6 +994,11 @@ def identity_from_claims(payload: dict) -> Optional[Identity]:
     if not prof:
         return None
     if prof["role"] == "company":
+        # زرّ «رفض» الإداري يجب أن يقطع الوصول فوراً لا عند
+        # انتهاء الرمز الطبيعي (حتى ٧ أيام) — كان الفحص يقتصر على
+        # users.is_active وحده، ولا يرى رفض الشركة نفسها.
+        if prof["company_status"] == "rejected":
+            return None
         return Identity(ROLE_COMPANY, uid, int(prof["company_id"]), prof["company_role"])
     return Identity(ROLE_USER, uid)
 
@@ -3696,7 +3703,16 @@ def send_message(conv_id: int, payload: MessageCreate, request: Request):
 
 
 @app.get("/conversations/{conv_id}/messages")
-def get_messages(conv_id: int, request: Request):
+def get_messages(conv_id: int, request: Request,
+                 before_id: Optional[int] = None, limit: int = 50):
+    """
+    ترقيم حقيقي: الصفحة الأولى (بلا before_id) هي أحدث `limit` رسالة
+    لا كامل تاريخ المحادثة. للمزيد الأقدم مرّر before_id = أقدم id
+    ظهر في الصفحة السابقة. الشكل: {items, has_more, oldest_id}
+    — items بترتيب تصاعدي (الأقدم أولاً) داخل الصفحة نفسها، جاهزة
+    للعرض مباشرة أو للدمج قبل الرسائل الحالية عند "تحميل الأقدم".
+    """
+    limit = min(max(limit, 1), 100)
     role, actor_id = _resolve_auth(request)
     with SessionLocal() as db:
         conv = db.execute(text(
@@ -3719,12 +3735,26 @@ def get_messages(conv_id: int, request: Request):
                 WHERE conversation_id=:cid AND sender_type != 'client'
             """), {"cid": conv_id})
         db.commit()
-        rows = db.execute(text("""
+
+        where = "conversation_id=:cid"
+        params = {"cid": conv_id, "lim": limit + 1}
+        if before_id is not None:
+            where += " AND id < :before_id"
+            params["before_id"] = before_id
+        rows = db.execute(text(f"""
             SELECT id, sender_type, sender_id, message, is_read, created_at
-            FROM chat_messages WHERE conversation_id=:cid
-            ORDER BY created_at ASC
-        """), {"cid": conv_id}).mappings().fetchall()
-    return [dict(r) for r in rows]
+            FROM chat_messages WHERE {where}
+            ORDER BY id DESC LIMIT :lim
+        """), params).mappings().fetchall()
+
+    has_more = len(rows) > limit
+    rows = rows[:limit]
+    items = [dict(r) for r in reversed(rows)]
+    return {
+        "items": items,
+        "has_more": has_more,
+        "oldest_id": items[0]["id"] if items else None,
+    }
 
 
 @app.put("/messages/{msg_id}/read")
@@ -3936,13 +3966,23 @@ def set_plan_recommended(plan_id: int, payload: dict, request: Request):
 
 @app.get("/admin/users")
 def admin_list_users(request: Request):
+    """
+    الترقيم الكامل مؤجَّل لما بعد الإطلاق — هذا حدّ ٢٠٠ صريح لا
+    صامت: الشكل يحمل total وtruncated ليظهر في الواجهة أن البحث
+    لا يبلغ أقدم من ٢٠٠ مستخدم، لا أن يبدو بحثاً كاملاً وهو ليس كذلك.
+    """
     require_admin(request)
     with SessionLocal() as db:
+        total = db.execute(text("SELECT COUNT(*) FROM users")).scalar() or 0
         rows = db.execute(text("""
             SELECT id, email, display_name AS name, is_active, created_at
             FROM users ORDER BY created_at DESC LIMIT 200
         """)).mappings().fetchall()
-    return [dict(r) for r in rows]
+    return {
+        "items": [dict(r) for r in rows],
+        "total": total,
+        "truncated": total > len(rows),
+    }
 
 
 @app.put("/admin/reviews/{review_id}/approve")

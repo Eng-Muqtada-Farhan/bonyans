@@ -5,7 +5,9 @@
 (٩ حالات) · /companies و /projects بالفلاتر والترقيم · دورة حياة
 الشركة (إنشاء · اعتماد · رفض) · حدّ المعدّل.
 """
+import re
 import time
+from pathlib import Path
 
 import pytest
 from jose import jwt as _jose_jwt
@@ -1237,3 +1239,282 @@ def test_57_purge_after_grace_preserves_other_party_messages(client, admin_token
             # فقط إن فشل الاختبار قبل بلوغه فبقي الصفّ معلَّقاً.
             db.execute(text("DELETE FROM users WHERE id=:u"), {"u": uid})
             db.commit()
+
+
+# ══════════════════════════════════════════════════════════════
+# الجولة ج — ما يمنع القبول في المتجرين
+# ══════════════════════════════════════════════════════════════
+
+def _wcag_ratio(hex1, hex2):
+    def lin(c):
+        c = c / 255
+        return c / 12.92 if c <= 0.03928 else ((c + 0.055) / 1.055) ** 2.4
+
+    def lum(h):
+        h = h.lstrip("#")
+        r, g, b = int(h[0:2], 16), int(h[2:4], 16), int(h[4:6], 16)
+        return 0.2126 * lin(r) + 0.7152 * lin(g) + 0.0722 * lin(b)
+
+    l1, l2 = lum(hex1), lum(hex2)
+    l1, l2 = max(l1, l2), min(l1, l2)
+    return (l1 + 0.05) / (l2 + 0.05)
+
+
+def _read_tokens():
+    return (Path(__file__).resolve().parent.parent / "public" / "tokens.css").read_text(encoding="utf-8")
+
+
+def test_58_ink3_contrast_passes_wcag_aa_in_all_modes(client):
+    """
+    --bn-ink-3 يُستعمل فوق --bn-bg و--bn-surface في الوضعين — أي
+    نسبة دون 4.5:1 (نص عادي) مخالفة WCAG AA. تحديداً على رابطَي
+    الخصوصية والشروط الإلزاميين للمتجرين (tokens.css:341).
+    حساب رقمي لا لقطة شاشة — يفشل لو رجع اللون للقيمة الأصلية.
+    """
+    css = _read_tokens()
+
+    def token(name, block=None):
+        pat = css if block is None else block
+        m = re.search(name + r"\s*:\s*(#[0-9A-Fa-f]{6})", pat)
+        assert m, f"{name} غير موجود"
+        return m.group(1)
+
+    light_bg, light_surf, light_ink3 = (
+        token(r"--bn-bg"), token(r"--bn-surface"), token(r"--bn-ink-3")
+    )
+    m = re.search(r"prefers-color-scheme:\s*dark\s*\)\s*\{.*?\{(.*?)\}\s*\}", css, re.S)
+    assert m, "كتلة الوضع الليلي (النظام) غير موجودة"
+    dark_sys = m.group(1)
+    dark_bg, dark_surf, dark_ink3 = (
+        token(r"--bn-bg", dark_sys), token(r"--bn-surface", dark_sys), token(r"--bn-ink-3", dark_sys)
+    )
+    m2 = re.search(r'data-theme="dark"\s*\]\s*\{(.*?)\}', css, re.S)
+    assert m2, "كتلة الوضع الليلي (الصريح) غير موجودة"
+    explicit_dark = m2.group(1)
+    edark_ink3 = token(r"--bn-ink-3", explicit_dark)
+
+    cases = [
+        ("فاتح / bg", light_bg, light_ink3),
+        ("فاتح / surface", light_surf, light_ink3),
+        ("داكن نظام / bg", dark_bg, dark_ink3),
+        ("داكن نظام / surface", dark_surf, dark_ink3),
+        ("داكن صريح / bg", dark_bg, edark_ink3),
+        ("داكن صريح / surface", dark_surf, edark_ink3),
+    ]
+    failures = []
+    for label, bg, fg in cases:
+        r = _wcag_ratio(bg, fg)
+        if r < 4.5:
+            failures.append(f"{label}: {bg} مقابل {fg} = {r:.2f}:1 (دون 4.5:1)")
+    assert not failures, "\n".join(failures)
+
+
+def test_59_service_worker_matches_surface_without_trailing_slash(client):
+    """
+    isSurfaceNav كانت تفحص '/app/' بشرطة لاحقة فقط — تنقّل إلى
+    '/app' بلا شرطة يسقط إلى الفرع الساكن. فحص ساكن على مصدر
+    الملف يثبت أن الفحص الجديد يقبل كلا الشكلين لكل الأسطح الثلاثة.
+    """
+    src = (Path(__file__).resolve().parent.parent / "public" / "service-worker.js").read_text(encoding="utf-8")
+    m = re.search(r"SURFACE_RE\s*=\s*(/.*?/)[;\s]", src)
+    assert m, "SURFACE_RE غير موجود"
+    pattern = re.compile(m.group(1)[1:-1])
+    for surface in ("app", "admin", "me"):
+        assert pattern.match(f"/{surface}"), f"/{surface} بلا شرطة لا يُطابَق"
+        assert pattern.match(f"/{surface}/index.html"), f"/{surface}/ بشرطة لا يُطابَق"
+    assert not pattern.match("/application.html"), "طابق مساراً عاماً بالخطأ (بادئة مشتركة)"
+
+
+def test_60_sitemap_and_robots_use_current_domain(client):
+    """sitemap.xml وrobots.txt كانا يحملان النطاق القديم bunyan.iq."""
+    root = Path(__file__).resolve().parent.parent / "public"
+    sitemap = (root / "sitemap.xml").read_text(encoding="utf-8")
+    robots = (root / "robots.txt").read_text(encoding="utf-8")
+    assert "bunyan.iq" not in sitemap
+    assert "bunyan.iq" not in robots
+    assert "bonyans.com" in sitemap
+    assert "bonyans.com" in robots
+
+
+def test_61_rejected_company_session_is_invalidated_immediately(client, admin_token):
+    """
+    زرّ «رفض» الإداري كان لا يقطع وصول شركة جلستها قائمة بالفعل —
+    identity_from_claims كانت تفحص users.is_active وحده لا
+    companies.status. الآن ترفض الرمز فوراً بعد الرفض، لا عند
+    انتهائه الطبيعي (حتى ٧ أيام).
+    """
+    body = {"name": SMOKE_PREFIX + "شركة رفض جلسة", "city": "بغداد",
+            "phone": "07000000096", "spec": "مقاولات عامة", "desc": "اختبار"}
+    r = client.post("/companies", json=body, headers=bearer(admin_token))
+    assert r.status_code == 200, r.text
+    cid = r.json()["id"]
+    with main.SessionLocal() as db:
+        uid = db.execute(text(
+            "SELECT id FROM users WHERE email=:e"
+        ), {"e": f"smoke-{cid}@nowhere.test"}).scalar()
+        if not uid:
+            uid = db.execute(text("""
+                INSERT INTO users (email, display_name, password_hash, provider,
+                                   is_active, is_email_verified, terms_accepted_at, terms_version)
+                VALUES (:e, 'مالك اختبار', :p, 'email', true, true, now(), :v)
+                RETURNING id
+            """), {"e": f"smoke-{cid}@nowhere.test", "p": main.pwd_context.hash("x"),
+                   "v": main.LEGAL_VERSION}).scalar()
+        db.execute(text("""
+            INSERT INTO profiles (user_id, role, company_id, company_role)
+            VALUES (:u, 'company', :c, 'owner')
+        """), {"u": uid, "c": cid})
+        db.commit()
+
+    try:
+        token = main.create_token(main.ROLE_COMPANY, uid)
+        before = client.get("/company/me", headers=bearer(token))
+        assert before.status_code == 200, "الرمز يجب أن يعمل قبل الرفض"
+
+        rej = client.put(f"/companies/{cid}/reject", headers=bearer(admin_token))
+        assert rej.status_code == 200
+
+        after = client.get("/company/me", headers=bearer(token))
+        assert after.status_code == 401, \
+            "نفس الرمز ما زال يعمل بعد الرفض — الجلسة لم تُبطَل"
+    finally:
+        with main.SessionLocal() as db:
+            db.execute(text("DELETE FROM profiles WHERE user_id=:u"), {"u": uid})
+            db.execute(text("DELETE FROM users WHERE id=:u"), {"u": uid})
+            db.execute(text("DELETE FROM companies WHERE id=:c"), {"c": cid})
+            db.commit()
+
+
+def test_62_messages_are_paginated_newest_first(client, user_token):
+    """
+    /conversations/{id}/messages كانت تعيد تاريخ المحادثة كاملاً
+    بلا حدّ. صار ترقيماً حقيقياً: {items, has_more, oldest_id}،
+    والصفحة الأولى أحدث limit رسالة لا أقدمها.
+    """
+    with main.SessionLocal() as db:
+        cid = db.execute(text(
+            "SELECT company_id FROM profiles WHERE role='company' ORDER BY created_at LIMIT 1"
+        )).scalar()
+        uid = db.execute(text(
+            "SELECT id FROM users WHERE lower(email)='client@seed.test'"
+        )).scalar()
+    assert cid and uid, "تحتاج بيانات البذر"
+
+    with main.SessionLocal() as db:
+        conv_id = db.execute(text(
+            "INSERT INTO conversations(client_user_id, company_id) VALUES (:u,:c) RETURNING id"
+        ), {"u": uid, "c": cid}).scalar()
+        ids = []
+        for i in range(7):
+            mid = db.execute(text("""
+                INSERT INTO chat_messages(conversation_id, sender_type, sender_id, message)
+                VALUES (:conv,'client',:u,:m) RETURNING id
+            """), {"conv": conv_id, "u": uid, "m": f"SMOKE msg {i}"}).scalar()
+            ids.append(mid)
+        db.commit()
+
+    try:
+        p1 = client.get(f"/conversations/{conv_id}/messages", params={"limit": 3},
+                        headers=bearer(user_token))
+        assert p1.status_code == 200
+        d1 = p1.json()
+        assert d1["has_more"] is True
+        assert [m["id"] for m in d1["items"]] == ids[-3:], "الصفحة الأولى ليست أحدث ٣"
+
+        p2 = client.get(f"/conversations/{conv_id}/messages",
+                        params={"limit": 3, "before_id": d1["oldest_id"]},
+                        headers=bearer(user_token))
+        d2 = p2.json()
+        assert [m["id"] for m in d2["items"]] == ids[1:4], "صفحة أقدم لا تطابق"
+        assert d2["has_more"] is True
+
+        p3 = client.get(f"/conversations/{conv_id}/messages",
+                        params={"limit": 3, "before_id": d2["oldest_id"]},
+                        headers=bearer(user_token))
+        d3 = p3.json()
+        assert [m["id"] for m in d3["items"]] == ids[:1]
+        assert d3["has_more"] is False
+    finally:
+        with main.SessionLocal() as db:
+            db.execute(text("DELETE FROM chat_messages WHERE conversation_id=:c"), {"c": conv_id})
+            db.execute(text("DELETE FROM conversations WHERE id=:c"), {"c": conv_id})
+            db.commit()
+
+
+def test_63_report_target_existence_still_enforced(client, user_token):
+    """
+    فحص مساعد بعد إعادة صياغة submit_report في هذه الجولة — يبقى
+    404 لهدف غير موجود (مصدره test_53، يُعاد هنا كخطّ دفاع ثانٍ
+    ضد ارتداد أثناء تعديلات لاحقة على نفس المسار).
+    """
+    r = client.post("/report", headers=bearer(user_token),
+                    json={"target_type": "message", "target_id": 999999999, "reason": "other"})
+    assert r.status_code == 404
+
+
+def test_64_admin_users_truncation_is_reported_not_silent(client, admin_token):
+    """
+    /admin/users كانت تُرجع مصفوفة مبتورة بصمت عند ٢٠٠. الشكل
+    صار {items, total, truncated} — truncated=False طالما total
+    الفعلي (مؤكَّد باستعلام مباشر) لا يتجاوز طول items.
+    """
+    r = client.get("/admin/users", headers=bearer(admin_token))
+    assert r.status_code == 200
+    d = r.json()
+    assert set(d.keys()) >= {"items", "total", "truncated"}
+    with main.SessionLocal() as db:
+        real_total = db.execute(text("SELECT COUNT(*) FROM users")).scalar()
+    assert d["total"] == real_total
+    assert d["truncated"] == (real_total > len(d["items"]))
+    assert len(d["items"]) <= 200
+
+
+def test_65_icons_are_real_png_not_svg_in_disguise(client):
+    """
+    icon-192.png وicon-512.png كانا ملفّ icon.svg نفسه بامتداد
+    .png (بصمة واحدة، توقيع '<svg' لا PNG). يفحص كل ملفّ أيقونة
+    فعلياً: توقيع PNG الثنائي، وأبعاده الحقيقية عبر Pillow، لا
+    امتداد الاسم وحده.
+    """
+    pytest.importorskip("PIL")
+    from PIL import Image
+
+    icons_dir = Path(__file__).resolve().parent.parent / "public" / "icons"
+    expected = {
+        "icon-192.png": 192, "icon-512.png": 512, "icon-1024.png": 1024,
+        "icon-maskable-192.png": 192, "icon-maskable-512.png": 512,
+    }
+    png_magic = b"\x89PNG\r\n\x1a\n"
+    for name, size in expected.items():
+        path = icons_dir / name
+        assert path.exists(), f"{name} غير موجود"
+        head = path.read_bytes()[:8]
+        assert head == png_magic, f"{name} ليس PNG فعلياً — يبدأ بـ{head!r}"
+        with Image.open(path) as im:
+            assert im.size == (size, size), f"{name} بأبعاد {im.size} لا {size}x{size}"
+
+    # المانيفست يفرّق any عن maskable — دمجهما في ملفّ واحد يُظهر
+    # حشواً زائداً على أندرويد أو قصّاً على "any".
+    import json
+    manifest = json.loads((icons_dir.parent / "manifest.json").read_text(encoding="utf-8"))
+    purposes = {i["src"]: i["purpose"] for i in manifest["icons"]}
+    assert purposes.get("icons/icon-192.png") == "any"
+    assert purposes.get("icons/icon-maskable-192.png") == "maskable"
+
+
+def test_66_maskable_icon_content_stays_inside_safe_zone(client):
+    """
+    الأيقونة القابلة للقصّ يجب أن تُخزَّن محتواها داخل منطقة أمان
+    ٨٠٪ الوسطى — أنظمة أندرويد تقصّ الزوايا بأشكال مختلفة، وأي
+    محتوى خارج هذه المنطقة قد يُقصّ.
+    """
+    pytest.importorskip("PIL")
+    from PIL import Image
+
+    path = Path(__file__).resolve().parent.parent / "public" / "icons" / "icon-maskable-512.png"
+    bg_expected = (13, 17, 23)  # #0d1117 — خلفية icon.svg
+    with Image.open(path) as im:
+        w, h = im.size
+        for corner in [(2, 2), (w - 3, 2), (2, h - 3), (w - 3, h - 3)]:
+            assert im.getpixel(corner) == bg_expected, \
+                f"زاوية {corner} ليست الخلفية الصِرفة — محتوى تسرّب خارج منطقة الأمان"

@@ -19,6 +19,9 @@
   border:1px solid var(--bn-line); border-radius:var(--bn-r-pill);
   background:var(--bn-bg); color:var(--bn-ink); font:400 14px/1.5 var(--bn-font); }
 .us-search input:focus { outline:none; border-color:var(--bn-ac); }
+.us-trunc { display:flex; align-items:center; gap:10px; padding:var(--bn-s3) var(--bn-s4);
+  margin-block-end:var(--bn-s4); border-radius:var(--bn-r); background:var(--bn-err-bg);
+  border:1px solid var(--bn-err-line); color:var(--bn-ink); font:var(--bn-t-sm); }
 </style>
 </head>
 <body class="bn-body">
@@ -28,8 +31,9 @@
 <main class="ad-wrap" id="main">
   <div class="ad-head">
     <h1>المستخدمون</h1>
-    <p>أصحاب المشاريع المسجَّلون. آخر ٢٠٠ حساب.</p>
+    <p>أصحاب المشاريع المسجَّلون.</p>
   </div>
+  <div id="trunc"></div>
   <div class="us-search">
     <input id="q" type="search" placeholder="ابحث بالاسم أو البريد" aria-label="بحث">
   </div>
@@ -45,7 +49,7 @@ const AD = window.AdminCore;
 const $ = (id) => document.getElementById(id);
 const esc = AD.esc, svg = AD.svg, I = AD.icons, when = AD.when;
 
-let ALL = [], Q = '';
+let ALL = [], Q = '', TOTAL = 0, TRUNCATED = false;
 $('body').innerHTML = AD.skeleton(5, 68);
 
 /* لا مسار خادمي لتعطيل حساب أو حذفه بعد، فلا زرّ يوهم بذلك
@@ -81,7 +85,17 @@ function render() {
 $('q').oninput = function () { Q = this.value; render(); };
 
 async function load() {
-  try { ALL = await AD.api('/admin/users'); render(); }
+  try {
+    const res = await AD.api('/admin/users');
+    ALL = res.items; TOTAL = res.total; TRUNCATED = res.truncated;
+    $('trunc').innerHTML = TRUNCATED
+      ? '<div class="us-trunc">' + svg(I.clock, 15) +
+        '<span>يُعرض أحدث ' + ALL.length + ' من أصل ' + TOTAL +
+        ' مستخدماً — البحث هنا لا يبلغ الأقدم من ذلك. ' +
+        'الترقيم الكامل قادم بعد الإطلاق.</span></div>'
+      : '';
+    render();
+  }
   catch (e) {
     $('body').className = '';
     $('body').innerHTML = AD.errorState(AD.errText(e));

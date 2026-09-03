@@ -12,7 +12,7 @@
  * الجديدة في الخلفية فتظهر في التحميل التالي.
  */
 
-const CACHE_NAME  = 'bunyan-v6';
+const CACHE_NAME  = 'bunyan-v7';
 const CACHE_ASSETS = [
   '/index.html',
   '/companies.html',
@@ -55,13 +55,18 @@ self.addEventListener('activate', event => {
    أعاد الموقعَ العام (index.html) داخل لوحة شركة/إدارة فعلياً.
    فتنقّل هذه الأسطح: شبكة فقط، بلا قراءة من المخزون ولا كتابة
    فيه، وعند الانقطاع صفحة بديلة صغيرة محايدة لا الموقع العام. */
+/* بلا شرطة لاحقة أيضاً: /app بلا / يطابق startsWith('/app/') لا
+   شيء، فيسقط إلى الفرع الساكن أدناه — نفس الثغرة التي أُغلقت هنا
+   بالضبط، مواربة. \/? تقبل الحالتين معاً. */
+const SURFACE_RE = /^\/(app|admin|me)(\/|$)/;
+
 function isSurfaceNav(request, pathname) {
-  return request.mode === 'navigate' &&
-    (pathname.startsWith('/app/') || pathname.startsWith('/admin/') || pathname.startsWith('/me/'));
+  return request.mode === 'navigate' && SURFACE_RE.test(pathname);
 }
 
 function surfaceOfflinePage(pathname) {
-  const surface = pathname.startsWith('/admin/') ? 'admin' : pathname.startsWith('/me/') ? 'me' : 'app';
+  const surface = /^\/admin(\/|$)/.test(pathname) ? 'admin'
+    : /^\/me(\/|$)/.test(pathname) ? 'me' : 'app';
   const title = surface === 'admin' ? 'لوحة الإدارة' : surface === 'me' ? 'منطقة صاحب المشروع' : 'لوحة الشركة';
   const html = '<!doctype html><html lang="ar" dir="rtl"><head><meta charset="utf-8">' +
     '<meta name="viewport" content="width=device-width, initial-scale=1">' +

@@ -3,3 +3,10 @@
 #   pytest
 pytest==9.1.1
 httpx==0.28.1
+# Playwright: اختبار عامل الخدمة (tests/test_service_worker.py) وسكربت
+# توليد الأيقونات (generate_icons.py) — كلاهما يحتاج متصفحاً حقيقياً.
+# بعد التثبيت: playwright install chromium
+playwright==1.62.0
+# Pillow: تحويل الأيقونة الرسمية لأبل (App Store) إلى RGB بلا قناة
+# شفافية — Playwright وحده يُخرج RGBA دائماً.
+Pillow==12.3.0

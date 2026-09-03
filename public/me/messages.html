@@ -121,10 +121,30 @@ async function open(id) {
   $('thread').innerHTML = '<div class="ms-thread"><div class="ms-body">' +
     ME.skeleton(3, 44) + '</div></div>';
   try {
-    const msgs = await ME.api('/conversations/' + id + '/messages');
+    const page = await ME.api('/conversations/' + id + '/messages');
+    let oldestId = page.oldest_id, hasMore = page.has_more;
     const conv = CONVS.find(c => c.id === id) || {};
     const peer = conv.peer_user_id;
     const isBlocked = peer != null && BLOCKED.has(peer);
+
+    function bubble(m) {
+      /* رسالة العميل هي رسالتي أنا هنا — عكس لوحة الشركة */
+      return '<div class="ms-b ' + (m.sender_type === 'client' ? 'ms-b-out' : 'ms-b-in') + '">' +
+        esc(m.message) +
+        '<div class="ms-b-t"><span>' + esc(when(m.created_at,
+          {month:'short', day:'numeric', hour:'2-digit', minute:'2-digit'})) + '</span>' +
+          (m.sender_type !== 'client' && window.BunyanReport
+            ? window.BunyanReport.button('message', m.id, '') : '') +
+        '</div>' +
+      '</div>';
+    }
+    function olderBtn() {
+      return hasMore
+        ? '<button class="bn-btn bn-btn-ghost bn-btn-sm" type="button" id="olderBtn" ' +
+            'style="align-self:center;margin-block-end:8px">تحميل رسائل أقدم</button>'
+        : '';
+    }
+
     $('thread').innerHTML =
       '<div class="ms-thread">' +
         '<div class="ms-head"><span class="me-av" style="width:36px;height:36px;font-size:13px">' +
@@ -136,17 +156,9 @@ async function open(id) {
             : '') +
         '</div>' +
         '<div class="ms-body" id="msgs">' +
-          (msgs.length
-            ? msgs.map(m =>
-                /* رسالة العميل هي رسالتي أنا هنا — عكس لوحة الشركة */
-                '<div class="ms-b ' + (m.sender_type === 'client' ? 'ms-b-out' : 'ms-b-in') + '">' +
-                  esc(m.message) +
-                  '<div class="ms-b-t"><span>' + esc(when(m.created_at,
-                    {month:'short', day:'numeric', hour:'2-digit', minute:'2-digit'})) + '</span>' +
-                    (m.sender_type !== 'client' && window.BunyanReport
-                      ? window.BunyanReport.button('message', m.id, '') : '') +
-                  '</div>' +
-                '</div>').join('')
+          olderBtn() +
+          (page.items.length
+            ? page.items.map(bubble).join('')
             : '<div class="me-state"><div class="me-state-t">لا رسائل في هذه المحادثة</div></div>') +
         '</div>' +
         '<form class="ms-foot" id="sendForm">' +
@@ -159,6 +171,30 @@ async function open(id) {
     const box = $('msgs');
     box.scrollTop = box.scrollHeight;
     if (window.BunyanReport) window.BunyanReport.wire($('msgs'));
+
+    function wireOlderBtn() {
+      const btn = $('olderBtn');
+      if (!btn) return;
+      btn.onclick = async function () {
+        btn.disabled = true;
+        btn.textContent = 'جارٍ التحميل...';
+        try {
+          const older = await ME.api('/conversations/' + id + '/messages?before_id=' + oldestId);
+          oldestId = older.oldest_id;
+          hasMore = older.has_more;
+          const prevHeight = box.scrollHeight;
+          btn.outerHTML = olderBtn() + older.items.map(bubble).join('');
+          box.scrollTop = box.scrollHeight - prevHeight;
+          if (window.BunyanReport) window.BunyanReport.wire(box);
+          wireOlderBtn();
+        } catch (err) {
+          ME.toast(ME.errText(err), 'err');
+          btn.disabled = false;
+          btn.textContent = 'تحميل رسائل أقدم';
+        }
+      };
+    }
+    wireOlderBtn();
 
     if (peer != null) {
       $('blockBtn').onclick = async function () {
