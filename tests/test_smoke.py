@@ -1580,3 +1580,33 @@ def test_69_internal_purge_trigger_requires_token(client, monkeypatch):
     assert r.status_code == 200
     assert r.json()["triggered"] is True
     assert "recent" in r.json()
+
+
+def test_70_every_env_var_main_reads_is_in_env_example(client):
+    """
+    انحراف حقيقي وقع فعلاً: main.py قرأ PRELAUNCH_LOCK/USER/PASS
+    وINTERNAL_JOB_TOKEN قبل أن تصل أسماؤها كأسطر فعلية (لا تعليقات)
+    في .env.example — قائمة النسخ إلى Railway بُنيت من ملفّ ناقص،
+    فنشرت الموقع بلا القفل الذي صُمِّم خصيصاً لمنع ذلك. هذا الاختبار
+    يقرأ os.getenv الفعلية من main.py وmailer.py، ويقارنها بأسطر
+    KEY= الفعّالة (لا التعليقات) في .env.example.
+    """
+    root = Path(__file__).resolve().parent.parent
+    main_src = (root / "main.py").read_text(encoding="utf-8")
+    mailer_src = (root / "mailer.py").read_text(encoding="utf-8")
+
+    read_vars = set(re.findall(r'os\.getenv\(\s*["\']([A-Z_][A-Z0-9_]*)["\']', main_src))
+    read_vars |= set(re.findall(r'_env\(\s*["\']([A-Z_][A-Z0-9_]*)["\']', mailer_src))
+
+    # اختبارات محلية وحدها — tests/conftest.py يضبطها، لا .env
+    read_vars.discard("DISABLE_PURGE_LOOP")
+
+    example = (root / ".env.example").read_text(encoding="utf-8")
+    documented = set(re.findall(r'(?m)^([A-Z_][A-Z0-9_]*)=', example))
+
+    missing = read_vars - documented
+    assert not missing, (
+        f"main.py/mailer.py يقرآن {missing} ولا وجود لها كأسطر فعّالة "
+        f"(لا تعليقات) في .env.example — أضِفها قبل أن تُنسَخ القائمة "
+        f"إلى Railway ناقصة."
+    )
