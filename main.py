@@ -1,4 +1,5 @@
 import asyncio
+import base64
 import hashlib
 import io
 import logging
@@ -18,7 +19,7 @@ from sqlalchemy.orm import sessionmaker
 from sqlalchemy.exc import IntegrityError
 from fastapi import FastAPI, HTTPException, Request, UploadFile, File
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import JSONResponse, RedirectResponse
+from fastapi.responses import JSONResponse, RedirectResponse, Response
 from pydantic import BaseModel, Field, field_validator
 from imagekitio import ImageKit
 
@@ -73,6 +74,23 @@ async def _purge_loop():
     بالقفل والتسجيل، فهذه الحلقة لا تفعل شيئاً غير إعادة الاستدعاء.
     استثناء هنا لا يجب أن يوقف الحلقة نفسها — تلك مسؤولية
     run_purge_job، وهذا سطر أمان إضافي فقط.
+
+    سلوكها تحت Railway (الجولة د):
+    ● إعادة نشر (كل دفعة كود، أو تغيير متغيّر بيئة) تُعيد تشغيل
+      العملية بالكامل — الحلقة تُعاد تلقائياً وتُنفَّذ فوراً (أول
+      تكرار يسبق أول sleep)، فإعادة النشر لا تُضيّع دورة، بل
+      تزيدها تكراراً. لا حالة محلّية تُفقَد: job_runs في القاعدة.
+    ● عدّة نسخ (replicas) تعمل معاً بأمان — القفل الاستشاري في
+      run_purge_job يضمن أن نسخة واحدة تُنفِّذ فعلياً في كل لحظة،
+      والبقية تُسجِّل 'skipped_locked' وتنتظر الدورة التالية.
+    ● الخطر الحقيقي الوحيد: لو أُوقفت الخدمة كلياً (نوم اختياري
+      لتقليل الكلفة، أو توقّف الحساب) فالحلقة لا تعمل إطلاقاً —
+      لا كود يشغّلها بلا عملية حيّة. الحلّ هنا مُشغِّل خارجي احتياطي:
+      POST /internal/run-purge-job (أسفل) محمي برمز، يستدعيه Cron
+      Job من Railway نفسها (خدمة منفصلة بجدول زمني) أو أي مُجدوِل
+      خارجي — فحتى لو نامت خدمة الويب، مُجدوِل خارجي يوقظها بطلب HTTP
+      عادي وتُنفَّذ الدورة. أوصي بتفعيله دائماً بصرف النظر عن خطّتك،
+      فهو شبكة أمان لا تُكلِّف شيئاً إن كانت الحلقة الداخلية تعمل أصلاً.
     """
     while True:
         try:
@@ -214,6 +232,56 @@ async def surface_guard(request: Request, call_next):
             if need in _ROLE_LOGIN:
                 dest += f"?role={_ROLE_LOGIN[need]}&next={quote(path, safe='/')}"
             return RedirectResponse(dest, status_code=302)
+    return await call_next(request)
+
+
+# ══════════════════════════════════════════════════════════════════════════════
+# قفل ما قبل الإطلاق — الموقع لا يجب أن يكون علنياً قبل جاهزيته
+# ══════════════════════════════════════════════════════════════════════════════
+# مؤقّت بطبيعته: يُزال بحذف PRELAUNCH_LOCK من متغيّرات البيئة على
+# Railway (أو ضبطه إلى أي قيمة غير "1") — سطر واحد، بلا نشر كود
+# جديد. نسيانه أسوأ من غيابه، فسُجِّل هنا حيث يراه من يبحث عن سبب
+# طلب المتصفّح كلمة مرور بعد الإطلاق:
+#
+#   ⛔ لإزالته: احذف PRELAUNCH_LOCK (أو PRELAUNCH_USER/PRELAUNCH_PASS)
+#      من متغيّرات بيئة Railway. لا حاجة لإعادة نشر الكود.
+#
+# HTTP Basic Auth — لا صفحة دخول مخصّصة: أبسط ما يمنع فهارس البحث
+# والزوّار العرضيين قبل الجاهزية، ويعمل فوق كل مسار بما فيها
+# الملفّات الثابتة، بلا لمس أي صفحة HTML. /health مستثنى فقط
+# لتبقى فحوص Railway الصحية تعمل حتى خلف القفل.
+_PRELAUNCH_LOCK = os.getenv("PRELAUNCH_LOCK", "") == "1"
+
+
+@app.middleware("http")
+async def prelaunch_lock(request: Request, call_next):
+    if not _PRELAUNCH_LOCK or request.url.path == "/health":
+        return await call_next(request)
+
+    user = os.getenv("PRELAUNCH_USER", "")
+    pw = os.getenv("PRELAUNCH_PASS", "")
+    if not user or not pw:
+        # قفل مفعَّل بلا بيانات اعتماد مضبوطة — الفشل الآمن هنا هو
+        # المنع لا السماح، وإلا صار PRELAUNCH_LOCK=1 وهماً بالحماية.
+        return Response(status_code=503, content="Service temporarily locked.")
+
+    auth = request.headers.get("authorization", "")
+    ok = False
+    if auth.startswith("Basic "):
+        try:
+            decoded = base64.b64decode(auth[6:]).decode("utf-8")
+            got_user, _, got_pw = decoded.partition(":")
+            ok = (secrets.compare_digest(got_user, user)
+                  and secrets.compare_digest(got_pw, pw))
+        except Exception:
+            ok = False
+
+    if not ok:
+        # ترويسات HTTP يجب أن تكون Latin-1 — لا عربية هنا مهما بدا ذلك مناسباً
+        return Response(
+            status_code=401,
+            headers={"WWW-Authenticate": 'Basic realm="Bunyan - Pre-launch"'},
+        )
     return await call_next(request)
 
 
@@ -2510,6 +2578,38 @@ def run_purge_job() -> None:
                 db.rollback()
                 log.error("run_purge_job: تعذّر تحرير القفل الاستشاري — سيبقى "
                          "مأخوذاً حتى تُعاد دورة الاتصال إلى المجمّع: %s", e)
+
+
+@app.post("/internal/run-purge-job")
+def trigger_purge_job(request: Request):
+    """
+    مُشغِّل احتياطي خارجي للتطهير — الجولة د، البند ٤.
+
+    الحلقة الداخلية (main.lifespan) تكفي طالما العملية حيّة، لكن
+    لا شيء يشغّلها إن كانت الخدمة نائمة أو متوقّفة. هذا المسار
+    يتيح لمُجدوِل خارجي (Railway Cron Job، أو GitHub Actions
+    مجدوَل، أو أي خدمة ping مجدولة) استيقاظ الخدمة وتنفيذ الدورة
+    عند الطلب — بصرف النظر عن حال الحلقة الداخلية.
+
+    الحماية: رمز مشترك في ترويسة X-Internal-Token يقارَن بثبات
+    زمني ضد INTERNAL_JOB_TOKEN. لا صلاحية مستخدم هنا لأن المُجدوِل
+    الخارجي ليس مستخدماً — قارن هذا بـ require_admin: ذاك يفترض
+    جلسة بشرية، وهذا يفترض عميلاً آلياً بسرّ مشترك واحد.
+    """
+    token = os.getenv("INTERNAL_JOB_TOKEN", "")
+    got = request.headers.get("x-internal-token", "")
+    if not token or not secrets.compare_digest(got, token):
+        raise HTTPException(status_code=404, detail="Not found")
+
+    run_purge_job()
+    with SessionLocal() as db:
+        rows = db.execute(text("""
+            SELECT job_name, status, purged_count, error, ran_at
+            FROM job_runs WHERE id IN (
+                SELECT id FROM job_runs ORDER BY ran_at DESC LIMIT 4
+            ) ORDER BY ran_at DESC
+        """)).mappings().fetchall()
+    return {"triggered": True, "recent": [dict(r) for r in rows]}
 
 
 # ══════════════════════════════════════════════════════════════════════════════

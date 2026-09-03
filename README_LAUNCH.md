@@ -1,221 +1,113 @@
-# بُنيان — دليل النشر والإطلاق
+# بُنيان — دليل النشر
 
-## متطلبات السيرفر
-
-| المكوّن | الإصدار |
-|---------|---------|
-| Python  | 3.12+   |
-| PostgreSQL (Supabase) | 15+ |
-| RAM     | 512 MB كحد أدنى |
-| نظام التشغيل | Linux (Ubuntu 22.04 LTS موصى به) / Windows |
+أصل واحد: **Railway** يخدم main.py (والذي يخدم public/ ذاتياً)، و**Cloudflare**
+أمامه لـ DNS وTLS. **Neon** قاعدة البيانات. لا Cloudflare Pages، لا CORS بين
+أصلين، لا `window.API_URL` — main.py وpublic/ يعيشان معاً دائماً.
 
 ---
 
-## متغيرات البيئة (.env)
+## ١ · متطلّبات الخدمة
 
-```env
-DATABASE_URL=postgresql://user:password@host:5432/db?sslmode=require
-JWT_SECRET=your-strong-secret-256-bits
-ADMIN_USERNAME=admin
-ADMIN_PASSWORD=your-admin-password
-ADMIN_PASSWORD_HASH=bcrypt-hash-of-admin-password
-IMAGEKIT_PRIVATE_KEY=your-imagekit-private-key
-IMAGEKIT_URL_ENDPOINT=https://ik.imagekit.io/your-id
+| المكوّن | التفاصيل |
+|---|---|
+| Python | 3.12 (متطابق مع التطوير المحلي) |
+| القاعدة | Neon Postgres — `DATABASE_URL` (مجمَّع) و`DATABASE_URL_UNPOOLED` (Alembic وpg_dump) |
+| البريد | Resend، نطاق `bonyans.com` موثَّق (SPF/DKIM/DMARC) |
+| الصور | ImageKit |
+
+## ٢ · إعداد Railway
+
+- `Procfile` في الجذر يحدّد كل شيء:
+  ```
+  release: alembic upgrade head
+  web: uvicorn main:app --host 0.0.0.0 --port $PORT
+  ```
+  `release` يعمل مرّة واحدة **قبل** أن تستقبل النسخة الجديدة أي طلب —
+  الترحيلات تسبق الإقلاع دائماً، لا تتزامن معه.
+- `.railwayignore` يستبعد ملفّات التطوير من صورة النشر (`_test_*.py`،
+  `_diag.py`، `tests/`، `venv/`، إلخ) — راجع الملفّ للقائمة الكاملة.
+- Railway يضبط `$PORT` تلقائياً — **لا تضبطه أنت**.
+
+## ٣ · متغيّرات البيئة على Railway
+
+تُضبط من لوحة Railway (Settings → Variables) — **ليس في `.env` المحلي،
+وليس في أي ملفّ يُرفع لـ Git**. القائمة الكاملة بالأسماء فقط (لا قيم):
+
+```
+ENVIRONMENT=production
+PUBLIC_BASE_URL=https://bonyans.com
+CORS_ORIGINS=https://bonyans.com,https://www.bonyans.com,capacitor://localhost
+DATABASE_URL
+DATABASE_URL_UNPOOLED
+JWT_SECRET
+ADMIN_USERNAME
+ADMIN_PASSWORD_HASH
+IMAGEKIT_PRIVATE_KEY
+IMAGEKIT_URL_ENDPOINT
+RESEND_API_KEY
+MAIL_FROM
+SUPPORT_EMAIL
 ```
 
-لإنشاء ADMIN_PASSWORD_HASH:
-```python
-from passlib.context import CryptContext
-ctx = CryptContext(schemes=["bcrypt"])
-print(ctx.hash("your-admin-password"))
+اختيارية:
+```
+PRELAUNCH_LOCK          # 1 لتفعيل قفل ما قبل الإطلاق (القسم ٤)
+PRELAUNCH_USER
+PRELAUNCH_PASS
+INTERNAL_JOB_TOKEN      # مُشغِّل التطهير الاحتياطي — main.py:/internal/run-purge-job
 ```
 
----
+لا تضبط `DISABLE_PURGE_LOOP` في الإنتاج — تلك للاختبارات المحلية وحدها.
 
-## خطوات النشر — Linux (Production)
+## ٤ · قفل ما قبل الإطلاق
 
-### 1. تثبيت المتطلبات
-```bash
-git clone https://github.com/your-org/bunyan.git
-cd bunyan
-python3.12 -m venv venv
-source venv/bin/activate
-pip install -r requirements.txt
-```
+الموقع لا يجب أن يكون علنياً قبل جاهزيته. اضبط `PRELAUNCH_LOCK=1` مع
+`PRELAUNCH_USER`/`PRELAUNCH_PASS` على Railway — HTTP Basic Auth يغطّي كل
+مسار عدا `/health`. **لإزالته بعد الإطلاق: احذف `PRELAUNCH_LOCK` من
+متغيّرات البيئة (أو اضبطه لأي قيمة غير `1`) — سطر واحد، بلا نشر كود.**
 
-### 2. إعداد البيئة
-```bash
-cp .env.example .env
-nano .env   # أضف جميع المتغيرات
-```
+## ٥ · DNS وCloudflare
 
-### 3. تشغيل Migrations
-```bash
-alembic upgrade head
-```
+- `bonyans.com` وWWW يشيران إلى خدمة Railway عبر Cloudflare (proxied — سحابة
+  برتقالية) — Cloudflare يتولّى TLS، Railway لا يحتاج شهادة يدوية.
+- سجلّات البريد (SPF/DKIM/DMARC) لـResend موثَّقة فعلاً حسب `.env`.
 
-### 4. تشغيل السيرفر (Production)
-```bash
-# باستخدام gunicorn مع uvicorn workers
-pip install gunicorn
-gunicorn main:app -w 4 -k uvicorn.workers.UvicornWorker \
-  --bind 0.0.0.0:8000 \
-  --timeout 120 \
-  --access-logfile logs/access.log \
-  --error-logfile logs/error.log
-```
+## ٦ · النسخ الاحتياطي
 
-### 5. Reverse Proxy — Nginx
-```nginx
-server {
-    listen 80;
-    server_name bunyan.iq www.bunyan.iq;
+- `backup_db.py` — `pg_dump` حقيقي يستهدف `DATABASE_URL_UNPOOLED`، ينتج
+  ملفّاً بصيغة custom format في `backups/`.
+- `restore_db.py` — يستعيد ملفّاً إلى قاعدة **مختلفة** يحدّدها `--target`
+  صراحةً (يرفض أي رابط يطابق الإنتاج)، ثم يقارن عدد الصفوف جدولاً جدولاً
+  بين المصدر والهدف ويطبع تطابقاً صريحاً — لا نسخة "نجحت" بلا هذا التحقّق.
+- `.github/workflows/backup.yml` — نسخة يومية مجدولة عبر GitHub Actions
+  (لا على قرص Railway المؤقّت). يحتاج سرّاً في إعدادات المستودع:
+  `DATABASE_URL_UNPOOLED`. الأرشفة الحالية أثر تشغيل GitHub (٩٠ يوماً) —
+  انقلها لاحقاً إلى تخزين دائم (Cloudflare R2 مثلاً).
 
-    location / {
-        proxy_pass http://127.0.0.1:8000;
-        proxy_set_header Host $host;
-        proxy_set_header X-Real-IP $remote_addr;
-        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
-        proxy_read_timeout 120s;
-    }
-}
-```
+## ٧ · حلقة تطهير الحسابات تحت Railway
 
-### 6. SSL — Let's Encrypt
-```bash
-apt install certbot python3-certbot-nginx
-certbot --nginx -d bunyan.iq -d www.bunyan.iq
-```
+`main.py` يشغّل حلقة داخلية تحاول التطهير كل ٦ ساعات (تفاصيل السلوك تحت
+إعادة النشر وتعدّد النسخ موثَّقة في تعليق `_purge_loop` بالكود نفسه).
+احتياطاً لو توقّفت الخدمة أو نامت: `POST /internal/run-purge-job` محمي
+برأس `X-Internal-Token` يطابق `INTERNAL_JOB_TOKEN` — اربطه بـRailway Cron
+Job أو أي مُجدوِل خارجي يستدعيه يومياً.
 
----
-
-## خطوات النشر — Windows (Development)
-
-```powershell
-# تشغيل السيرفر
-.\venv\Scripts\uvicorn.exe main:app --reload --host 127.0.0.1 --port 8000
-
-# أو في الخلفية
-Start-Process .\venv\Scripts\uvicorn.exe -ArgumentList "main:app","--reload"
-```
-
----
-
-## فحص الصحة
-
-بعد الإطلاق، تحقق من:
+## ٨ · بعد النشر مباشرة
 
 ```bash
-# Health check
-curl https://bunyan.iq/health
-# Expected: {"database":"ok","app":"ok"}
-
-# System status (admin token required)
-curl -H "Authorization: YOUR_ADMIN_TOKEN" https://bunyan.iq/admin/system-status
+python set_admin_password.py
 ```
+كلمة مرور جديدة ١٦ محرفاً عشوائياً على الأقل — الحالية ظهرت في محادثة
+سابقة (بوّابة SCOPE.md).
 
----
+## ٩ · فحوص ما بعد النشر (على الموقع الحيّ)
 
-## النسخ الاحتياطي
+- `https://bonyans.com/docs` → 404 (`ENVIRONMENT=production` يطفئها)
+- ترويسة `Set-Cookie` على تسجيل دخول حقيقي تحمل `Secure`، وHSTS موجودة
+- `/.env` و`/main.py` → 404
+- `/health` → 200
+- استعادة كلمة مرور حقيقية: رابط الرسالة يشير إلى `https://bonyans.com`
+  لا `127.0.0.1` — هذا وحده يثبت أن `PUBLIC_BASE_URL` مضبوط صحيحاً
+- نشرة ثانية تُظهر شريط "نسخة جديدة متاحة" (عامل الخدمة، الجولة ج)
 
-### يومياً (cron)
-```bash
-# أضف لـ crontab
-0 2 * * * pg_dump "$DATABASE_URL" -F c -f /backups/bunyan_$(date +\%Y\%m\%d).dump
-# احتفظ بآخر 30 يوم
-find /backups -name "*.dump" -mtime +30 -delete
-```
-
-### قبل كل تحديث
-```bash
-pg_dump "$DATABASE_URL" -F c -f backups/pre_update_$(date +%Y%m%d_%H%M%S).dump
-```
-
----
-
-## التحديثات
-
-```bash
-# 1. نسخة احتياطية
-pg_dump "$DATABASE_URL" -F c -f backups/pre_update.dump
-
-# 2. سحب الكود الجديد
-git pull origin main
-
-# 3. تثبيت المكتبات الجديدة
-pip install -r requirements.txt
-
-# 4. تشغيل migrations
-alembic upgrade head
-
-# 5. إعادة تشغيل السيرفر
-sudo systemctl restart bunyan
-# أو:
-kill -HUP $(cat gunicorn.pid)
-```
-
----
-
-## systemd Service (Linux)
-
-```ini
-# /etc/systemd/system/bunyan.service
-[Unit]
-Description=Bunyan Platform
-After=network.target
-
-[Service]
-User=ubuntu
-WorkingDirectory=/home/ubuntu/bunyan
-ExecStart=/home/ubuntu/bunyan/venv/bin/gunicorn main:app \
-  -w 4 -k uvicorn.workers.UvicornWorker \
-  --bind 0.0.0.0:8000 \
-  --timeout 120
-Restart=always
-RestartSec=3
-EnvironmentFile=/home/ubuntu/bunyan/.env
-
-[Install]
-WantedBy=multi-user.target
-```
-
-```bash
-systemctl enable bunyan
-systemctl start bunyan
-systemctl status bunyan
-```
-
----
-
-## Checklist قبل الإطلاق
-
-- [ ] جميع متغيرات البيئة مضبوطة في `.env`
-- [ ] `GET /health` يعيد `{"database":"ok","app":"ok"}`
-- [ ] تسجيل الدخول كـ admin يعمل
-- [ ] تسجيل شركة جديدة يعمل
-- [ ] رفع الصور عبر ImageKit يعمل
-- [ ] SSL مفعّل على النطاق
-- [ ] النسخ الاحتياطي التلقائي مضبوط
-- [ ] `robots.txt` و `sitemap.xml` متاحان
-- [ ] `manifest.json` و service worker مفعّلان (PWA)
-- [ ] Rate limiting مختبر
-- [ ] `security_audit_log` يسجّل الأحداث
-
----
-
-## المراحل المكتملة
-
-| Phase | الوصف | الحالة |
-|-------|-------|--------|
-| 1-4   | الأساسيات، DB، Admin | ✅ |
-| 5     | حسابات الشركات | ✅ |
-| 6     | الاشتراكات والباقات | ✅ |
-| 7     | سوق المشاريع | ✅ |
-| 8     | الرسائل، الإشعارات، التقييمات | ✅ |
-| 8.1   | تكامل UX العام | ✅ |
-| 9     | الأمان والجاهزية | ✅ |
-| 10    | UI النهائي، PWA، SEO | ✅ |
-
----
-
-*بُنيان — صُنع في العراق 🇮🇶*
+*بُنيان — صُنع في العراق*

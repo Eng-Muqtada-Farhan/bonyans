@@ -1,0 +1,40 @@
+name: نسخ احتياطي يومي لقاعدة بُنيان
+
+# مجدول لا يدوي وحده — يوماً بعد يوم بصرف النظر عن حال Railway،
+# لأن هذا العمل لا يجب أن يعتمد على تذكّر أحد تشغيله. يُنفَّذ خارج
+# Railway تماماً: قرص الحاوية على Railway مؤقّت ويضيع عند كل إعادة
+# نشر، فلا معنى لتخزين نسخة احتياطية هناك.
+#
+# التخزين هنا هو أرشيف تشغيل GitHub (٩٠ يوماً كحدّ افتراضي) —
+# بداية فعلية بلا تكلفة إضافية، لا حلّاً أرشيفياً نهائياً. يُستحسن
+# نقله لاحقاً إلى تخزين دائم (Cloudflare R2 مثلاً، بما أن Cloudflare
+# مُستعمَل أصلاً أمام الموقع) بإضافة خطوة رفع بعد pg_dump.
+
+on:
+  schedule:
+    - cron: "0 2 * * *"  # ٢ صباحاً UTC يومياً
+  workflow_dispatch: {}   # تشغيل يدوي من تبويب Actions عند الحاجة
+
+jobs:
+  backup:
+    runs-on: ubuntu-latest
+    steps:
+      - name: تثبيت أدوات PostgreSQL
+        run: sudo apt-get update && sudo apt-get install -y postgresql-client
+
+      - name: pg_dump
+        env:
+          DATABASE_URL_UNPOOLED: ${{ secrets.DATABASE_URL_UNPOOLED }}
+        run: |
+          mkdir -p backups
+          stamp=$(date -u +%Y%m%d_%H%M%S)
+          pg_dump "$DATABASE_URL_UNPOOLED" -F c --no-owner --no-acl \
+            -f "backups/bunyan_${stamp}.dump"
+          ls -la backups/
+
+      - name: رفع كأثر تشغيل (٩٠ يوماً)
+        uses: actions/upload-artifact@v4
+        with:
+          name: bunyan-db-backup-${{ github.run_id }}
+          path: backups/*.dump
+          retention-days: 90

@@ -1518,3 +1518,65 @@ def test_66_maskable_icon_content_stays_inside_safe_zone(client):
         for corner in [(2, 2), (w - 3, 2), (2, h - 3), (w - 3, h - 3)]:
             assert im.getpixel(corner) == bg_expected, \
                 f"زاوية {corner} ليست الخلفية الصِرفة — محتوى تسرّب خارج منطقة الأمان"
+
+
+# ══════════════════════════════════════════════════════════════
+# الجولة د — النشر
+# ══════════════════════════════════════════════════════════════
+
+def test_67_prelaunch_lock_blocks_everything_except_health(client, monkeypatch):
+    """
+    قفل ما قبل الإطلاق (main.py: prelaunch_lock) — الموقع يجب ألّا
+    يكون علنياً قبل جاهزيته. HTTP Basic Auth يحجب كل مسار ما عدا
+    /health (فحوص Railway الصحية يجب أن تمرّ حتى خلف القفل).
+    """
+    monkeypatch.setattr(main, "_PRELAUNCH_LOCK", True)
+    monkeypatch.setenv("PRELAUNCH_USER", "smoke")
+    monkeypatch.setenv("PRELAUNCH_PASS", "smoke-pass-123")
+
+    assert client.get("/health").status_code == 200, "/health يجب أن يمرّ حتى خلف القفل"
+
+    no_auth = client.get("/index.html")
+    assert no_auth.status_code == 401
+    assert "WWW-Authenticate" in no_auth.headers
+
+    bad = client.get("/index.html", auth=("wrong", "wrong"))
+    assert bad.status_code == 401
+
+    ok = client.get("/index.html", auth=("smoke", "smoke-pass-123"))
+    assert ok.status_code == 200
+
+    api = client.get("/companies")
+    assert api.status_code == 401, "القفل يجب أن يغطّي نقاط الـAPI أيضاً لا الصفحات وحدها"
+
+
+def test_68_prelaunch_lock_fails_closed_without_credentials_configured(client, monkeypatch):
+    """
+    تفعيل القفل بلا PRELAUNCH_USER/PRELAUNCH_PASS مضبوطين يجب أن
+    يمنع لا أن يسمح — قفل يظنّه المشغِّل يعمل بينما هو معطَّل بصمت
+    أسوأ من عدم وجوده أصلاً.
+    """
+    monkeypatch.setattr(main, "_PRELAUNCH_LOCK", True)
+    monkeypatch.delenv("PRELAUNCH_USER", raising=False)
+    monkeypatch.delenv("PRELAUNCH_PASS", raising=False)
+    r = client.get("/index.html")
+    assert r.status_code == 503, "بلا بيانات اعتماد يجب أن يُمنع الوصول لا أن يُسمح به"
+
+
+def test_69_internal_purge_trigger_requires_token(client, monkeypatch):
+    """
+    /internal/run-purge-job — مُشغِّل احتياطي خارجي (مُجدوِل خارج
+    Railway) لحلقة التطهير. 404 لا 401/403 عمداً: لا يكشف وجود
+    المسار لفاحص عشوائي بلا الرمز الصحيح.
+    """
+    monkeypatch.setenv("INTERNAL_JOB_TOKEN", "smoke-token-xyz")
+
+    assert client.post("/internal/run-purge-job").status_code == 404
+    assert client.post("/internal/run-purge-job",
+                       headers={"X-Internal-Token": "wrong"}).status_code == 404
+
+    r = client.post("/internal/run-purge-job",
+                    headers={"X-Internal-Token": "smoke-token-xyz"})
+    assert r.status_code == 200
+    assert r.json()["triggered"] is True
+    assert "recent" in r.json()
