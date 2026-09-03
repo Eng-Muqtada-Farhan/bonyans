@@ -399,7 +399,8 @@ def test_26_deactivated_user_token_stops_working(client):
 # ══════════════════════════════════════════════════════════════
 # ٢٧–٣٤ · سلسلة البريد
 #
-# البريد نفسه مُعطَّل في الاختبارات (لا RESEND_API_KEY)، وهذا
+# البريد مُعطَّل قسراً هنا — conftest.py يحذف RESEND_API_KEY من
+# البيئة بعد load_dotenv، بصرف النظر عمّا في .env الفعلي. وهذا
 # مقصود: نختبر المنطق والأمان لا مزوّد الطرف الثالث. mailer.send
 # يُرجع False فتُختبَر أيضاً استجابة النظام لفشل الإرسال.
 # ══════════════════════════════════════════════════════════════
@@ -1050,3 +1051,189 @@ def test_51_500_responses_do_not_leak_exception_text(client, company_token, monk
     assert 'detail=f"Upload failed' not in src
     assert 'detail=f"Image upload failed' not in src
     assert 'detail=str(e)' not in src
+
+
+# ══════════════════════════════════════════════════════════════
+# الجولة ب — الوعود الأربعة المكتوبة التي لا ينفّذها الكود
+# ══════════════════════════════════════════════════════════════
+
+def test_52_health_endpoint_does_not_leak_exception_text(client, monkeypatch):
+    """main.py:3916 كانت تُعيد str(e) من فشل اتصال القاعدة."""
+    secret = "SECRET_DB_HOST_MUST_NOT_LEAK"
+    monkeypatch.setattr(main, "SessionLocal",
+                        lambda: (_ for _ in ()).throw(RuntimeError(secret)))
+    r = client.get("/health")
+    assert r.status_code == 503
+    assert secret not in r.text
+
+
+def test_53_report_rejects_nonexistent_target(client, user_token):
+    """POST /report كان يقبل ويخزّن target_id وهمياً بلا تحقّق."""
+    fake_id = 999999999
+    r = client.post("/report", headers=bearer(user_token),
+                    json={"target_type": "company", "target_id": fake_id, "reason": "other"})
+    assert r.status_code == 404, "بلاغ عن هدف غير موجود قُبل"
+    with main.SessionLocal() as db:
+        n = db.execute(text(
+            "SELECT count(*) FROM reports WHERE target_type='company' AND target_id=:i"
+        ), {"i": fake_id}).scalar()
+    assert n == 0, "خُزِّن بلاغ عن هدف وهمي رغم الرفض"
+
+
+def test_54_purge_old_audit_logs_respects_retention(client, admin_token):
+    """صفوف security_audit_log الأقدم من ١٢ شهراً تُحذف، والأحدث تبقى."""
+    with main.SessionLocal() as db:
+        old_id = db.execute(text("""
+            INSERT INTO security_audit_log(actor_type, actor_id, action, ip_hash, meta, created_at)
+            VALUES ('user', 'SMOKE_old', 'smoke_probe', 'x', '{}', now() - interval '400 days')
+            RETURNING id
+        """)).scalar()
+        new_id = db.execute(text("""
+            INSERT INTO security_audit_log(actor_type, actor_id, action, ip_hash, meta, created_at)
+            VALUES ('user', 'SMOKE_new', 'smoke_probe', 'x', '{}', now())
+            RETURNING id
+        """)).scalar()
+        db.commit()
+    try:
+        removed = main.purge_old_audit_logs()
+        assert removed >= 1
+        with main.SessionLocal() as db:
+            still_old = db.execute(text("SELECT 1 FROM security_audit_log WHERE id=:i"),
+                                   {"i": old_id}).first()
+            still_new = db.execute(text("SELECT 1 FROM security_audit_log WHERE id=:i"),
+                                   {"i": new_id}).first()
+        assert still_old is None, "صفّ أقدم من ١٢ شهراً لم يُحذف"
+        assert still_new is not None, "صفّ حديث حُذف خطأً"
+    finally:
+        with main.SessionLocal() as db:
+            db.execute(text("DELETE FROM security_audit_log WHERE id IN (:a, :b)"),
+                      {"a": old_id, "b": new_id})
+            db.commit()
+
+
+def test_55_run_purge_job_logs_and_locks(client):
+    """
+    run_purge_job يسجّل في job_runs، ولا يُنفَّذ مرتين إن كان قفله
+    الاستشاري مأخوذاً من عملية أخرى — يُثبت بإمساك القفل يدوياً في
+    اتصال منفصل ثم استدعاء run_purge_job وانتظار status='skipped_locked'.
+    """
+    with main.SessionLocal() as db:
+        db.execute(text("DELETE FROM job_runs"))
+        db.commit()
+
+    holder = main.engine.connect()
+    try:
+        got = holder.execute(text("SELECT pg_try_advisory_lock(:k)"),
+                             {"k": main._PURGE_LOCK_KEY}).scalar()
+        assert got, "تعذّر أخذ القفل يدوياً للاختبار"
+
+        main.run_purge_job()
+
+        with main.SessionLocal() as db:
+            rows = db.execute(text(
+                "SELECT job_name, status FROM job_runs ORDER BY id"
+            )).fetchall()
+        assert rows, "لا سجلّ في job_runs بعد التشغيل"
+        assert all(r[1] == "skipped_locked" for r in rows), \
+            f"تنفيذ وقع رغم القفل المأخوذ: {rows}"
+    finally:
+        holder.execute(text("SELECT pg_advisory_unlock(:k)"), {"k": main._PURGE_LOCK_KEY})
+        holder.commit()
+        holder.close()
+
+    # بلا منازع على القفل، التشغيل يمرّ فعلياً ويُسجَّل 'ok' لكلا المهمّتين
+    with main.SessionLocal() as db:
+        db.execute(text("DELETE FROM job_runs"))
+        db.commit()
+    main.run_purge_job()
+    with main.SessionLocal() as db:
+        rows = db.execute(text("SELECT job_name, status FROM job_runs ORDER BY id")).fetchall()
+    names_ok = {r[0] for r in rows if r[1] == "ok"}
+    assert names_ok == {"purge_deleted_accounts", "purge_old_audit_logs"}, rows
+
+
+def test_56_owner_and_client_fk_are_set_null(client):
+    """
+    توثيق الانحراف (ترحيل c9d0e1f2a3b4): كلا القيدين ON DELETE
+    SET NULL الآن، لا CASCADE ولا NO ACTION.
+    """
+    with main.SessionLocal() as db:
+        rows = db.execute(text("""
+            SELECT conname, confdeltype FROM pg_constraint
+            WHERE conname IN ('companies_owner_user_id_fkey',
+                              'conversations_client_user_id_fkey')
+        """)).fetchall()
+    by_name = {r[0]: r[1] for r in rows}
+    assert by_name.get("companies_owner_user_id_fkey") == "n", by_name
+    assert by_name.get("conversations_client_user_id_fkey") == "n", by_name
+
+
+def test_57_purge_after_grace_preserves_other_party_messages(client, admin_token):
+    """
+    أهمّ اختبار في الجولة. صاحب مشروع يُحذف حسابه نهائياً بعد
+    مهلة ٣٠ يوماً — رسائل الشركة معه في المحادثة يجب أن تبقى
+    موجودة ومقروءة، لا أن تُمحى بالتتالي (كان DELETE FROM users
+    يُشعل CASCADE على conversations ثم chat_messages).
+    """
+    uid = _mk_user("purge-msg-test@nowhere.test")
+    with main.SessionLocal() as db:
+        cid = db.execute(text(
+            "SELECT company_id FROM profiles WHERE role='company' ORDER BY created_at LIMIT 1"
+        )).scalar()
+    assert cid, "تحتاج بيانات البذر: python seed_dev.py"
+
+    with main.SessionLocal() as db:
+        conv_id = db.execute(text("""
+            INSERT INTO conversations(client_user_id, company_id) VALUES (:u, :c)
+            RETURNING id
+        """), {"u": uid, "c": cid}).scalar()
+        db.execute(text("""
+            INSERT INTO chat_messages(conversation_id, sender_type, sender_id, message)
+            VALUES (:conv, 'client', :u, 'SMOKE: رسالة العميل قبل الحذف')
+        """), {"conv": conv_id, "u": uid})
+        db.execute(text("""
+            INSERT INTO chat_messages(conversation_id, sender_type, sender_id, message)
+            VALUES (:conv, 'company', :c, 'SMOKE: ردّ الشركة — يجب أن يبقى')
+        """), {"conv": conv_id, "c": cid})
+        db.commit()
+
+    try:
+        with main.SessionLocal() as db:
+            db.execute(text(
+                "UPDATE users SET deletion_requested_at = now() - interval '31 days' WHERE id=:u"
+            ), {"u": uid})
+            db.commit()
+
+        main.purge_deleted_accounts()
+
+        with main.SessionLocal() as db:
+            user_gone = db.execute(text("SELECT 1 FROM users WHERE id=:u"), {"u": uid}).first()
+            conv = db.execute(text(
+                "SELECT client_user_id FROM conversations WHERE id=:c"
+            ), {"c": conv_id}).mappings().first()
+            msg_count = db.execute(text(
+                "SELECT count(*) FROM chat_messages WHERE conversation_id=:c"
+            ), {"c": conv_id}).scalar()
+
+        assert user_gone is None, "المستخدم لم يُحذف — purge لم ينجح"
+        assert conv is not None, "المحادثة مُحيت — رسائل الطرف الباقي ضاعت معها"
+        assert conv["client_user_id"] is None, \
+            "client_user_id لم يُفصَل — القيد ما زال CASCADE لا SET NULL"
+        assert msg_count == 2, f"توقّعت بقاء رسالتين، وُجد {msg_count}"
+
+        # الشركة تراها منسوبة إلى «حساب محذوف» لا معطوبة
+        with main.SessionLocal() as db:
+            listed = db.execute(text("""
+                SELECT COALESCE(u.display_name, :anon) AS client_name
+                FROM conversations c LEFT JOIN users u ON u.id=c.client_user_id
+                WHERE c.id=:c
+            """), {"c": conv_id, "anon": main.ANON_LABEL}).scalar()
+        assert listed == main.ANON_LABEL
+    finally:
+        with main.SessionLocal() as db:
+            db.execute(text("DELETE FROM chat_messages WHERE conversation_id=:c"), {"c": conv_id})
+            db.execute(text("DELETE FROM conversations WHERE id=:c"), {"c": conv_id})
+            # purge_deleted_accounts يحذف المستخدم عادة؛ هذا احتياط
+            # فقط إن فشل الاختبار قبل بلوغه فبقي الصفّ معلَّقاً.
+            db.execute(text("DELETE FROM users WHERE id=:u"), {"u": uid})
+            db.commit()

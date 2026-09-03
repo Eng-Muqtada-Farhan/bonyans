@@ -1,8 +1,10 @@
+import asyncio
 import hashlib
 import io
 import logging
 import os
 import secrets
+from contextlib import asynccontextmanager
 from datetime import datetime, timedelta, timezone
 from math import ceil
 from typing import Literal, Optional
@@ -63,12 +65,43 @@ imagekit = ImageKit(private_key=IMAGEKIT_PRIVATE_KEY)
 ENVIRONMENT = os.getenv("ENVIRONMENT", "development")
 IS_PROD = ENVIRONMENT == "production"
 
+
+async def _purge_loop():
+    """
+    حلقة خلفية تُعيد محاولة التطهير كل PURGE_INTERVAL_SECONDS —
+    run_purge_job (مُعرَّفة أسفل قرب purge_deleted_accounts) تتكفّل
+    بالقفل والتسجيل، فهذه الحلقة لا تفعل شيئاً غير إعادة الاستدعاء.
+    استثناء هنا لا يجب أن يوقف الحلقة نفسها — تلك مسؤولية
+    run_purge_job، وهذا سطر أمان إضافي فقط.
+    """
+    while True:
+        try:
+            run_purge_job()
+        except Exception as e:
+            log.error("_purge_loop: تعذّر تشغيل الدورة: %s", e)
+        await asyncio.sleep(PURGE_INTERVAL_SECONDS)
+
+
+@asynccontextmanager
+async def lifespan(_app: FastAPI):
+    # DISABLE_PURGE_LOOP يوقفها في بيئة الاختبار — مجموعة الدخان
+    # تستدعي purge_deleted_accounts() مباشرةً بأزمنة مصطنعة، ولا
+    # تريد حلقة خلفية تتنافس معها على القفل الاستشاري نفسه.
+    task = None
+    if os.getenv("DISABLE_PURGE_LOOP") != "1":
+        task = asyncio.create_task(_purge_loop())
+    yield
+    if task is not None:
+        task.cancel()
+
+
 # في الإنتاج تُطفأ صفحات التوثيق — كانت تكشف الـ81 نقطة نهاية بلا مصادقة.
 app = FastAPI(
     title="بُنيان API",
     docs_url=None if IS_PROD else "/docs",
     redoc_url=None if IS_PROD else "/redoc",
     openapi_url=None if IS_PROD else "/openapi.json",
+    lifespan=lifespan,
 )
 
 # نطاقات صريحة من متغير البيئة. allow_origins=["*"] مع allow_credentials=True
@@ -2371,10 +2404,105 @@ def purge_deleted_accounts() -> int:
               AND deletion_requested_at < now() - interval '30 days'
         """)).fetchall()
         for (uid,) in rows:
-            # سجلّ التدقيق يبقى ١٢ شهراً مجهَّلاً (LEGAL-DRAFT §٥)
+            # companies.owner_user_id وconversations.client_user_id
+            # كلاهما ON DELETE SET NULL الآن (ترحيل c9d0e1f2a3b4) —
+            # هذا الحذف لا يمحو رسائل الطرف الآخر ولا يفشل بصمت
+            # على شركة يملكها من نُحذَف.
             db.execute(text("DELETE FROM users WHERE id = :u"), {"u": uid})
         db.commit()
     return len(rows)
+
+
+AUDIT_LOG_RETENTION_DAYS = 365
+
+
+def purge_old_audit_logs() -> int:
+    """
+    حذف صفوف security_audit_log الأقدم من ١٢ شهراً — تنفيذ فعلي
+    لوعد LEGAL-DRAFT §٥ («سجلّ التدقيق الأمني: ١٢ شهراً»). يُستدعى
+    من المُشغِّل نفسه الذي يستدعي purge_deleted_accounts.
+    """
+    with SessionLocal() as db:
+        result = db.execute(text(
+            "DELETE FROM security_audit_log WHERE created_at < now() - interval '365 days'"
+        ))
+        db.commit()
+        return result.rowcount or 0
+
+
+PURGE_INTERVAL_SECONDS = 6 * 3600  # كل ٦ ساعات — كافٍ لمهلة ٣٠ يوماً، ويكشف عطلاً خلال ساعات لا أيام
+_PURGE_LOCK_KEY = 918273645        # ثابت عشوائي — قفل استشاري خاص بمهمّتي التطهير وحدهما
+
+
+def run_purge_job() -> None:
+    """
+    غلاف حول purge_deleted_accounts() وpurge_old_audit_logs() يضمن:
+
+    ١ · لا يُنفَّذ مرتين إن عمل الخادم بعدّة عمّال — pg_try_advisory_lock
+        قفل على مستوى قاعدة البيانات لا ذاكرة العملية، فيصمد أمام
+        تعدّد العمليات. لا ينتظر: عامل آخر يُمسك القفل فتتخطّى
+        هذه الدورة صامتة (تُسجَّل status='skipped_locked').
+
+    ٢ · ينجو من إعادة التشغيل — الحلقة (main.lifespan) تُعاد
+        تلقائياً عند كل إقلاع، وتحاول فوراً ثم كل PURGE_INTERVAL_SECONDS؛
+        لا حالة محلّية يخسرها إعادة التشغيل.
+
+    ٣ · قابل للتحقّق — كل محاولة (نجحت أو فشلت أو تخطّت لقفل مأخوذ)
+        تُسجَّل في job_runs. آخر صفّ لكل job_name هو الجواب الفعلي
+        على «هل تعمل؟» — لا افتراض.
+
+    فشلها صامت موصوف لا صامت مطلق: خطأ داخل أيّ من الدالتين
+    يُسجَّل status='error' مع نصّ الخطأ في job_runs ولا يوقف
+    الحلقة — الدورة التالية بعد PURGE_INTERVAL_SECONDS تحاول ثانيةً.
+    """
+    with SessionLocal() as db:
+        got_lock = db.execute(text("SELECT pg_try_advisory_lock(:k)"),
+                              {"k": _PURGE_LOCK_KEY}).scalar()
+        if not got_lock:
+            try:
+                db.execute(text(
+                    "INSERT INTO job_runs(job_name, status) VALUES ('purge_deleted_accounts', 'skipped_locked')"
+                ))
+                db.commit()
+            except Exception as e:
+                # فشل تسجيل "تخطّيتها" ليس سبباً لبقاء بلا محاولة لاحقة —
+                # لم نُمسك القفل أصلاً هنا فلا شيء لتحريره.
+                db.rollback()
+                log.error("run_purge_job: تعذّر تسجيل skipped_locked: %s", e)
+            return
+        try:
+            for job_name, fn in (("purge_deleted_accounts", purge_deleted_accounts),
+                                 ("purge_old_audit_logs", purge_old_audit_logs)):
+                try:
+                    count = fn()
+                    db.execute(text("""
+                        INSERT INTO job_runs(job_name, status, purged_count)
+                        VALUES (:n, 'ok', :c)
+                    """), {"n": job_name, "c": count})
+                    db.commit()
+                except Exception as e:
+                    # rollback يُخرج الجلسة من حالة "معاملة مجهَضة" — بلاه
+                    # فشل تسجيل الخطأ التالي يُبقي الجلسة معطوبة، ويفشل
+                    # فكّ القفل في finally بصمت فيتجمّد للأبد.
+                    db.rollback()
+                    log.error("run_purge_job: %s failed: %s", job_name, e)
+                    try:
+                        db.execute(text("""
+                            INSERT INTO job_runs(job_name, status, error)
+                            VALUES (:n, 'error', :err)
+                        """), {"n": job_name, "err": str(e)[:2000]})
+                        db.commit()
+                    except Exception as e2:
+                        db.rollback()
+                        log.error("run_purge_job: تعذّر تسجيل فشل %s أيضاً: %s", job_name, e2)
+        finally:
+            try:
+                db.execute(text("SELECT pg_advisory_unlock(:k)"), {"k": _PURGE_LOCK_KEY})
+                db.commit()
+            except Exception as e:
+                db.rollback()
+                log.error("run_purge_job: تعذّر تحرير القفل الاستشاري — سيبقى "
+                         "مأخوذاً حتى تُعاد دورة الاتصال إلى المجمّع: %s", e)
 
 
 # ══════════════════════════════════════════════════════════════════════════════
@@ -2384,6 +2512,15 @@ def purge_deleted_accounts() -> int:
 # ══════════════════════════════════════════════════════════════════════════════
 
 REPORT_TARGETS = {"company", "project", "review", "message"}
+# اسم الجدول هنا ثابت من هذا القاموس وحده، لا من مدخل المستخدم —
+# REPORT_TARGETS تُفحَص أولاً، فـtarget_type المستعمل كمفتاح مضمون
+# ضمن هذه الأربعة فقط. لا حقن ممكناً.
+REPORT_TARGET_TABLES = {
+    "company": "companies",
+    "project": "projects",
+    "review":  "reviews",
+    "message": "chat_messages",
+}
 REPORT_REASONS = {
     "fake_info":   "بيانات كاذبة",
     "not_owner":   "صور أو أعمال ليست له",
@@ -2415,6 +2552,12 @@ def submit_report(payload: ReportCreate, request: Request):
         raise HTTPException(status_code=429, detail="بلاغات كثيرة — انتظر قبل المحاولة مجدداً.")
 
     with SessionLocal() as db:
+        table = REPORT_TARGET_TABLES[payload.target_type]
+        exists = db.execute(
+            text(f"SELECT 1 FROM {table} WHERE id = :i"), {"i": payload.target_id}
+        ).first()
+        if not exists:
+            raise HTTPException(status_code=404, detail="الهدف المُبلَّغ عنه غير موجود.")
         try:
             db.execute(text("""
                 INSERT INTO reports (reporter_id, target_type, target_id, reason, details, ip_hash)
@@ -3447,21 +3590,30 @@ def list_conversations(request: Request):
     role, actor_id = _resolve_auth(request)
     with SessionLocal() as db:
         if role == "company":
+            # peer_user_id لواجهة الحجب/الإبلاغ — قد تكون NULL بعد
+            # حذف العميل حسابه نهائياً (conversations.client_user_id
+            # صار ON DELETE SET NULL، ترحيل c9d0e1f2a3b4)
             rows = db.execute(text("""
                 SELECT c.id, c.project_id, c.company_id, c.created_at,
-                       u.display_name AS client_name,
+                       c.client_user_id AS peer_user_id,
+                       COALESCE(u.display_name, :anon) AS client_name,
                        (SELECT COUNT(*) FROM chat_messages m
                         WHERE m.conversation_id=c.id AND m.is_read=false
                           AND m.sender_type = 'client') AS unread
                 FROM conversations c
-                JOIN users u ON u.id=c.client_user_id
+                LEFT JOIN users u ON u.id=c.client_user_id
                 WHERE c.company_id=:cid
                 ORDER BY c.created_at DESC
-            """), {"cid": actor_id}).mappings().fetchall()
+            """), {"cid": actor_id, "anon": ANON_LABEL}).mappings().fetchall()
         else:
+            # peer_user_id هنا هو مستخدم الشركة المالكة (الحجب على
+            # users لا companies) — أول من سجّل ملكيةً في profiles.
             rows = db.execute(text("""
                 SELECT c.id, c.project_id, c.company_id, c.created_at,
                        co.name AS company_name,
+                       (SELECT p.user_id FROM profiles p
+                        WHERE p.company_id=c.company_id AND p.role='company'
+                        ORDER BY p.created_at LIMIT 1) AS peer_user_id,
                        (SELECT COUNT(*) FROM chat_messages m
                         WHERE m.conversation_id=c.id AND m.is_read=false
                           AND m.sender_type != 'client') AS unread
@@ -3847,6 +3999,30 @@ def admin_audit_log(request: Request, limit: int = 200):
     } for r in rows]
 
 
+@app.get("/admin/job-runs")
+def admin_job_runs(request: Request, limit: int = 100):
+    """
+    سجلّ تشغيل المهام الدورية — job_runs. الجواب الفعلي على
+    «هل يعمل التطهير؟» بدل الثقة بأن الحلقة تعمل: آخر صفّ لكل
+    job_name يقول إن نجحت آخر محاولة أو فشلت أو تخطّتها لقفل مأخوذ.
+    """
+    require_admin(request)
+    limit = min(max(limit, 1), 500)
+    with SessionLocal() as db:
+        rows = db.execute(text("""
+            SELECT id, job_name, ran_at, status, purged_count, error
+            FROM job_runs ORDER BY ran_at DESC LIMIT :lim
+        """), {"lim": limit}).mappings().fetchall()
+    return [{
+        "id":            r["id"],
+        "job_name":      r["job_name"],
+        "ran_at":        str(r["ran_at"]),
+        "status":        r["status"],
+        "purged_count":  r["purged_count"],
+        "error":         r["error"],
+    } for r in rows]
+
+
 @app.get("/admin/activity")
 def admin_activity(request: Request):
     require_admin(request)
@@ -3914,7 +4090,8 @@ def health_check():
             db.execute(text("SELECT 1"))
         return {"database": "ok", "app": "ok"}
     except Exception as e:
-        raise HTTPException(status_code=503, detail={"database": "error", "app": "ok", "error": str(e)})
+        log.error("health_check: database unreachable: %s", e)
+        raise HTTPException(status_code=503, detail={"database": "error", "app": "ok"})
 
 
 @app.get("/admin/system-status")

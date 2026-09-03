@@ -25,6 +25,12 @@ load_dotenv(ROOT / ".env")
 if os.getenv("ENVIRONMENT", "development") == "production":
     sys.exit("⛔ رُفض: اختبارات الدخان للتطوير المحلي فقط، و ENVIRONMENT=production.")
 
+# حلقة التطهير الخلفية (main.lifespan) لا تعمل هنا — اختبارات
+# التطهير تستدعي main.purge_deleted_accounts()/run_purge_job()
+# مباشرةً بأزمنة مصطنعة، ولا تريد حلقة حقيقية تتنافس معها على
+# القفل الاستشاري نفسه أو تكتب إلى job_runs في توقيت غير متوقَّع.
+os.environ["DISABLE_PURGE_LOOP"] = "1"
+
 # كلمة مرور إدارة للاختبار وحده — تُحقَن في البيئة قبل استيراد
 # main حتى لا تلمس ADMIN_PASSWORD_HASH الحقيقية ولا تُطبع أبداً.
 SMOKE_ADMIN_PASSWORD = "smoke-test-only-Aa1!"
@@ -39,6 +45,17 @@ from fastapi.testclient import TestClient  # noqa: E402
 from sqlalchemy import text  # noqa: E402
 
 import main  # noqa: E402
+
+# البريد مُعطَّل قسراً في الاختبارات — بعد هذا السطر لا قبله، لأن
+# main.py يستدعي load_dotenv() ثانيةً عند استيراده، وdotenv يملأ
+# أي متغيّر غائب من .env (override=False لا يمنع ملء الغائب) —
+# فحذفه قبل import main يُعاد تلقائياً. بلا هذا، اختبارات استعادة
+# كلمة المرور وتغيير البريد ترسل بريداً فعلياً إلى عناوين
+# seed.test المصطنعة، وهو نطاق محجوز للاختبار (RFC 2606) لا
+# يستقبل شيئاً — فيرتدّ البريد ارتداداً صلباً على نطاق مُرسِل
+# عمره أيام، ويضرّ سمعته. الاختبارات تفحص المنطق والأمان لا
+# مزوّد الطرف الثالث.
+os.environ.pop("RESEND_API_KEY", None)
 
 SMOKE_PREFIX = "SMOKE_"
 
