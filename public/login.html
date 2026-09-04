@@ -225,7 +225,7 @@ body{
       submit: 'دخول إلى لوحة الشركة',
       endpoint: '/company/login',
       dest:   '/app/index.html',
-      foot:   'ليس لديك حساب شركة؟ <a href="/index.html#register">سجّل شركتك</a>'
+      foot:   'ليس لديك حساب شركة؟ <a href="/register.html?role=company">سجّل شركتك</a>'
     },
     client: {
       title:  'دخول أصحاب المشاريع',
@@ -236,7 +236,7 @@ body{
       submit: 'دخول إلى حسابي',
       endpoint: '/auth/login',
       dest:   '/me/index.html',
-      foot:   'ليس لديك حساب؟ <a href="/projects.html">اطرح مشروعك وأنشئ حساباً</a>'
+      foot:   'ليس لديك حساب؟ <a href="/register.html?role=client">أنشئ حساباً</a>'
     }
   };
 
@@ -245,7 +245,7 @@ body{
 
   /* ── مدخل إنشاء حساب — يعيد استعمال منتقي الأدوار نفسه ──
      نفس الزرّين، وجهتهما فقط تتغيّر: دخول أم تسجيل. لا مكوّن جديد. */
-  var REGISTER_HREF = { company: '/index.html#register', client: '/projects.html' };
+  var REGISTER_HREF = { company: '/register.html?role=company', client: '/register.html?role=client' };
   var intent = 'login';
 
   function paintRolesHead() {

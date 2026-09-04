@@ -1661,14 +1661,14 @@ def test_73_register_form_offers_all_18_governorates_on_empty_db(client):
     `companies.city` — على قاعدة بلا شركات، هذه القائمة فارغة،
     فأول شركة لا تستطيع التسجيل أبداً، ولا سبيل لملء القاعدة.
     الحلّ: مصدران — التسجيل يأخذ قائمة العراق الثابتة من الكود
-    (bn-filters.js)، والفلاتر وحدها تبقى مشتقّة. هذا الاختبار
-    يقرأ index.html وbn-filters.js نصّياً لا عبر متصفّح: يثبت أن
-    openRegModal لا يشتقّ من companies.map، وأن القائمة الثابتة
-    فيها ١٨ محافظة فعلاً.
+    (bn-filters.js)، والفلاتر وحدها تبقى مشتقّة. النموذج انتقل
+    إلى register.html المستقلّة (جولة الملاحظات ٢) فهذا الاختبار
+    يقرأ تلك الصفحة نصّياً: يثبت أن fillCities لا تشتقّ من بيانات
+    شركات، وأن القائمة الثابتة فيها ١٨ محافظة فعلاً.
     """
     root = Path(__file__).resolve().parent.parent
     filters_src = (root / "public" / "bn-filters.js").read_text(encoding="utf-8")
-    index_src = (root / "public" / "index.html").read_text(encoding="utf-8")
+    reg_src = (root / "public" / "register.html").read_text(encoding="utf-8")
 
     m = re.search(r"IRAQ_CITIES\s*=\s*\[(.*?)\]", filters_src, re.S)
     assert m, "IRAQ_CITIES غائبة عن bn-filters.js"
@@ -1676,14 +1676,20 @@ def test_73_register_form_offers_all_18_governorates_on_empty_db(client):
     cities = [a or b for a, b in cities]
     assert len(cities) == 18, f"يجب أن تحمل القائمة ١٨ محافظة، وُجد {len(cities)}"
 
-    assert "IRAQ_CITIES" in index_src, \
-        "index.html لا يستعمل القائمة الثابتة لتعبئة نموذج التسجيل"
-    reg_fn = re.search(r"function openRegModal\(\)\s*\{.*?\n\}", index_src, re.S)
-    assert reg_fn, "openRegModal غائبة"
-    assert "companies.map" not in reg_fn.group(0) and "c.city" not in reg_fn.group(0), \
+    assert "IRAQ_CITIES" in reg_src, \
+        "register.html لا يستعمل القائمة الثابتة لتعبئة نموذج التسجيل"
+    fill_fn = re.search(r"function fillCities\(\)\s*\{.*?\n  \}", reg_src, re.S)
+    assert fill_fn, "fillCities غائبة عن register.html"
+    assert "companies.map" not in fill_fn.group(0) and "c.city" not in fill_fn.group(0), \
         "نموذج التسجيل ما زال يشتقّ المدن من الشركات القائمة — يفشل على قاعدة فارغة"
-    assert "IRAQ_CITIES" in reg_fn.group(0), \
+    assert "IRAQ_CITIES" in fill_fn.group(0), \
         "نموذج التسجيل يجب أن يعبّئ من القائمة الثابتة"
+
+    # index.html لم يعد يحمل نافذة تسجيل — الوعد الآخر لهذه الجولة
+    # (إلغاء النوافذ المنبثقة) يفشل بصمت لو بقيت بقايا منها.
+    index_src = (root / "public" / "index.html").read_text(encoding="utf-8")
+    assert "regOverlay" not in index_src and "openRegModal" not in index_src, \
+        "index.html ما زال يحمل بقايا نافذة التسجيل المنبثقة"
 
 
 def test_74_company_registration_creates_verify_row(client):
@@ -1848,4 +1854,152 @@ def test_76_verify_code_locks_after_5_wrong_attempts(client, user_token):
                 DELETE FROM email_tokens WHERE user_id=:u AND purpose='verify'
                 AND used_at IS NULL
             """), {"u": uid})
+            db.commit()
+
+
+# ══════════════════════════════════════════════════════════════
+# جولة الملاحظات ٢ — register.html وتفعيل بالرمز مع دخول تلقائي
+# ══════════════════════════════════════════════════════════════
+
+def test_77_registration_creates_verify_row_for_both_roles(client):
+    """
+    "التسجيل بالنوعين ينشئ صفّ تفعيل في email_tokens" — test_74
+    يثبت إعادة الإصدار بلهجة 'company' عند company/create، وهذا
+    يثبت الحالة الأبسط: صاحب مشروع (بلا company/create إطلاقاً)
+    يُصدر له صفّ تفعيل من auth/register وحدها.
+    """
+    email = f"{SMOKE_PREFIX.lower()}reg3@seed.test"
+    with main.SessionLocal() as db:
+        db.execute(text("DELETE FROM users WHERE email=:e"), {"e": email})
+        db.commit()
+
+    r = client.post("/auth/register", json={
+        "email": email, "password": "RegTest!2026", "accept_terms": True,
+    })
+    assert r.status_code == 200, r.text
+
+    with main.SessionLocal() as db:
+        uid = db.execute(text("SELECT id FROM users WHERE email=:e"), {"e": email}).scalar()
+        row = db.execute(text(
+            "SELECT id FROM email_tokens WHERE user_id=:u AND purpose='verify' "
+            "AND used_at IS NULL ORDER BY created_at DESC LIMIT 1"
+        ), {"u": uid}).fetchone()
+        assert row, "تسجيل صاحب مشروع لم يُنشئ صفّ تفعيل في email_tokens"
+
+        db.execute(text("DELETE FROM email_tokens WHERE user_id=:u"), {"u": uid})
+        db.execute(text("DELETE FROM profiles WHERE user_id=:u"), {"u": uid})
+        db.execute(text("DELETE FROM users WHERE id=:u"), {"u": uid})
+        db.commit()
+
+
+def test_78_correct_code_returns_session_cookie_with_right_role(client):
+    """
+    "الرمز الصحيح يعيد كعكة جلسة صالحة، والدور فيها صحيح" — يسجّل
+    شركة كاملة (auth/register ثم company/create)، يُصدر رمزاً
+    حقيقياً، يدخله، ويتحقّق: 200 · كعكة bn_sess في set-cookie ·
+    الحقل role في الاستجابة "company" · التوجيه إلى /app/.
+    """
+    email = f"{SMOKE_PREFIX.lower()}reg4@seed.test"
+    with main.SessionLocal() as db:
+        db.execute(text("DELETE FROM users WHERE email=:e"), {"e": email})
+        db.commit()
+
+    r = client.post("/auth/register", json={
+        "email": email, "password": "RegTest!2026", "accept_terms": True,
+    })
+    assert r.status_code == 200, r.text
+    tok = r.json()["token"]
+
+    r = client.post("/company/create", headers=bearer(tok), json={
+        "name": SMOKE_PREFIX + "شركة الرمز",
+        "city": "بغداد", "phone": "07700000000", "spec": "مقاولات عامة",
+    })
+    assert r.status_code == 200, r.text
+    company_tok = r.json()["token"]
+
+    with main.SessionLocal() as db:
+        uid = db.execute(text("SELECT id FROM users WHERE email=:e"), {"e": email}).scalar()
+        db.execute(text("DELETE FROM rate_limits WHERE key=:k"),
+                  {"k": f"verifycode:uid:{uid}"})
+
+    raw_code = main._new_code()
+    _raw_tok, hashed_tok = main._new_token()
+    with main.SessionLocal() as db:
+        db.execute(text("""
+            UPDATE email_tokens SET used_at = now()
+            WHERE user_id=:u AND purpose='verify' AND used_at IS NULL
+        """), {"u": uid})
+        db.execute(text("""
+            INSERT INTO email_tokens (user_id, purpose, token_hash, expires_at,
+                                       code_hash, code_expires_at)
+            VALUES (:u, 'verify', :h, now() + interval '1 day',
+                    :ch, now() + interval '15 minutes')
+        """), {"u": uid, "h": hashed_tok, "ch": main._hash_code(raw_code)})
+        db.commit()
+
+    try:
+        r = client.post("/auth/verify-email-code", headers=bearer(company_tok),
+                        json={"code": raw_code})
+        assert r.status_code == 200, r.text
+        d = r.json()
+        assert d.get("role") == "company", f"الدور يجب أن يكون company، جاء {d.get('role')}"
+        assert d.get("redirect") == "/app/index.html"
+        assert d.get("token"), "لا رمز جديد في الاستجابة"
+
+        cookie = r.headers.get("set-cookie", "")
+        assert main.SESSION_COOKIE in cookie, "لا كعكة جلسة في استجابة الرمز الصحيح"
+        assert "HttpOnly" in cookie
+
+        payload = _jose_jwt.decode(d["token"], main.JWT_SECRET, algorithms=[main.ALGORITHM])
+        assert payload["role"] == "company", "الرمز الجديد نفسه لا يحمل دور company"
+    finally:
+        with main.SessionLocal() as db:
+            db.execute(text("DELETE FROM companies WHERE owner_user_id=:u"), {"u": uid})
+            db.execute(text("DELETE FROM profiles WHERE user_id=:u"), {"u": uid})
+            db.execute(text("DELETE FROM email_tokens WHERE user_id=:u"), {"u": uid})
+            db.execute(text("DELETE FROM rate_limits WHERE key=:k"),
+                      {"k": f"verifycode:uid:{uid}"})
+            db.execute(text("DELETE FROM users WHERE id=:u"), {"u": uid})
+            db.commit()
+
+
+def test_79_email_link_verifies_but_creates_no_session(client, user_token):
+    """
+    🔴 أهمّ اختبار في الجولة — الحدّ الأمني الذي يفصل رابط البريد
+    عن الرمز: من ينقر الرابط (ماسح آلي محتمل، Outlook Defender
+    وأمثاله) يُفعَّل بريده فقط، ولا تُنشأ له جلسة إطلاقاً. بلا هذا
+    الاختبار، تُعاد هذه الثغرة أول مرة يلمس أحد /auth/verify-email
+    ويضيف إليها set_session_cookie قياساً على verify-email-code.
+    """
+    with main.SessionLocal() as db:
+        uid = db.execute(text("SELECT id FROM users WHERE lower(email)=:e"),
+                         {"e": "client@seed.test"}).scalar()
+
+    raw, hashed = main._new_token()
+    with main.SessionLocal() as db:
+        db.execute(text("""
+            UPDATE email_tokens SET used_at = now()
+            WHERE user_id=:u AND purpose='verify' AND used_at IS NULL
+        """), {"u": uid})
+        db.execute(text("""
+            INSERT INTO email_tokens (user_id, purpose, token_hash, expires_at)
+            VALUES (:u, 'verify', :h, now() + interval '1 day')
+        """), {"u": uid, "h": hashed})
+        db.commit()
+
+    try:
+        r = client.post("/auth/verify-email", json={"token": raw})
+        assert r.status_code == 200, r.text
+        d = r.json()
+
+        assert "token" not in d, "رابط البريد لا يجوز أن يعيد رمز جلسة"
+        assert "redirect" not in d, "رابط البريد لا يجوز أن يقترح توجيهاً كأنه دخول"
+
+        cookie = r.headers.get("set-cookie", "")
+        assert main.SESSION_COOKIE not in cookie, \
+            "رابط البريد أنشأ كعكة جلسة — يجب أن يُفعّل البريد فقط بلا جلسة"
+    finally:
+        with main.SessionLocal() as db:
+            db.execute(text("DELETE FROM email_tokens WHERE user_id=:u"), {"u": uid})
+            db.execute(text("UPDATE users SET is_email_verified=true WHERE id=:u"), {"u": uid})
             db.commit()

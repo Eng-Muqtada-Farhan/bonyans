@@ -12,13 +12,15 @@
  * الجديدة في الخلفية فتظهر في التحميل التالي.
  */
 
-const CACHE_NAME  = 'bunyan-v7';
+const CACHE_NAME  = 'bunyan-v8';
 const CACHE_ASSETS = [
   '/index.html',
   '/companies.html',
   '/projects.html',
   '/project_details.html',
   '/company_profile.html',
+  '/login.html',
+  '/register.html',
   '/tokens.css',
   '/bn-filters.js',
   '/nav-public.js',

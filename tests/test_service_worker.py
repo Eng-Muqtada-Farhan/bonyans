@@ -7,6 +7,7 @@ TestClient (لا متصفّح ولا تنفيذ JS) — هذا الاختبار 
 (Playwright/Chromium) ليثبت السلوك كما يراه مستخدم حقيقي:
 انقطاع الشبكة داخل /app لا يُعيد الموقع العام كبديل.
 """
+import re
 import socket
 import subprocess
 import sys
@@ -183,7 +184,9 @@ def test_67_service_worker_update_shows_explicit_banner(live_server):
     """
     sw_path = ROOT / "public" / "service-worker.js"
     original = sw_path.read_text(encoding="utf-8")
-    assert "bunyan-v7" in original, "CACHE_NAME المتوقَّع تغيَّر — حدِّث الاختبار"
+    m = re.search(r"const CACHE_NAME\s*=\s*'([^']+)'", original)
+    assert m, "CACHE_NAME غائب عن service-worker.js"
+    current_cache_name = m.group(1)
 
     with sync_playwright() as p:
         browser = p.chromium.launch()
@@ -196,7 +199,7 @@ def test_67_service_worker_update_shows_explicit_banner(live_server):
 
             # نسخة "جديدة" فعلية — تغيير حقيقي في محتوى الملف
             sw_path.write_text(
-                original.replace("bunyan-v7", "bunyan-v7-test-marker"),
+                original.replace(current_cache_name, current_cache_name + "-test-marker"),
                 encoding="utf-8",
             )
             page.evaluate(

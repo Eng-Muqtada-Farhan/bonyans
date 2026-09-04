@@ -1,0 +1,529 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>إنشاء حساب — بُنيان</title>
+<meta name="description" content="أنشئ حسابك في بُنيان — شركة مقاولات أو صاحب مشروع.">
+<meta name="theme-color" content="#96703C">
+<link rel="stylesheet" href="tokens.css">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" data-bn-font
+      href="https://fonts.googleapis.com/css2?family=Tajawal:wght@300;400;500;700&display=swap">
+<script>
+  (function(){ var t=localStorage.getItem('bn-theme')||'light';
+    document.documentElement.setAttribute('data-theme',t); })();
+</script>
+<style>
+/* ══ صفحة تسجيل مستقلّة — نفس نمط login.html الزجاجي ══
+   ثلاث خطوات في صفحة واحدة: منتقي الدور، النموذج، ثم الرمز —
+   لا تنقّل بين صفحات ولا نافذة منبثقة. */
+body{
+  margin:0; min-height:100dvh; background:var(--bn-bg); color:var(--bn-ink);
+  font:var(--bn-t-body); font-family:var(--bn-font);
+  display:grid; place-items:center; padding:var(--bn-s6) var(--bn-s4);
+  -webkit-font-smoothing:antialiased;
+}
+.rg-top{position:fixed; inset-block-start:var(--bn-s4); inset-inline:var(--bn-s5);
+  display:flex; align-items:center; justify-content:space-between; z-index:2}
+.rg-logo{display:inline-flex; align-items:center; min-height:44px;
+  text-decoration:none; color:var(--bn-ink); font:700 20px/1 var(--bn-font)}
+.rg-logo b{color:var(--bn-ac)}
+.rg-icon{width:44px; height:44px; display:inline-flex; align-items:center;
+  justify-content:center; border:0; background:0; color:var(--bn-ink-2);
+  cursor:pointer; border-radius:var(--bn-r-sm); transition:color var(--bn-fast),background var(--bn-fast)}
+.rg-icon:hover{color:var(--bn-ac); background:var(--bn-ac-bg)}
+
+.rg-panel{width:100%; max-width:560px; border-radius:var(--bn-r-xl);
+  padding:var(--bn-s8) var(--bn-s6); box-shadow:var(--bn-sh-3)}
+.rg-head{text-align:center; margin-block-end:var(--bn-s6)}
+.rg-h1{font:var(--bn-t-h1); margin:0 0 var(--bn-s2); letter-spacing:-.01em}
+.rg-sub{font:var(--bn-t-sm); color:var(--bn-ink-2); margin:0; max-width:38ch;
+  margin-inline:auto; line-height:1.7}
+
+/* ── الخطوة ١: الدور — نفس مكوّن login.html ── */
+.rg-roles{display:grid; gap:var(--bn-s3)}
+.rg-role{display:flex; align-items:center; gap:var(--bn-s4); width:100%;
+  min-height:44px; padding:var(--bn-s4); text-align:start;
+  background:var(--bn-glass-tint); border:1px solid var(--bn-line);
+  border-radius:var(--bn-r-lg); cursor:pointer; color:var(--bn-ink);
+  font-family:var(--bn-font);
+  transition:border-color var(--bn-fast), background var(--bn-fast), transform var(--bn-fast)}
+.rg-role:hover{border-color:var(--bn-ac-line); background:var(--bn-surface); transform:translateY(-1px)}
+.rg-role-ic{width:42px; height:42px; border-radius:var(--bn-r); flex:none;
+  display:grid; place-items:center}
+.rg-role-company .rg-role-ic{background:var(--bn-ac); color:var(--bn-ac-on)}
+.rg-role-client  .rg-role-ic{background:var(--bn-ac-bg); color:var(--bn-ac);
+  border:1px solid var(--bn-ac-line)}
+.rg-role-ic svg{width:20px; height:20px; stroke:currentColor; fill:none; stroke-width:1.6}
+.rg-role-t{font:500 15px/1.4 var(--bn-font); margin:0 0 3px}
+.rg-role-d{font:var(--bn-t-cap); color:var(--bn-ink-3); margin:0; line-height:1.55}
+.rg-role-go{margin-inline-start:auto; color:var(--bn-ink-3); flex:none}
+.rg-role-go svg{width:17px; height:17px; stroke:currentColor; fill:none; stroke-width:1.7}
+
+/* ── الخطوتان ٢ و٣: النموذج والرمز ── */
+.rg-step{display:none}
+.rg-step.is-on{display:block}
+.rg-roles.is-off{display:none}
+
+.rg-back{display:inline-flex; align-items:center; gap:6px; min-height:44px;
+  background:0; border:0; padding:0; cursor:pointer; color:var(--bn-ink-2);
+  font:var(--bn-t-sm); font-family:var(--bn-font); margin-block-end:var(--bn-s2)}
+.rg-back:hover{color:var(--bn-ac)}
+.rg-back svg{width:15px; height:15px; stroke:currentColor; fill:none; stroke-width:1.7}
+.rg-badge{display:flex; justify-content:center; margin-block-end:var(--bn-s5)}
+.rg-msg{display:none; font:var(--bn-t-sm); border-radius:var(--bn-r);
+  padding:11px var(--bn-s4); margin-block-end:var(--bn-s4); line-height:1.6}
+.rg-msg.is-on{display:block}
+.rg-msg-err{background:var(--bn-err-bg); color:var(--bn-err); border:1px solid var(--bn-err-line)}
+.rg-msg-ok{background:var(--bn-ac-bg); color:var(--bn-ac); border:1px solid var(--bn-ac-line)}
+
+.rg-row{display:grid; grid-template-columns:1fr 1fr; gap:var(--bn-s3)}
+@media(max-width:520px){ .rg-row{grid-template-columns:1fr} }
+.rg-chips{display:flex; flex-wrap:wrap; gap:7px}
+.rg-chip{min-height:44px; padding-inline:var(--bn-s4); border-radius:var(--bn-r-pill);
+  background:var(--bn-glass-tint); border:1px solid var(--bn-line); color:var(--bn-ink-2);
+  font:var(--bn-t-sm); cursor:pointer}
+.rg-chip.is-on{background:var(--bn-ac); color:var(--bn-ac-on); border-color:transparent}
+
+.rg-actions{margin-block-start:var(--bn-s5)}
+.rg-foot{text-align:center; margin-block-start:var(--bn-s5);
+  font:var(--bn-t-sm); color:var(--bn-ink-3)}
+.rg-foot a{color:var(--bn-ac); text-decoration:none; font-weight:500}
+.rg-foot a:hover{text-decoration:underline}
+
+/* ── خطوة الرمز ── */
+.rg-code-wrap{text-align:center; margin-block:var(--bn-s5)}
+.rg-code{width:100%; max-width:280px; margin-inline:auto; display:block;
+  text-align:center; letter-spacing:10px; font:700 26px/1 var(--bn-font);
+  dir:ltr; padding:14px 10px; border-radius:var(--bn-r-lg);
+  border:1px solid var(--bn-line); background:var(--bn-glass-tint); color:var(--bn-ink)}
+.rg-code:focus{outline:2px solid var(--bn-ac-line); border-color:var(--bn-ac)}
+.rg-code-hint{font:var(--bn-t-cap); color:var(--bn-ink-3); margin:var(--bn-s3) 0 0}
+.rg-resend{background:0; border:0; padding:0; min-height:44px; cursor:pointer;
+  color:var(--bn-ac); font:inherit; font-weight:500}
+.rg-resend:disabled{color:var(--bn-ink-3); cursor:default}
+
+@media(max-width:420px){
+  .rg-panel{padding:var(--bn-s6) var(--bn-s5); border-radius:var(--bn-r-lg)}
+  .rg-h1{font-size:23px}
+  .rg-top{inset-inline:var(--bn-s4)}
+}
+</style>
+</head>
+<body>
+
+<div class="bn-backdrop" aria-hidden="true"></div>
+
+<div class="rg-top">
+  <a class="rg-logo" href="/index.html">بُ<b>نيان</b></a>
+  <button class="rg-icon" type="button" id="themeBtn" aria-label="تبديل السمة"></button>
+</div>
+
+<main class="rg-panel bn-glass">
+
+  <div class="rg-head">
+    <h1 class="rg-h1" id="rgTitle">أنشئ حسابك</h1>
+    <p class="rg-sub" id="rgSub">اختر نوع حسابك لتبدأ — كل حساب نموذجه الخاص.</p>
+  </div>
+
+  <!-- الخطوة ١ — الدور -->
+  <div class="rg-roles" id="rgRoles">
+    <button class="rg-role rg-role-company" type="button" data-role="company">
+      <span class="rg-role-ic" aria-hidden="true">
+        <svg viewBox="0 0 24 24" stroke-linecap="round" stroke-linejoin="round">
+          <rect x="4" y="3" width="16" height="18" rx="1.5"/>
+          <path d="M9 8h2M13 8h2M9 12h2M13 12h2M9 16h2M13 16h2"/>
+        </svg>
+      </span>
+      <span>
+        <p class="rg-role-t">شركة مقاولات</p>
+        <p class="rg-role-d">سجّل شركتك واستقبل عروض المشاريع</p>
+      </span>
+      <span class="rg-role-go" aria-hidden="true">
+        <svg viewBox="0 0 24 24" stroke-linecap="round" stroke-linejoin="round"><path d="M15 6l-6 6 6 6"/></svg>
+      </span>
+    </button>
+
+    <button class="rg-role rg-role-client" type="button" data-role="client">
+      <span class="rg-role-ic" aria-hidden="true">
+        <svg viewBox="0 0 24 24" stroke-linecap="round" stroke-linejoin="round">
+          <circle cx="12" cy="8" r="3.5"/><path d="M4.5 20a7.5 7.5 0 0 1 15 0"/>
+        </svg>
+      </span>
+      <span>
+        <p class="rg-role-t">صاحب مشروع</p>
+        <p class="rg-role-d">اطرح مشروعك واستقبل عروضاً من الشركات</p>
+      </span>
+      <span class="rg-role-go" aria-hidden="true">
+        <svg viewBox="0 0 24 24" stroke-linecap="round" stroke-linejoin="round"><path d="M15 6l-6 6 6 6"/></svg>
+      </span>
+    </button>
+
+    <p class="rg-foot">لديك حساب؟ <a href="/login.html">تسجيل الدخول</a></p>
+  </div>
+
+  <!-- الخطوة ٢ — النموذج -->
+  <form class="rg-step" id="rgForm" novalidate>
+    <button class="rg-back" type="button" id="rgBackToRoles">
+      <svg viewBox="0 0 24 24" stroke-linecap="round" stroke-linejoin="round"><path d="M9 6l6 6-6 6"/></svg>
+      تغيير نوع الحساب
+    </button>
+    <div class="rg-badge"><span class="bn-id" id="rgBadge"></span></div>
+    <div class="rg-msg" id="rgMsg" role="alert" aria-live="polite"></div>
+
+    <!-- حقول مشتركة -->
+    <div class="rg-row">
+      <div class="bn-field"><label for="rgName" id="rgNameLabel">الاسم</label>
+        <div class="bn-input"><input id="rgName" required></div></div>
+      <div class="bn-field" id="rgCityField" hidden><label for="rgCity">المحافظة</label>
+        <div class="bn-input"><select id="rgCity"><option value="">اختر</option></select></div></div>
+    </div>
+    <div class="rg-row">
+      <div class="bn-field"><label for="rgPhone" id="rgPhoneLabel">الهاتف</label>
+        <div class="bn-input"><input id="rgPhone" dir="ltr" inputmode="tel"></div></div>
+      <div class="bn-field"><label for="rgEmail">البريد الإلكتروني</label>
+        <div class="bn-input"><input id="rgEmail" type="email" dir="ltr" required></div></div>
+    </div>
+    <div class="rg-row">
+      <div class="bn-field"><label for="rgPass">كلمة المرور</label>
+        <div class="bn-input"><input id="rgPass" type="password" required></div></div>
+      <div class="bn-field"><label for="rgPass2">تأكيد كلمة المرور</label>
+        <div class="bn-input"><input id="rgPass2" type="password" required></div></div>
+    </div>
+
+    <!-- حقول الشركة وحدها -->
+    <div id="rgCompanyFields" hidden>
+      <div class="bn-field"><label>التخصصات</label><div class="rg-chips" id="rgSpecChips"></div></div>
+      <div class="bn-field"><label for="rgDesc">نبذة عن الشركة</label>
+        <div class="bn-input"><textarea id="rgDesc" rows="3"></textarea></div></div>
+      <div class="bn-field"><label for="rgImage">شعار الشركة (اختياري)</label>
+        <div class="bn-input"><input id="rgImage" type="file" accept="image/*"></div></div>
+    </div>
+
+    <label class="bn-consent" for="rgTerms">
+      <input type="checkbox" id="rgTerms">
+      <span>أوافق على
+        <a href="terms.html" target="_blank" rel="noopener">شروط الاستخدام</a>
+        و<a href="privacy.html" target="_blank" rel="noopener">سياسة الخصوصية</a>.
+      </span>
+    </label>
+
+    <div class="rg-actions">
+      <button class="bn-btn bn-btn-block" type="submit" id="rgSubmit">إنشاء الحساب</button>
+    </div>
+  </form>
+
+  <!-- الخطوة ٣ — الرمز -->
+  <div class="rg-step" id="rgCodeStep">
+    <div class="rg-badge"><span class="bn-id" id="rgCodeBadge"></span></div>
+    <div class="rg-msg" id="rgCodeMsg" role="alert" aria-live="polite"></div>
+    <p class="rg-sub" style="margin-block-end:var(--bn-s5)">
+      أرسلنا رمزاً من ٦ خانات إلى بريدك — اكتبه هنا لتفعيل حسابك،
+      أو افتح رابط التفعيل في الرسالة نفسها.
+    </p>
+    <div class="rg-code-wrap">
+      <input class="rg-code" id="rgCodeInput" inputmode="numeric" pattern="[0-9]*"
+             maxlength="6" autocomplete="one-time-code" dir="ltr" placeholder="——————">
+      <p class="rg-code-hint">صالح ١٥ دقيقة</p>
+    </div>
+    <div class="rg-actions">
+      <button class="bn-btn bn-btn-block" type="button" id="rgCodeSubmit">تفعيل الحساب</button>
+    </div>
+    <p class="rg-foot">
+      لم يصلك الرمز؟
+      <button class="rg-resend" type="button" id="rgResend">إعادة إرسال الرمز</button>
+    </p>
+  </div>
+
+</main>
+
+<script src="bn-filters.js"></script>
+<script>
+(function () {
+  'use strict';
+  var $ = function (id) { return document.getElementById(id); };
+
+  /* ── نصوص كل دور ── */
+  var ROLES = {
+    company: {
+      title: 'سجّل شركتك', sub: 'أضف بيانات شركتك لتظهر للعملاء وتقدّم عروضك.',
+      badge: 'شركة مقاولات', badgeCls: 'bn-id bn-id-company',
+      icon: '<rect x="4" y="3" width="16" height="18" rx="1.5"/><path d="M9 8h2M13 8h2M9 12h2M13 12h2M9 16h2M13 16h2"/>',
+      submit: 'تسجيل الشركة', nameLabel: 'اسم الشركة', phoneLabel: 'هاتف الشركة'
+    },
+    client: {
+      title: 'أنشئ حسابك', sub: 'حساب صاحب مشروع — اطرح مشروعك واستقبل عروضاً من الشركات.',
+      badge: 'صاحب مشروع', badgeCls: 'bn-id bn-id-client',
+      icon: '<circle cx="12" cy="8" r="3.5"/><path d="M4.5 20a7.5 7.5 0 0 1 15 0"/>',
+      submit: 'إنشاء الحساب', nameLabel: 'الاسم', phoneLabel: 'الهاتف (اختياري)'
+    }
+  };
+
+  var role = null;
+  var REG_TOKEN = null;   /* بلا كعكة جلسة بعد — يُستعمل فقط لمصادقة
+                              /auth/verify-email-code و/auth/resend-verification
+                              حتى يُدخَل الرمز الصحيح. */
+
+  function svg(d, s) {
+    return '<svg viewBox="0 0 24 24" width="' + (s || 18) + '" height="' + (s || 18) +
+           '" fill="none" stroke="currentColor" stroke-width="1.6" ' +
+           'stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">' + d + '</svg>';
+  }
+
+  /* ── السمة ── */
+  var SUN  = '<circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M2 12h2M20 12h2M4.9 4.9l1.4 1.4M17.7 17.7l1.4 1.4M19.1 4.9l-1.4 1.4M6.3 17.7l-1.4 1.4"/>';
+  var MOON = '<path d="M20 13.5A8.5 8.5 0 1 1 10.5 4a6.7 6.7 0 0 0 9.5 9.5z"/>';
+  function paintTheme() {
+    var dark = document.documentElement.getAttribute('data-theme') === 'dark';
+    $('themeBtn').innerHTML = svg(dark ? SUN : MOON);
+  }
+  $('themeBtn').addEventListener('click', function () {
+    var next = document.documentElement.getAttribute('data-theme') === 'dark' ? 'light' : 'dark';
+    document.documentElement.setAttribute('data-theme', next);
+    try { localStorage.setItem('bn-theme', next); } catch (e) {}
+    paintTheme();
+  });
+  paintTheme();
+
+  function msg(el, text, kind) {
+    var m = $(el);
+    m.className = 'rg-msg is-on ' + (kind === 'ok' ? 'rg-msg-ok' : 'rg-msg-err');
+    m.textContent = text;
+  }
+  function clearMsg(el) { $(el).className = 'rg-msg'; $(el).textContent = ''; }
+
+  /* ── التخصصات — من /categories، محافظات ثابتة من bn-filters.js ──
+     المحافظات مصدر واحد لا مصدر ثانٍ يُشتقّ من الشركات القائمة:
+     قاعدة فارغة لا تعني نموذجاً بلا محافظات. */
+  function fillCities() {
+    var sel = $('rgCity');
+    if (sel.options.length > 1) return;
+    BunyanFilters.IRAQ_CITIES.forEach(function (c) { sel.add(new Option(c, c)); });
+  }
+  function loadSpecs() {
+    var chips = $('rgSpecChips');
+    if (chips.dataset.loaded) return;
+    chips.dataset.loaded = '1';
+    fetch('/categories').then(function (r) { return r.ok ? r.json() : []; })
+      .then(function (cats) {
+        (cats || []).slice(0, 10).forEach(function (c) {
+          var b = document.createElement('button');
+          b.type = 'button'; b.className = 'rg-chip'; b.textContent = c.name_ar;
+          b.addEventListener('click', function () { b.classList.toggle('is-on'); });
+          chips.appendChild(b);
+        });
+      }).catch(function () {});
+  }
+
+  /* ── اختيار الدور ── */
+  function pick(r) {
+    role = r;
+    var c = ROLES[r];
+    $('rgTitle').textContent = c.title;
+    $('rgSub').textContent   = c.sub;
+    $('rgBadge').className   = c.badgeCls;
+    $('rgBadge').innerHTML   = svg(c.icon, 13) + c.badge;
+    $('rgSubmit').textContent = c.submit;
+    $('rgNameLabel').textContent  = c.nameLabel;
+    $('rgPhoneLabel').textContent = c.phoneLabel;
+    $('rgPhone').required = (r === 'company');
+    $('rgCityField').hidden    = (r !== 'company');
+    $('rgCity').required       = (r === 'company');
+    $('rgCompanyFields').hidden = (r !== 'company');
+    if (r === 'company') { fillCities(); loadSpecs(); }
+
+    $('rgRoles').classList.add('is-off');
+    $('rgForm').classList.add('is-on');
+    clearMsg('rgMsg');
+    try { history.replaceState(null, '', '?role=' + r); } catch (e) {}
+    $('rgName').focus();
+  }
+  function backToRoles() {
+    role = null;
+    $('rgTitle').textContent = 'أنشئ حسابك';
+    $('rgSub').textContent   = 'اختر نوع حسابك لتبدأ — كل حساب نموذجه الخاص.';
+    $('rgRoles').classList.remove('is-off');
+    $('rgForm').classList.remove('is-on');
+    clearMsg('rgMsg');
+    try { history.replaceState(null, '', location.pathname); } catch (e) {}
+  }
+  Array.prototype.forEach.call(document.querySelectorAll('[data-role]'), function (b) {
+    b.addEventListener('click', function () { pick(b.dataset.role); });
+  });
+  $('rgBackToRoles').addEventListener('click', backToRoles);
+
+  /* ── إرسال النموذج ── */
+  $('rgForm').addEventListener('submit', async function (e) {
+    e.preventDefault();
+    if (!role) return;
+
+    var name  = $('rgName').value.trim();
+    var email = $('rgEmail').value.trim();
+    var phone = $('rgPhone').value.trim();
+    var city  = $('rgCity').value;
+    var pw    = $('rgPass').value, pw2 = $('rgPass2').value;
+    var desc  = $('rgDesc').value.trim();
+    var specs = Array.prototype.slice.call(document.querySelectorAll('#rgSpecChips .rg-chip.is-on'))
+      .map(function (e) { return e.textContent.trim(); });
+
+    var required = [['rgName', name], ['rgEmail', email], ['rgPass', pw], ['rgPass2', pw2]];
+    if (role === 'company') required.push(['rgPhone', phone], ['rgCity', city]);
+    var ok = true;
+    required.forEach(function (pair) {
+      var w = $(pair[0]).closest('.bn-input');
+      if (!pair[1]) { w.classList.add('is-error'); ok = false; } else { w.classList.remove('is-error'); }
+    });
+    if (!ok) { msg('rgMsg', 'يرجى ملء جميع الحقول المطلوبة'); return; }
+    if (pw.length < 8) { msg('rgMsg', 'كلمة المرور يجب أن تكون ٨ أحرف على الأقل'); return; }
+    if (pw !== pw2)     { msg('rgMsg', 'كلمتا المرور غير متطابقتين'); return; }
+
+    var terms = $('rgTerms'), termsWrap = terms.closest('.bn-consent');
+    if (!terms.checked) {
+      termsWrap.classList.add('is-error');
+      msg('rgMsg', 'يلزم قبول شروط الاستخدام وسياسة الخصوصية');
+      terms.focus();
+      return;
+    }
+    termsWrap.classList.remove('is-error');
+
+    var btn = $('rgSubmit');
+    btn.disabled = true;
+    btn.textContent = 'جارٍ إنشاء الحساب...';
+    clearMsg('rgMsg');
+
+    try {
+      var ar = await fetch('/auth/register', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email: email, password: pw, display_name: name,
+                               phone: phone || null, accept_terms: true }),
+        signal: AbortSignal.timeout(10000)
+      });
+      var ad = await ar.json().catch(function () { return {}; });
+      if (!ar.ok) throw new Error(ad.detail || 'تعذّر إنشاء الحساب');
+      REG_TOKEN = ad.token;
+
+      if (role === 'company') {
+        var image_url = '';
+        var f = $('rgImage').files[0];
+        if (f) {
+          btn.textContent = 'جارٍ رفع الصورة...';
+          try {
+            var fd = new FormData(); fd.append('file', f);
+            var ur = await fetch('/upload', {
+              method: 'POST', body: fd, headers: { 'Authorization': REG_TOKEN },
+              signal: AbortSignal.timeout(30000)
+            });
+            if (ur.ok) image_url = (await ur.json()).url || '';
+          } catch (e) {}
+        }
+        btn.textContent = 'جارٍ تسجيل الشركة...';
+        var cr = await fetch('/company/create', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json', 'Authorization': REG_TOKEN },
+          body: JSON.stringify({ name: name, city: city, phone: phone, email: email,
+                                 desc: desc, spec: specs[0] || 'مقاولات عامة', image_url: image_url }),
+          signal: AbortSignal.timeout(10000)
+        });
+        var cd = await cr.json().catch(function () { return {}; });
+        if (!cr.ok) throw new Error(cd.detail || 'تعذّر تسجيل الشركة');
+        REG_TOKEN = cd.token || REG_TOKEN;   /* company/create يعيد رمزاً بدور company */
+      }
+
+      showCodeStep();
+    } catch (err) {
+      msg('rgMsg', err.message || 'حدث خطأ، أعد المحاولة');
+    } finally {
+      btn.disabled = false;
+      btn.textContent = ROLES[role].submit;
+    }
+  });
+
+  /* ── خطوة الرمز ── */
+  function showCodeStep() {
+    var c = ROLES[role];
+    $('rgCodeBadge').className = c.badgeCls;
+    $('rgCodeBadge').innerHTML = svg(c.icon, 13) + c.badge;
+    $('rgForm').classList.remove('is-on');
+    $('rgCodeStep').classList.add('is-on');
+    clearMsg('rgCodeMsg');
+    $('rgCodeInput').value = '';
+    $('rgCodeInput').focus();
+  }
+
+  $('rgCodeInput').addEventListener('input', function () {
+    this.value = this.value.replace(/\D/g, '').slice(0, 6);
+  });
+
+  async function submitCode() {
+    var code = $('rgCodeInput').value.trim();
+    if (code.length !== 6) { msg('rgCodeMsg', 'أدخل الرمز المكوَّن من ٦ أرقام كاملاً'); return; }
+    if (!REG_TOKEN) { msg('rgCodeMsg', 'انتهت الجلسة — أعد تحميل الصفحة وسجّل من جديد'); return; }
+
+    var btn = $('rgCodeSubmit');
+    btn.disabled = true;
+    btn.textContent = 'جارٍ التحقّق...';
+    clearMsg('rgCodeMsg');
+
+    try {
+      var r = await fetch('/auth/verify-email-code', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'Authorization': REG_TOKEN },
+        body: JSON.stringify({ code: code })
+      });
+      var d = await r.json().catch(function () { return {}; });
+
+      if (r.status === 429) { msg('rgCodeMsg', d.detail || 'تجاوزت عدد المحاولات — اطلب رمزاً جديداً'); return; }
+      if (!r.ok)            { msg('rgCodeMsg', d.detail || 'رمز غير صحيح أو منتهٍ'); return; }
+
+      /* نجاح: جلسة كاملة أنشأها الخادم للتوّ (كعكة HttpOnly في هذه
+         الاستجابة نفسها) — نخزّن الرمز محلياً لواجهات JS كما يفعل
+         login.html، ثم نحوّل مباشرة إلى لوحة الدور. */
+      if (d.token) localStorage.setItem('bn_token', d.token);
+      if (d.company_id) localStorage.setItem('company_id', String(d.company_id));
+      if (d.user_id) localStorage.setItem('project_user_id', String(d.user_id));
+
+      msg('rgCodeMsg', 'تم التفعيل — جارٍ التحويل...', 'ok');
+      location.replace(d.redirect || (role === 'company' ? '/app/index.html' : '/me/index.html'));
+    } catch (err) {
+      msg('rgCodeMsg', 'تعذّر الاتصال بالخادم — أعد المحاولة');
+    } finally {
+      btn.disabled = false;
+      btn.textContent = 'تفعيل الحساب';
+    }
+  }
+  $('rgCodeSubmit').addEventListener('click', submitCode);
+  $('rgCodeInput').addEventListener('keydown', function (e) {
+    if (e.key === 'Enter') { e.preventDefault(); submitCode(); }
+  });
+
+  $('rgResend').addEventListener('click', async function () {
+    if (!REG_TOKEN) return;
+    var btn = this;
+    btn.disabled = true;
+    var original = btn.textContent;
+    btn.textContent = 'جارٍ الإرسال...';
+    try {
+      var r = await fetch('/auth/resend-verification', {
+        method: 'POST', headers: { 'Authorization': REG_TOKEN }
+      });
+      var d = await r.json().catch(function () { return {}; });
+      if (r.status === 429) { msg('rgCodeMsg', d.detail || 'محاولات كثيرة — انتظر قبل إعادة الطلب'); }
+      else if (r.ok)        { msg('rgCodeMsg', 'أُرسل رمز جديد إلى بريدك', 'ok'); }
+      else                  { msg('rgCodeMsg', d.detail || 'تعذّر إرسال الرمز'); }
+    } catch (e) {
+      msg('rgCodeMsg', 'تعذّر الاتصال بالخادم');
+    } finally {
+      setTimeout(function () { btn.disabled = false; btn.textContent = original; }, 30000);
+    }
+  });
+
+  /* دور مُمرَّر في الرابط — من login.html أو أي رابط "إنشاء حساب" */
+  var pre = new URLSearchParams(location.search).get('role');
+  if (pre && ROLES[pre]) pick(pre);
+})();
+</script>
+<script src="sw-update.js"></script>
+</body>
+</html>

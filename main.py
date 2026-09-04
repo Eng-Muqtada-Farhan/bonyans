@@ -2284,6 +2284,15 @@ def verify_email_code(payload: VerifyCode, request: Request):
 
     ٥ محاولات (check_rate_limit، نافذة ١٥ دقيقة تطابق صلاحية
     الرمز) ثم يُبطَل الرمز نفسه — لا الرابط، فالمهلتان مستقلّتان.
+
+    نجاح الرمز يُنشئ جلسة فوراً — بنفس آلية /auth/login حرفياً
+    (set_session_cookie، المدّة نفسها SESSION_TTL، والدور محسوب من
+    profiles لا من الرمز القديم). هذا مسار register.html: يكتب
+    المستخدم الرمز في نفس التبويب فوراً بعد التسجيل، فلا داعي
+    لتسجيل دخول ثانٍ يدوياً. رابط البريد مختلف تماماً (الدالة
+    التالية verify_email) — ذاك يُفعّل البريد فقط ولا يُنشئ جلسة،
+    لأن من ينقر الرابط قد يكون ماسحاً آلياً (Outlook Defender
+    وأمثاله) لا صاحب الحساب.
     """
     ident = require_role(request, ROLE_USER, ROLE_COMPANY)
 
@@ -2321,7 +2330,29 @@ def verify_email_code(payload: VerifyCode, request: Request):
                         "WHERE id = :uid"), {"uid": ident.uid})
         write_audit_log(db, "user", str(ident.uid), "email_verified", request)
         db.commit()
-    return {"message": "فُعّل بريدك."}
+
+    # الدور الفعلي من profiles — كما في /auth/login بالضبط: من له
+    # شركة يدخل بدور شركة ولو حمل الرمز القديم دور 'user' (تسجيل
+    # صاحب مشروع ثم تحوّل company/create في نفس الجلسة).
+    with SessionLocal() as db:
+        row = db.execute(text("""
+            SELECT company_id FROM profiles
+            WHERE user_id = :uid AND role = 'company'
+            ORDER BY created_at LIMIT 1
+        """), {"uid": ident.uid}).fetchone()
+    company_id = int(row[0]) if row else None
+    role = ROLE_COMPANY if company_id else ROLE_USER
+    token = create_token(role, ident.uid)
+    resp = JSONResponse({
+        "message":    "فُعّل بريدك.",
+        "token":      token,
+        "role":       role,
+        "user_id":    ident.uid,
+        "company_id": company_id,
+        "redirect":   "/app/index.html" if role == ROLE_COMPANY else "/me/index.html",
+    })
+    set_session_cookie(resp, token, SESSION_TTL)
+    return resp
 
 
 # ── ٣ · تغيير البريد وكلمة المرور (من داخل الحساب) ────────────────────────────

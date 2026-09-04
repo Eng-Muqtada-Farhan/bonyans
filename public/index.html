@@ -36,18 +36,6 @@ body { margin:0; background:var(--bn-bg); color:var(--bn-ink);
 .wrap { max-width:1080px; margin-inline:auto; padding-inline:var(--bn-s5); }
 @media(max-width:560px){ .wrap { padding-inline:var(--bn-s4); } }
 
-/* ── مربّع الموافقة القانونية ───────────────────────────────
-   غير مؤشَّر مسبقاً، والروابط تفتح في لسان جديد فلا يفقد
-   المستخدم ما ملأه من النموذج حين يقرأ الوثيقة. */
-.bn-consent { display:flex; align-items:flex-start; gap:10px;
-  min-height:44px; padding-block:var(--bn-s3); cursor:pointer;
-  font:var(--bn-t-sm); color:var(--bn-ink-2); line-height:1.8; }
-.bn-consent input { width:20px; height:20px; margin:2px 0 0; flex:none;
-  accent-color:var(--bn-ac); cursor:pointer; }
-.bn-consent a { color:var(--bn-ac); }
-.bn-consent.is-error { color:var(--bn-err); }
-.bn-consent.is-error input { outline:2px solid var(--bn-err); outline-offset:2px; }
-
 /* ── البطل ─────────────────────────────────────────────────── */
 .hero { padding-block:var(--bn-s14) var(--bn-s10); text-align:center; }
 .hero-tag { display:inline-flex; align-items:center; gap:7px;
@@ -196,38 +184,7 @@ body { margin:0; background:var(--bn-bg); color:var(--bn-ink);
 .foot-base { margin-block-start:var(--bn-s6); padding-block-start:var(--bn-s4);
   border-block-start:1px solid var(--bn-line-soft);
   font:var(--bn-t-cap); color:var(--bn-ink-3); text-align:center; }
-
-/* ── النوافذ ───────────────────────────────────────────────── */
-.ov { position:fixed; inset:0; z-index:400; display:none;
-  align-items:flex-end; justify-content:center;
-  background:var(--bn-scrim); padding-block-start:var(--bn-s10); }
-.ov.is-open { display:flex; }
-.sheet { width:100%; max-width:560px; max-height:92vh; overflow-y:auto;
-  border-radius:var(--bn-r-xl) var(--bn-r-xl) 0 0;
-  padding:var(--bn-s4) var(--bn-s6) var(--bn-s10); animation:rise .3s var(--bn-ease); }
-@keyframes rise { from { transform:translateY(100%); } }
-.sheet-h { width:38px; height:4px; border-radius:2px; background:var(--bn-line);
-  margin:0 auto var(--bn-s5); }
-.sheet h2 { font:var(--bn-t-h3); margin:0 0 var(--bn-s5); }
-.f-row { display:grid; grid-template-columns:1fr 1fr; gap:var(--bn-s3); }
-@media(max-width:520px){ .f-row { grid-template-columns:1fr; } }
-.chips { display:flex; flex-wrap:wrap; gap:7px; }
-.chip { min-height:44px; padding-inline:var(--bn-s4); border-radius:var(--bn-r-pill);
-  border:1px solid var(--bn-line); background:transparent; cursor:pointer;
-  color:var(--bn-ink-2); font:400 12.5px/1 var(--bn-font); }
-.chip.is-on { background:var(--bn-ac); color:var(--bn-ac-on); border-color:transparent; }
 .bn-input { min-height:44px; }
-
-/* ── التنبيه ───────────────────────────────────────────────── */
-.toast { position:fixed; inset-block-end:var(--bn-s6); inset-inline:0;
-  margin-inline:auto; width:max-content; max-width:88vw; z-index:500;
-  padding:12px var(--bn-s5); border-radius:var(--bn-r-pill);
-  background:var(--bn-ink); color:var(--bn-bg); font:var(--bn-t-sm);
-  box-shadow:var(--bn-sh-3); opacity:0; transform:translateY(12px);
-  pointer-events:none; transition:opacity var(--bn-mid), transform var(--bn-mid); }
-.toast.is-on { opacity:1; transform:none; }
-.toast.is-err { background:var(--bn-err); }
-@media(max-width:820px){ .toast { inset-block-end:80px; } }
 </style>
 </head>
 <body class="bn-body">
@@ -249,7 +206,7 @@ body { margin:0; background:var(--bn-bg); color:var(--bn-ink);
   </form>
 
   <div class="hero-actions">
-    <button class="bn-btn" type="button" onclick="openRegModal()" id="regCta"></button>
+    <a class="bn-btn" href="register.html?role=company" id="regCta"></a>
     <a class="bn-btn bn-btn-ghost" href="projects.html" id="projCta"></a>
   </div>
 
@@ -321,7 +278,7 @@ body { margin:0; background:var(--bn-bg); color:var(--bn-ink);
       <div>
         <h4>الحساب</h4>
         <a href="login.html">تسجيل الدخول</a>
-        <a href="#" onclick="openRegModal();return false">سجّل شركتك</a>
+        <a href="register.html?role=company" id="regFootLink">سجّل شركتك</a>
       </div>
       <div>
         <h4>قانوني</h4>
@@ -332,49 +289,6 @@ body { margin:0; background:var(--bn-bg); color:var(--bn-ink);
     <div class="foot-base">بُنيان — صُنع في العراق</div>
   </div>
 </footer>
-
-<div class="ov" id="regOverlay" onclick="ovClick(event,'regOverlay')">
-  <div class="sheet bn-glass">
-    <div class="sheet-h"></div>
-    <h2>سجّل شركتك</h2>
-    <div class="f-row">
-      <div class="bn-field"><label for="f-name">اسم الشركة</label>
-        <div class="bn-input"><input id="f-name" required></div></div>
-      <div class="bn-field"><label for="f-city">المدينة</label>
-        <div class="bn-input"><select id="f-city" required><option value="">اختر</option></select></div></div>
-    </div>
-    <div class="f-row">
-      <div class="bn-field"><label for="f-phone">الهاتف</label>
-        <div class="bn-input"><input id="f-phone" dir="ltr" inputmode="tel" required></div></div>
-      <div class="bn-field"><label for="f-email">البريد الإلكتروني</label>
-        <div class="bn-input"><input id="f-email" type="email" dir="ltr" required></div></div>
-    </div>
-    <div class="f-row">
-      <div class="bn-field"><label for="f-password">كلمة المرور</label>
-        <div class="bn-input"><input id="f-password" type="password" required></div></div>
-      <div class="bn-field"><label for="f-password2">تأكيد كلمة المرور</label>
-        <div class="bn-input"><input id="f-password2" type="password" required></div></div>
-    </div>
-    <div class="bn-field"><label>التخصصات</label><div class="chips" id="specChips"></div></div>
-    <div class="bn-field"><label for="f-desc">نبذة عن الشركة</label>
-      <div class="bn-input"><textarea id="f-desc" rows="3"></textarea></div></div>
-    <div class="bn-field"><label for="f-image">شعار الشركة (اختياري)</label>
-      <div class="bn-input"><input id="f-image" type="file" accept="image/*"></div></div>
-    <label class="bn-consent" for="f-terms">
-      <input type="checkbox" id="f-terms">
-      <span>أوافق على
-        <a href="terms.html" target="_blank" rel="noopener">شروط الاستخدام</a>
-        و<a href="privacy.html" target="_blank" rel="noopener">سياسة الخصوصية</a>.
-      </span>
-    </label>
-
-    <button class="bn-btn bn-btn-block" type="button" id="submitBtn" onclick="submitCompany()">
-      <span id="submitText">تسجيل الشركة</span>
-    </button>
-  </div>
-</div>
-
-<div class="toast" id="toast"><span id="toastMsg"></span></div>
 
 <script src="bn-filters.js"></script>
 <script src="nav-public.js"></script>
@@ -569,154 +483,35 @@ function count(el, target) {
   }, 24);
 }
 
-/* ══ التصنيفات — لنموذج التسجيل ومدن النموذج ══ */
-async function loadCategories() {
+/* ══ حساب الشركة — إخفاء دعوات التسجيل ══
+   register.html صار مدخل التسجيل الوحيد (لا نافذة هنا). من دخل
+   بحساب شركة (JWT بدور company) لا يحتاج رؤية "سجّل شركتك" —
+   دعوة لتسجيل حساب يملكه أصلاً، ومسح السطح العام بالكامل منها
+   لا زاوية واحدة. */
+function readTokenRole() {
+  const t = localStorage.getItem('bn_token');
+  if (!t) return null;
   try {
-    const r = await fetch(API + '/categories');
-    if (!r.ok) return;
-    const cats = await r.json();
-    const chips = $('specChips');
-    cats.slice(0, 10).forEach(c => {
-      const b = document.createElement('button');
-      b.type = 'button'; b.className = 'chip'; b.textContent = c.name_ar;
-      b.onclick = () => b.classList.toggle('is-on');
-      chips.appendChild(b);
-    });
-  } catch (e) {}
+    const p = JSON.parse(atob(t.split('.')[1].replace(/-/g,'+').replace(/_/g,'/')));
+    return (!p.exp || Date.now() / 1000 < p.exp) ? p.role : null;
+  } catch (e) { return null; }
+}
+function hideCompanyRegCtas() {
+  if (readTokenRole() !== 'company') return;
+  const cta = $('regCta'), foot = $('regFootLink');
+  if (cta) cta.hidden = true;
+  if (foot) foot.hidden = true;
 }
 
-/* ══ النوافذ ══ */
-function openRegModal() {
-  /* محافظات العراق الثابتة (bn-filters.js) — لا المدن المشتقّة من
-     الشركات الموجودة: قاعدة فارغة كانت تعني نموذجاً بلا مدن،
-     فلا تُسجَّل الشركة الأولى أبداً. راجع bn-filters.js للتفصيل. */
-  const sel = $('f-city');
-  if (sel && sel.options.length <= 1) {
-    BunyanFilters.IRAQ_CITIES.forEach(c => sel.add(new Option(c, c)));
-  }
-  $('regOverlay').classList.add('is-open');
-}
-function closeRegModal() { $('regOverlay').classList.remove('is-open'); }
-function ovClick(e, id) { if (e.target.id === id) $(id).classList.remove('is-open'); }
-document.addEventListener('keydown', e => {
-  if (e.key === 'Escape') document.querySelectorAll('.ov.is-open').forEach(o => o.classList.remove('is-open'));
-});
-function resetRegForm() {
-  ['f-name','f-city','f-phone','f-email','f-password','f-password2','f-desc']
-    .forEach(id => { const el = $(id); if (el) el.value = ''; });
-  const tc = $('f-terms');
-  if (tc) { tc.checked = false; tc.closest('.bn-consent').classList.remove('is-error'); }
-  document.querySelectorAll('#specChips .chip.is-on').forEach(c => c.classList.remove('is-on'));
-}
-function toast(msg, isErr) {
-  const t = $('toast');
-  $('toastMsg').textContent = msg;
-  t.className = 'toast is-on' + (isErr ? ' is-err' : '');
-  setTimeout(() => t.classList.remove('is-on'), 4000);
-}
+Object.assign(window, { syncSearch });
 
-async function submitCompany() {
-  const name = $('f-name').value.trim(), city = $('f-city').value;
-  const phone = $('f-phone').value.trim(), email = $('f-email').value.trim();
-  const pw = $('f-password').value, pw2 = $('f-password2').value;
-  const desc = $('f-desc').value.trim();
-  const specs = [...document.querySelectorAll('#specChips .chip.is-on')].map(e => e.textContent.trim());
-
-  let ok = true;
-  [['f-name',name],['f-city',city],['f-phone',phone],['f-email',email],
-   ['f-password',pw],['f-password2',pw2]].forEach(([id, v]) => {
-    const w = $(id).closest('.bn-input');
-    if (!v) { w.classList.add('is-error'); ok = false; } else { w.classList.remove('is-error'); }
-  });
-  if (!ok) { toast('يرجى ملء جميع الحقول المطلوبة', true); return; }
-  if (pw.length < 8) { toast('كلمة المرور يجب أن تكون 8 أحرف على الأقل', true); return; }
-  if (pw !== pw2)    { toast('كلمتا المرور غير متطابقتين', true); return; }
-
-  /* لا تسجيل بلا موافقة. الحارس هنا للتجربة، والحارس الحقيقي
-     على الخادم يرفض الطلب بلا accept_terms. */
-  const terms = $('f-terms');
-  const termsWrap = terms.closest('.bn-consent');
-  if (!terms.checked) {
-    termsWrap.classList.add('is-error');
-    toast('يلزم قبول شروط الاستخدام وسياسة الخصوصية', true);
-    terms.focus();
-    return;
-  }
-  termsWrap.classList.remove('is-error');
-
-  const btn = $('submitBtn'), txt = $('submitText');
-  btn.disabled = true;
-
-  if (LOAD_ERROR) {
-    toast('تعذّر الاتصال بالخادم — لم يتم حفظ التسجيل.', true);
-    btn.disabled = false; txt.textContent = 'تسجيل الشركة';
-    return;
-  }
-
-  try {
-    txt.textContent = 'جارٍ إنشاء الحساب...';
-    const ar = await fetch(API + '/auth/register', {
-      method: 'POST', headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ email, password: pw, display_name: name,
-                             accept_terms: true }),
-      signal: AbortSignal.timeout(10000)
-    });
-    if (!ar.ok) throw new Error((await ar.json().catch(() => ({}))).detail || 'خطأ في إنشاء الحساب');
-    const ad = await ar.json(); const tok = ad.token;
-
-    let image_url = '';
-    const f = $('f-image').files[0];
-    if (f) {
-      txt.textContent = 'جارٍ رفع الصورة...';
-      try {
-        const fd = new FormData(); fd.append('file', f);
-        const ur = await fetch(API + '/upload', {
-          method: 'POST', body: fd, headers: { 'Authorization': tok },
-          signal: AbortSignal.timeout(30000)
-        });
-        if (ur.ok) image_url = (await ur.json()).url || '';
-      } catch (e) {}
-    }
-
-    txt.textContent = 'جارٍ تسجيل الشركة...';
-    const cr = await fetch(API + '/company/create', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json', 'Authorization': tok },
-      body: JSON.stringify({ name, city, phone, email, desc,
-                             spec: specs[0] || 'مقاولات عامة', image_url }),
-      signal: AbortSignal.timeout(10000)
-    });
-    if (!cr.ok) throw new Error((await cr.json().catch(() => ({}))).detail || 'خطأ في تسجيل الشركة');
-    const cd = await cr.json();
-
-    localStorage.setItem('bn_token', tok);
-    localStorage.setItem('project_user_id', String(ad.user_id || ''));
-    if (ad.display_name) localStorage.setItem('project_user_name', ad.display_name);
-    localStorage.setItem('company_id', String(cd.company_id));
-
-    toast('تم تسجيل شركتك بنجاح');
-    closeRegModal(); resetRegForm();
-    /* الوجهة صارت لوحة /app المفكَّكة — company_dashboard.html
-       الأحادية لم تعد سطح الشركة. */
-    setTimeout(() => { location.href = 'app/index.html'; }, 1600);
-  } catch (err) {
-    toast(err.message || 'حدث خطأ، أعد المحاولة', true);
-  } finally {
-    btn.disabled = false; txt.textContent = 'تسجيل الشركة';
-  }
-}
-
-Object.assign(window, { syncSearch, openRegModal, closeRegModal, ovClick, submitCompany });
-
-/* وجهة "إنشاء حساب" لشركة من login.html — ‎#register‎ يفتح
-   النافذة مباشرة بدل هبوط صامت على الرئيسية. openRegModal لا
-   تنتظر بيانات الشركات (محافظات ثابتة الآن)، فالفتح آمن فوراً. */
-if (location.hash === '#register') openRegModal();
+/* الإخفاء أولاً بلا انتظار: قبل أي طلب شبكة، فلا وميض للدعوة قبل
+   اختفائها لمن دخل بحساب شركة. */
+hideCompanyRegCtas();
 
 (async function boot() {
   await loadPlans();   /* أولاً — معيار «مميزة» يعتمد على is_featured فيها */
   await FILT.init();   /* الوحدة: تقرأ العنوان، تجلب الوجوه، ثم النتيجة */
-  loadCategories();
   loadProjects();
   loadStats();
 })();

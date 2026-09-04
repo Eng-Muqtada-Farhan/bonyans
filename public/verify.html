@@ -83,21 +83,24 @@ function bad(title, text) {
     '<a class="back" href="index.html">الصفحة الرئيسية</a>');
 }
 
-async function run(path, token, okTitle) {
+async function run(path, token, okTitle, okText) {
   try {
     const r = await fetch(path, {
       method: 'POST', headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ token: token })
     });
     const d = await r.json().catch(() => ({}));
-    if (r.ok) { good(okTitle, d.message || ''); return; }
+    if (r.ok) { good(okTitle, okText != null ? okText : (d.message || '')); return; }
     bad('تعذّر إتمام العملية', d.detail || 'الرابط منتهٍ أو مستعمل.');
   } catch (e) {
     bad('تعذّر الاتصال بالخادم', 'تحقّق من اتصالك ثم افتح الرابط مجدداً.');
   }
 }
 
-if (verifyToken)      run('/auth/verify-email', verifyToken, 'فُعّل بريدك');
+/* رابط البريد يُفعّل فقط — لا يُنشئ جلسة (حدّ أمني: من ينقر قد
+   يكون ماسحاً آلياً لا صاحب الحساب)، فالنصّ يوجّه صراحة إلى الدخول. */
+if (verifyToken)      run('/auth/verify-email', verifyToken, 'تم التفعيل',
+                          'تم تفعيل بريدك الإلكتروني بنجاح — يرجى تسجيل الدخول');
 else if (changeToken) run('/auth/confirm-email-change', changeToken, 'تغيّر بريدك');
 else bad('رابط غير مكتمل', 'افتح الرابط من رسالة البريد كما وصلك.');
 })();
