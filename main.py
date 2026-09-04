@@ -36,7 +36,10 @@ ADMIN_USERNAME = os.getenv("ADMIN_USERNAME", "admin")
 JWT_SECRET     = os.getenv("JWT_SECRET", "")
 
 if not JWT_SECRET:
-    raise RuntimeError("JWT_SECRET is not set in .env — server cannot start.")
+    # لا نذكر ".env" هنا: على Railway لا يوجد هذا الملفّ إطلاقاً —
+    # المتغيّر يُضبط من لوحة الخدمة مباشرة. رسالة تشير إلى مكان
+    # خاطئ تُضيّع وقت التشخيص لمن يقرأها في سجلّات الإنتاج.
+    raise RuntimeError("JWT_SECRET is not set in the environment — server cannot start.")
 
 ALGORITHM   = "HS256"
 pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
@@ -45,7 +48,7 @@ pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
 DATABASE_URL = os.getenv("DATABASE_URL", "")
 
 if not DATABASE_URL:
-    raise RuntimeError("DATABASE_URL is not set in .env — server cannot start.")
+    raise RuntimeError("DATABASE_URL is not set in the environment — server cannot start.")
 
 engine       = create_engine(DATABASE_URL, pool_pre_ping=True)
 SessionLocal = sessionmaker(bind=engine, autocommit=False, autoflush=False)
@@ -57,7 +60,7 @@ IMAGEKIT_PRIVATE_KEY  = os.getenv("IMAGEKIT_PRIVATE_KEY", "")
 IMAGEKIT_URL_ENDPOINT = os.getenv("IMAGEKIT_URL_ENDPOINT", "")
 
 if not all([IMAGEKIT_PRIVATE_KEY, IMAGEKIT_URL_ENDPOINT]):
-    raise RuntimeError("ImageKit keys are not set in .env — server cannot start.")
+    raise RuntimeError("ImageKit keys are not set in the environment — server cannot start.")
 
 # ImageKit v5: only private_key in constructor; URL endpoint used to build URLs
 imagekit = ImageKit(private_key=IMAGEKIT_PRIVATE_KEY)

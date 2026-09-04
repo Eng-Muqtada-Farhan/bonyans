@@ -1610,3 +1610,37 @@ def test_70_every_env_var_main_reads_is_in_env_example(client):
         f"(لا تعليقات) في .env.example — أضِفها قبل أن تُنسَخ القائمة "
         f"إلى Railway ناقصة."
     )
+
+
+def test_71_procfile_has_no_ineffective_release_line(client):
+    """
+    Procfile كان يحمل `release: alembic upgrade head` — جُرِّب
+    فعلياً على Railway (Nixpacks) فوصل uvicorn إلى import main
+    مباشرة بلا ترحيل يسبقه: Nixpacks لا يقرأ عملية release كما
+    تفعل Heroku. سطر يبدو أنه يعمل بلا أثر فعلي أخطر من غيابه —
+    الترحيل الآن حصراً عبر Pre-Deploy Command في لوحة Railway،
+    موثَّق في README_LAUNCH.md.
+    """
+    root = Path(__file__).resolve().parent.parent
+    procfile = (root / "Procfile").read_text(encoding="utf-8")
+    assert "release:" not in procfile, \
+        "release: في Procfile بلا أثر على Railway/Nixpacks — احذفه"
+    assert re.search(r"(?m)^web:\s*uvicorn main:app", procfile), \
+        "عملية web غائبة أو بصيغة غير متوقَّعة"
+
+    readme = (root / "README_LAUNCH.md").read_text(encoding="utf-8")
+    assert "Pre-Deploy Command" in readme, \
+        "README_LAUNCH.md يجب أن يوثّق أن الترحيل يُضبط من Pre-Deploy Command"
+
+
+def test_72_startup_errors_do_not_name_env_file(client):
+    """
+    main.py:39,48,60 كانت تقول "is not set in .env" — على Railway
+    لا يوجد هذا الملفّ إطلاقاً، فالرسالة تُضلِّل من يشخِّص عطلاً في
+    سجلّات الإنتاج نحو مكان لا وجود له. يجب أن تشير إلى "environment"
+    لا إلى ملفّ محلّي بعينه.
+    """
+    root = Path(__file__).resolve().parent.parent
+    main_src = (root / "main.py").read_text(encoding="utf-8")
+    leaks = re.findall(r'raise RuntimeError\("[^"]*is not set in \.env[^"]*"\)', main_src)
+    assert not leaks, f"رسائل تشير إلى .env لا إلى البيئة: {leaks}"
