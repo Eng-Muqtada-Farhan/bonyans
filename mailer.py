@@ -191,6 +191,25 @@ def _button_row(url: str, label: str) -> str:
     return f'<tr><td align="center" style="padding:20px 32px;">{_button(url, label)}</td></tr>'
 
 
+def _code_row(code: str) -> str:
+    """
+    الرمز بارز أعلى الرابط لا بديلاً عنه — التطبيق يكتبه، والويب
+    ينقر الزرّ. مسافات بين الأرقام تكسر النسخ الآلي البصري ولا
+    تكسر النسخ اليدوي (المحارف نفسها، لا رموز زخرفية).
+    """
+    spaced = " ".join(code)
+    return (
+        f'<tr><td align="center" style="padding:20px 32px 8px;">'
+        f'<div dir="ltr" style="display:inline-block;padding:14px 26px;'
+        f'border:2px solid {BRONZE};border-radius:10px;'
+        f'font-family:{_FONT};font-size:28px;font-weight:700;'
+        f'letter-spacing:6px;color:{BRONZE};">{_esc(spaced)}</div>'
+        f'</td></tr>'
+        f'<tr><td dir="rtl" align="center" style="padding:0 32px 6px;font-family:{_FONT};'
+        f'font-size:12px;color:#8a8378;">صالح ١٥ دقيقة</td></tr>'
+    )
+
+
 # ══════════════════════════════════════════════════════════════
 # الرسائل الأربع — النصوص حرفياً من MAIL-TEXTS.md
 # ══════════════════════════════════════════════════════════════
@@ -229,14 +248,23 @@ VERIFY_ACTION = {
 }
 
 
-def email_verify(to: str, verify_url: str, role: str) -> bool:
+def email_verify(to: str, verify_url: str, role: str, code: str = "") -> bool:
     action = VERIFY_ACTION.get(role, VERIFY_ACTION["user"])
     subject = "فعّل بريدك — بُنيان"
+    code_block = ""
+    if code:
+        # الفصل بين الأرقام لكسر النسخ الآلي البصري خاصّ بنسخة HTML
+        # وحدها (MAIL-TEXTS.md) — نسخة النصّ العادي بلا تنسيق أصلاً
+        # فلا حاجة للمسافات، ولن تُعقِّد النسخ اليدوي.
+        code_block = f"""
+رمز التفعيل: {code}
+(صالح ١٥ دقيقة — اكتبه داخل التطبيق)
+"""
     text = f"""أهلاً بك في بُنيان،
 
 يبقى تفعيل بريدك خطوةً واحدة قبل أن تستطيع {action}.
-
-فعّل بريدك من هنا:
+{code_block}
+أو فعّل بريدك من هنا:
 {verify_url}
 
 الرابط صالح ٢٤ ساعة.
@@ -248,6 +276,7 @@ def email_verify(to: str, verify_url: str, role: str) -> bool:
     html = _shell(
         _para("أهلاً بك في بُنيان،")
         + _para(f"يبقى تفعيل بريدك خطوةً واحدة قبل أن تستطيع {_esc(action)}.")
+        + (_code_row(code) + _para("أو فعّل بريدك من الزرّ:", 13, "#6b6459") if code else "")
         + _button_row(verify_url, "تفعيل البريد")
         + _url_row(verify_url)
         + _para("الرابط صالح ٢٤ ساعة.", 13, "#6b6459")

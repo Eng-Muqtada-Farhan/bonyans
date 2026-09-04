@@ -587,11 +587,12 @@ async function loadCategories() {
 
 /* ══ النوافذ ══ */
 function openRegModal() {
-  /* مدن النموذج من المدن الحقيقية الموجودة */
+  /* محافظات العراق الثابتة (bn-filters.js) — لا المدن المشتقّة من
+     الشركات الموجودة: قاعدة فارغة كانت تعني نموذجاً بلا مدن،
+     فلا تُسجَّل الشركة الأولى أبداً. راجع bn-filters.js للتفصيل. */
   const sel = $('f-city');
   if (sel && sel.options.length <= 1) {
-    const cities = [...new Set(companies.map(c => c.city).filter(Boolean))].sort();
-    cities.forEach(c => sel.add(new Option(c, c)));
+    BunyanFilters.IRAQ_CITIES.forEach(c => sel.add(new Option(c, c)));
   }
   $('regOverlay').classList.add('is-open');
 }
@@ -706,6 +707,11 @@ async function submitCompany() {
 }
 
 Object.assign(window, { syncSearch, openRegModal, closeRegModal, ovClick, submitCompany });
+
+/* وجهة "إنشاء حساب" لشركة من login.html — ‎#register‎ يفتح
+   النافذة مباشرة بدل هبوط صامت على الرئيسية. openRegModal لا
+   تنتظر بيانات الشركات (محافظات ثابتة الآن)، فالفتح آمن فوراً. */
+if (location.hash === '#register') openRegModal();
 
 (async function boot() {
   await loadPlans();   /* أولاً — معيار «مميزة» يعتمد على is_featured فيها */

@@ -28,6 +28,17 @@
 (function () {
   'use strict';
 
+  /* ── محافظات العراق الثماني عشرة — بيانات مرجعية ثابتة ──────
+     ليست محتوى مختلَقاً (§٥·٥): قائمة إدارية رسمية لا تتغيّر.
+     تُستعمَل في كل حقل مدينة *إدخال* (تسجيل شركة، طرح مشروع،
+     تعديل ملفّ) — لا في الفلاتر، تلك تبقى مشتقّة من البيانات
+     الفعلية عمداً (لا تفلتر بمدينة لا شركة/مشروع فيها). خلطهما
+     هو العطب الذي صار قفلاً دائرياً: قاعدة فارغة ← لا مدن مشتقّة
+     ← لا تسجيل أول شركة ← تبقى فارغة أبداً. */
+  var IRAQ_CITIES = ['بغداد','البصرة','أربيل','الموصل','النجف','كربلاء','السليمانية',
+                     'دهوك','كركوك','الأنبار','بابل','ذي قار','ديالى','واسط',
+                     'ميسان','المثنى','القادسية','صلاح الدين'];
+
   /* ── الأيقونات — SVG ترث currentColor، لا إيموجي (§٥·٥) ── */
   var IC = {
     pin:      '<path d="M12 21s7-5.6 7-11a7 7 0 1 0-14 0c0 5.4 7 11 7 11z"/><circle cx="12" cy="10" r="2.5"/>',
@@ -586,6 +597,7 @@
     create: create, normalize: normalize, score: score,
     rowHTML: rowHTML, icons: IC, svg: svg, esc: esc, initials: initials,
     normalizeProject: normalizeProject, cardHTML: cardHTML,
-    budgetHTML: budgetHTML, waNumber: waNumber, projectStatus: PSTATUS
+    budgetHTML: budgetHTML, waNumber: waNumber, projectStatus: PSTATUS,
+    IRAQ_CITIES: IRAQ_CITIES
   };
 })();

@@ -99,6 +99,11 @@ body{
   font:var(--bn-t-sm); color:var(--bn-ink-3)}
 .lg-foot a{color:var(--bn-ac); text-decoration:none; font-weight:500}
 .lg-foot a:hover{text-decoration:underline}
+.lg-roles-foot{text-align:center; margin-block-start:var(--bn-s5);
+  font:var(--bn-t-sm); color:var(--bn-ink-3)}
+.lg-roles-foot button{background:0; border:0; padding:0; cursor:pointer;
+  color:var(--bn-ac); font:inherit; font-weight:500; text-decoration:none}
+.lg-roles-foot button:hover{text-decoration:underline}
 
 @media(max-width:420px){
   .lg-panel{padding:var(--bn-s6) var(--bn-s5); border-radius:var(--bn-r-lg)}
@@ -155,6 +160,10 @@ body{
         <svg viewBox="0 0 24 24" stroke-linecap="round" stroke-linejoin="round"><path d="M15 6l-6 6 6 6"/></svg>
       </span>
     </button>
+
+    <p class="lg-roles-foot" id="lgRolesFoot">
+      ليس لديك حساب؟ <button type="button" id="lgGoRegister">إنشاء حساب</button>
+    </p>
   </div>
 
   <!-- الخطوة ٢ — النموذج -->
@@ -234,6 +243,25 @@ body{
   var $ = function (id) { return document.getElementById(id); };
   var role = null;
 
+  /* ── مدخل إنشاء حساب — يعيد استعمال منتقي الأدوار نفسه ──
+     نفس الزرّين، وجهتهما فقط تتغيّر: دخول أم تسجيل. لا مكوّن جديد. */
+  var REGISTER_HREF = { company: '/index.html#register', client: '/projects.html' };
+  var intent = 'login';
+
+  function paintRolesHead() {
+    if (intent === 'register') {
+      $('lgTitle').textContent = 'أنشئ حسابك';
+      $('lgSub').textContent   = 'اختر نوع حسابك لتبدأ — كل حساب نموذجه الخاص.';
+    } else {
+      $('lgTitle').textContent = 'مرحباً بعودتك';
+      $('lgSub').textContent   = 'اختر نوع حسابك للمتابعة — لكل حساب لوحته الخاصة.';
+    }
+  }
+  $('lgGoRegister').addEventListener('click', function () {
+    intent = 'register';
+    paintRolesHead();
+  });
+
   /* ── السمة ── */
   var SUN  = '<circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M2 12h2M20 12h2M4.9 4.9l1.4 1.4M17.7 17.7l1.4 1.4M19.1 4.9l-1.4 1.4M6.3 17.7l-1.4 1.4"/>';
   var MOON = '<path d="M20 13.5A8.5 8.5 0 1 1 10.5 4a6.7 6.7 0 0 0 9.5 9.5z"/>';
@@ -290,7 +318,10 @@ body{
   }
 
   Array.prototype.forEach.call(document.querySelectorAll('[data-role]'), function (b) {
-    b.addEventListener('click', function () { pick(b.dataset.role); });
+    b.addEventListener('click', function () {
+      if (intent === 'register') { location.href = REGISTER_HREF[b.dataset.role]; return; }
+      pick(b.dataset.role);
+    });
   });
   $('lgBack').addEventListener('click', reset);
 

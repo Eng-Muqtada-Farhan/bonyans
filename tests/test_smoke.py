@@ -122,10 +122,15 @@ def test_07_09_own_surface_allowed(client, surface, need,
 
 @pytest.mark.parametrize("surface", list(SURFACES))
 def test_10_12_no_session_redirects_to_login(client, surface):
-    """بلا جلسة: تحويل إلى صفحة الدخول لا ٢٠٠ ولا ٥٠٠."""
+    """
+    بلا جلسة: تحويل إلى صفحة الدخول لا ٢٠٠ ولا ٥٠٠. /admin وحده
+    يحوَّل إلى admin-login.html — باب منفصل بلا رابط إليه من أي
+    صفحة عامة، لا إلى login.html العام (جولة الملاحظات ١، بند ٤).
+    """
     r = _visit(client, surface, None)
     assert r.status_code == 302
-    assert r.headers["location"].startswith("/login.html")
+    expected = "/admin-login.html" if surface.startswith("/admin/") else "/login.html"
+    assert r.headers["location"].startswith(expected), r.headers["location"]
 
 
 @pytest.mark.parametrize("surface,need", [("/app/index.html", "company"),
@@ -1644,3 +1649,203 @@ def test_72_startup_errors_do_not_name_env_file(client):
     main_src = (root / "main.py").read_text(encoding="utf-8")
     leaks = re.findall(r'raise RuntimeError\("[^"]*is not set in \.env[^"]*"\)', main_src)
     assert not leaks, f"رسائل تشير إلى .env لا إلى البيئة: {leaks}"
+
+
+# ══════════════════════════════════════════════════════════════
+# جولة الملاحظات ١ — أربع ملاحظات من الفحص على bonyans.com الحيّ
+# ══════════════════════════════════════════════════════════════
+
+def test_73_register_form_offers_all_18_governorates_on_empty_db(client):
+    """
+    كانت قائمة المحافظات في نموذج تسجيل الشركة تُشتقّ من
+    `companies.city` — على قاعدة بلا شركات، هذه القائمة فارغة،
+    فأول شركة لا تستطيع التسجيل أبداً، ولا سبيل لملء القاعدة.
+    الحلّ: مصدران — التسجيل يأخذ قائمة العراق الثابتة من الكود
+    (bn-filters.js)، والفلاتر وحدها تبقى مشتقّة. هذا الاختبار
+    يقرأ index.html وbn-filters.js نصّياً لا عبر متصفّح: يثبت أن
+    openRegModal لا يشتقّ من companies.map، وأن القائمة الثابتة
+    فيها ١٨ محافظة فعلاً.
+    """
+    root = Path(__file__).resolve().parent.parent
+    filters_src = (root / "public" / "bn-filters.js").read_text(encoding="utf-8")
+    index_src = (root / "public" / "index.html").read_text(encoding="utf-8")
+
+    m = re.search(r"IRAQ_CITIES\s*=\s*\[(.*?)\]", filters_src, re.S)
+    assert m, "IRAQ_CITIES غائبة عن bn-filters.js"
+    cities = re.findall(r'"([^"]+)"|\'([^\']+)\'', m.group(1))
+    cities = [a or b for a, b in cities]
+    assert len(cities) == 18, f"يجب أن تحمل القائمة ١٨ محافظة، وُجد {len(cities)}"
+
+    assert "IRAQ_CITIES" in index_src, \
+        "index.html لا يستعمل القائمة الثابتة لتعبئة نموذج التسجيل"
+    reg_fn = re.search(r"function openRegModal\(\)\s*\{.*?\n\}", index_src, re.S)
+    assert reg_fn, "openRegModal غائبة"
+    assert "companies.map" not in reg_fn.group(0) and "c.city" not in reg_fn.group(0), \
+        "نموذج التسجيل ما زال يشتقّ المدن من الشركات القائمة — يفشل على قاعدة فارغة"
+    assert "IRAQ_CITIES" in reg_fn.group(0), \
+        "نموذج التسجيل يجب أن يعبّئ من القائمة الثابتة"
+
+
+def test_74_company_registration_creates_verify_row(client):
+    """
+    الوعد: تسجيل شركة يُصدر تفعيلاً بلهجة 'company' — لا يكتفي بصفّ
+    /auth/register (الذي يُصدر بلهجة 'user' منذ قبل هذه الجولة أصلاً،
+    فوجود صفّ وحده لا يثبت الفجوة المُصلَحة). الاختبار يحفظ صفّ
+    التفعيل بعد auth/register، ثم يتحقّق أن POST /company/create
+    يُبطله (used_at لم يعد NULL) ويُصدر صفّاً جديداً مكانه —
+    دليل إعادة الإصدار بلهجة الشركة، لا مجرّد وجود صفّ قديم.
+    """
+    email = f"{SMOKE_PREFIX.lower()}reg1@seed.test"
+    with main.SessionLocal() as db:
+        db.execute(text("DELETE FROM users WHERE email=:e"), {"e": email})
+        db.commit()
+
+    r = client.post("/auth/register", json={
+        "email": email, "password": "RegTest!2026", "accept_terms": True,
+    })
+    assert r.status_code == 200, r.text
+    user_token = r.json()["token"]
+
+    with main.SessionLocal() as db:
+        uid = db.execute(text("SELECT id FROM users WHERE email=:e"), {"e": email}).scalar()
+        row_after_register = db.execute(text(
+            "SELECT id FROM email_tokens WHERE user_id=:u AND purpose='verify' "
+            "AND used_at IS NULL ORDER BY created_at DESC LIMIT 1"
+        ), {"u": uid}).fetchone()
+        assert row_after_register, "auth/register لم يُنشئ صفّ تفعيل — خارج نطاق هذه الجولة أصلاً"
+        register_row_id = row_after_register[0]
+
+    r = client.post("/company/create", headers=bearer(user_token), json={
+        "name": SMOKE_PREFIX + "شركة الاختبار",
+        "city": "بغداد", "phone": "07700000000", "spec": "مقاولات عامة",
+    })
+    assert r.status_code == 200, r.text
+
+    with main.SessionLocal() as db:
+        register_row_used_at = db.execute(text(
+            "SELECT used_at FROM email_tokens WHERE id=:i"
+        ), {"i": register_row_id}).scalar()
+        assert register_row_used_at is not None, (
+            "company/create لم يُبطل صفّ التفعيل الصادر بلهجة 'user' — "
+            "لا إعادة إصدار بلهجة 'company' وقعت"
+        )
+        new_row = db.execute(text(
+            "SELECT id FROM email_tokens WHERE user_id=:u AND purpose='verify' "
+            "AND used_at IS NULL ORDER BY created_at DESC LIMIT 1"
+        ), {"u": uid}).fetchone()
+        assert new_row and new_row[0] != register_row_id, \
+            "company/create لم يُصدر صفّ تفعيل جديداً بلهجة 'company'"
+
+        db.execute(text("DELETE FROM companies WHERE owner_user_id=:u"), {"u": uid})
+        db.execute(text("DELETE FROM profiles WHERE user_id=:u"), {"u": uid})
+        db.execute(text("DELETE FROM email_tokens WHERE user_id=:u"), {"u": uid})
+        db.execute(text("DELETE FROM users WHERE id=:u"), {"u": uid})
+        db.commit()
+
+
+def test_75_unverified_email_blocks_project_and_bid_not_login(client):
+    """
+    غير المُفعَّل يُرفض عند طرح مشروع وعند تقديم عرض (403) — لا عند
+    الدخول نفسه. يسجّل مستخدماً جديداً (غير مُفعَّل افتراضاً)، يحاول
+    POST /projects، ثم يحوّله لشركة (تبقى غير مُفعَّلة) ويحاول
+    POST /projects/{id}/bid.
+    """
+    email = f"{SMOKE_PREFIX.lower()}reg2@seed.test"
+    with main.SessionLocal() as db:
+        db.execute(text("DELETE FROM users WHERE email=:e"), {"e": email})
+        db.commit()
+
+    r = client.post("/auth/register", json={
+        "email": email, "password": "RegTest!2026", "accept_terms": True,
+    })
+    assert r.status_code == 200, r.text
+    user_token = r.json()["token"]
+
+    with main.SessionLocal() as db:
+        verified = db.execute(text("SELECT is_email_verified FROM users WHERE email=:e"),
+                              {"e": email}).scalar()
+    assert not verified, "حساب جديد يجب أن يبدأ غير مُفعَّل"
+
+    r = client.post("/projects", headers=bearer(user_token), json={
+        "title": "SMOKE مشروع", "category": "بناء", "city": "بغداد",
+        "contact_name": "ت", "contact_phone": "07700000000",
+    })
+    assert r.status_code == 403, r.text
+
+    r = client.post("/company/create", headers=bearer(user_token), json={
+        "name": SMOKE_PREFIX + "شركة أخرى",
+        "city": "بغداد", "phone": "07700000000", "spec": "مقاولات عامة",
+    })
+    assert r.status_code == 200, r.text
+    company_token = r.json()["token"]
+
+    r = client.post("/projects/1/bid", headers=bearer(company_token),
+                    json={"price": 1000.0})
+    assert r.status_code == 403, r.text
+
+    # الدخول نفسه لا يُمنع — لم نمنعه هنا، فقط تحقّقنا من ٤٠١ لا ٤٠٣
+    # على /auth/login سيكون اختباراً منفصلاً عن نطاق هذا البند.
+
+    with main.SessionLocal() as db:
+        uid = db.execute(text("SELECT id FROM users WHERE email=:e"), {"e": email}).scalar()
+        db.execute(text("DELETE FROM companies WHERE owner_user_id=:u"), {"u": uid})
+        db.execute(text("DELETE FROM profiles WHERE user_id=:u"), {"u": uid})
+        db.execute(text("DELETE FROM email_tokens WHERE user_id=:u"), {"u": uid})
+        db.execute(text("DELETE FROM users WHERE id=:u"), {"u": uid})
+        db.commit()
+
+
+def test_76_verify_code_locks_after_5_wrong_attempts(client, user_token):
+    """
+    ٥ محاولات خاطئة تُبطل الرمز (لا الرابط) — عبر جدول rate_limits
+    القائم. يُصدر رمزاً حقيقياً، يخطئ خمس مرات، يتحقّق أن المحاولة
+    السادسة (حتى بالرمز الصحيح) تُرفض بـ429، وأن code_hash صار NULL.
+    """
+    with main.SessionLocal() as db:
+        uid = db.execute(text("SELECT id FROM users WHERE lower(email)=:e"),
+                         {"e": "client@seed.test"}).scalar()
+        db.execute(text("DELETE FROM rate_limits WHERE key=:k"),
+                  {"k": f"verifycode:uid:{uid}"})
+        db.commit()
+
+    raw_code = main._new_code()
+    _raw_tok, _hashed_tok = main._new_token()
+    with main.SessionLocal() as db:
+        db.execute(text("""
+            UPDATE email_tokens SET used_at = now()
+            WHERE user_id=:u AND purpose='verify' AND used_at IS NULL
+        """), {"u": uid})
+        db.execute(text("""
+            INSERT INTO email_tokens (user_id, purpose, token_hash, expires_at,
+                                       code_hash, code_expires_at)
+            VALUES (:u, 'verify', :h, now() + interval '1 day',
+                    :ch, now() + interval '15 minutes')
+        """), {"u": uid, "h": _hashed_tok, "ch": main._hash_code(raw_code)})
+        db.commit()
+
+    try:
+        for _ in range(5):
+            r = client.post("/auth/verify-email-code", headers=bearer(user_token),
+                            json={"code": "000000"})
+            assert r.status_code == 400, r.text
+
+        r = client.post("/auth/verify-email-code", headers=bearer(user_token),
+                        json={"code": raw_code})
+        assert r.status_code == 429, \
+            f"يجب أن تُرفض المحاولة السادسة حتى برمز صحيح، وردّت {r.status_code}"
+
+        with main.SessionLocal() as db:
+            row = db.execute(text(
+                "SELECT code_hash FROM email_tokens WHERE user_id=:u AND purpose='verify' "
+                "AND used_at IS NULL ORDER BY created_at DESC LIMIT 1"
+            ), {"u": uid}).mappings().fetchone()
+            assert row and row["code_hash"] is None, "الرمز يجب أن يُبطَل (code_hash=NULL) بعد الحدّ"
+    finally:
+        with main.SessionLocal() as db:
+            db.execute(text("DELETE FROM rate_limits WHERE key=:k"),
+                      {"k": f"verifycode:uid:{uid}"})
+            db.execute(text("""
+                DELETE FROM email_tokens WHERE user_id=:u AND purpose='verify'
+                AND used_at IS NULL
+            """), {"u": uid})
+            db.commit()

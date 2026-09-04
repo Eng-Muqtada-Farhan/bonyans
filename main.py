@@ -231,9 +231,14 @@ async def surface_guard(request: Request, call_next):
             if role in _ROLE_HOME:
                 # دخل سطحاً ليس له — يُعاد إلى سطحه هو لا إلى الرئيسية
                 return RedirectResponse(_ROLE_HOME[role], status_code=302)
-            dest = "/login.html"
-            if need in _ROLE_LOGIN:
-                dest += f"?role={_ROLE_LOGIN[need]}&next={quote(path, safe='/')}"
+            if need == "admin":
+                # باب منفصل عمداً — لا "مدير" كخيار ثالث في login.html
+                # العام. الباب الذي لا يُعلَن عنه في أي صفحة عامة لا يُطرَق.
+                dest = f"/admin-login.html?next={quote(path, safe='/')}"
+            elif need in _ROLE_LOGIN:
+                dest = f"/login.html?role={_ROLE_LOGIN[need]}&next={quote(path, safe='/')}"
+            else:
+                dest = "/login.html"
             return RedirectResponse(dest, status_code=302)
     return await call_next(request)
 
@@ -1110,6 +1115,21 @@ def require_company(request: Request) -> int:
     return require_role(request, ROLE_COMPANY).cid
 
 
+def _require_verified_email(uid: int) -> None:
+    """
+    يمنع فعلين لا الدخول — تقديم عرض وطرح مشروع، كما تسمّيهما
+    MAIL-TEXTS.md حرفياً. لا يمنع الدخول نفسه: حبس صاحب حساب خارج
+    حسابه لرسالة لم تصله (فشل إرسال، بريد مزعج) أسوأ من الثغرة
+    التي يمنعها التفعيل.
+    """
+    with SessionLocal() as db:
+        verified = db.execute(
+            text("SELECT is_email_verified FROM users WHERE id=:u"), {"u": uid}
+        ).scalar()
+    if not verified:
+        raise HTTPException(status_code=403, detail="فعّل بريدك الإلكتروني أولاً.")
+
+
 # ── DB helpers (Phase 5) ──────────────────────────────────────────────────────
 
 def row_to_project(r: dict) -> dict:
@@ -1962,13 +1982,25 @@ def company_create(payload: CompanyCreate, request: Request):
         db.execute(text("DELETE FROM profiles WHERE user_id=:uid AND role='client'"),
                    {"uid": user_id})
 
+        user = db.execute(text("SELECT email, is_email_verified FROM users WHERE id=:u"),
+                          {"u": user_id}).mappings().fetchone()
         db.commit()
+
+    # الرسالة الأولى (auth/register) صيغت بلهجة "صاحب مشروع" — الحساب
+    # نفسه صار شركة الآن. لم يتحقّق بعد (التسجيل والتحويل يقعان معاً
+    # في نفس الجلسة) فرمز/رابط جديدان بلهجة "شركة" يُصدَران، ويُبطلان
+    # سابقهما تلقائياً (_issue_verify نفسها تفعل ذلك) — بريد واحد
+    # يصل لا اثنان.
+    verification_sent = False
+    if user and not user["is_email_verified"]:
+        verification_sent = _issue_verify(user_id, user["email"], ROLE_COMPANY, request)
 
     return {
         "message":    "Company registered — pending admin approval",
         "company_id": company_id,
         "status":     "pending",
         "token":      create_token(ROLE_COMPANY, user_id),
+        "verification_sent": verification_sent,
     }
 
 
@@ -2023,6 +2055,12 @@ def auth_me(request: Request):
 RESET_TTL        = timedelta(minutes=30)
 VERIFY_TTL       = timedelta(hours=24)
 EMAIL_CHANGE_TTL = timedelta(minutes=30)
+# الرابط ٢٤ ساعة يتحمّل من يسجّل على الجوّال وينقر من بريد سطح
+# المكتب بعد ساعات. الرمز ١٥ دقيقة عمداً أقصر بكثير — يُكتب في
+# نفس الجلسة التي سجّل فيها المستخدم وهو ينظر إلى بريده فوراً،
+# فنافذة أقصر تُقلِّل أثر رمز مسروق (سكرين شوت، جهاز مشترك) بلا
+# أن تكلّف شيئاً من يستعمله كما صُمِّم له.
+CODE_TTL         = timedelta(minutes=15)
 
 
 def _new_token() -> tuple[str, str]:
@@ -2032,6 +2070,16 @@ def _new_token() -> tuple[str, str]:
 
 
 def _hash_token(raw: str) -> str:
+    return hashlib.sha256((raw or "").encode()).hexdigest()
+
+
+def _new_code() -> str:
+    """رمز من ٦ خانات — مليون احتمال، غير قابل للتخمين عملياً مع
+    حدّ ٥ محاولات (check_rate_limit) قبل أن يُبطَل."""
+    return f"{secrets.randbelow(1_000_000):06d}"
+
+
+def _hash_code(raw: str) -> str:
     return hashlib.sha256((raw or "").encode()).hexdigest()
 
 
@@ -2158,19 +2206,23 @@ def reset_password(payload: ResetPassword, request: Request):
 
 def _issue_verify(user_id: int, email: str, role: str, request: Request) -> bool:
     raw, hashed = _new_token()
+    code = _new_code()
+    now = datetime.now(timezone.utc)
     with SessionLocal() as db:
+        # طلب جديد يُبطل ما سبقه — لا رمزان صالحان معاً لحساب واحد
         db.execute(text("""
             UPDATE email_tokens SET used_at = now()
             WHERE user_id = :uid AND purpose = 'verify' AND used_at IS NULL
         """), {"uid": user_id})
         db.execute(text("""
-            INSERT INTO email_tokens (user_id, purpose, token_hash, expires_at)
-            VALUES (:uid, 'verify', :h, :exp)
-        """), {"uid": user_id, "h": hashed,
-               "exp": datetime.now(timezone.utc) + VERIFY_TTL})
+            INSERT INTO email_tokens
+                (user_id, purpose, token_hash, expires_at, code_hash, code_expires_at)
+            VALUES (:uid, 'verify', :h, :exp, :ch, :cexp)
+        """), {"uid": user_id, "h": hashed, "exp": now + VERIFY_TTL,
+               "ch": _hash_code(code), "cexp": now + CODE_TTL})
         write_audit_log(db, "user", str(user_id), "email_verify_sent", request)
         db.commit()
-    return mailer.email_verify(email, f"{_base_url()}/verify.html?token={raw}", role)
+    return mailer.email_verify(email, f"{_base_url()}/verify.html?token={raw}", role, code)
 
 
 @app.post("/auth/resend-verification")
@@ -2214,6 +2266,60 @@ def verify_email(payload: TokenOnly, request: Request):
         db.execute(text("UPDATE users SET is_email_verified = true, updated_at = now() "
                         "WHERE id = :uid"), {"uid": row["user_id"]})
         write_audit_log(db, "user", str(row["user_id"]), "email_verified", request)
+        db.commit()
+    return {"message": "فُعّل بريدك."}
+
+
+class VerifyCode(BaseModel):
+    code: str = Field(..., max_length=6)
+
+
+@app.post("/auth/verify-email-code")
+def verify_email_code(payload: VerifyCode, request: Request):
+    """
+    تفعيل بالرمز — مسار مصادَق (لا بحث مفتوح عن الرمز بين كل
+    المستخدمين): صاحب الحساب سجّل للتوّ ويملك رمز الجلسة، فيُقرأ
+    uid من الهوية لا من الطلب. الرمز وحده بلا هويّة مرتبطة به قابل
+    للتخمين عبر كل الحسابات دفعة واحدة — هذا يمنع ذلك بنيوياً.
+
+    ٥ محاولات (check_rate_limit، نافذة ١٥ دقيقة تطابق صلاحية
+    الرمز) ثم يُبطَل الرمز نفسه — لا الرابط، فالمهلتان مستقلّتان.
+    """
+    ident = require_role(request, ROLE_USER, ROLE_COMPANY)
+
+    if not check_rate_limit(f"verifycode:uid:{ident.uid}", 5, 900):
+        with SessionLocal() as db:
+            db.execute(text("""
+                UPDATE email_tokens SET code_hash = NULL, code_expires_at = NULL
+                WHERE user_id = :u AND purpose = 'verify' AND used_at IS NULL
+            """), {"u": ident.uid})
+            write_audit_log(db, "user", str(ident.uid), "rate_limit:verify_code", request)
+            db.commit()
+        raise HTTPException(status_code=429,
+                            detail="تجاوزت عدد المحاولات. اطلب رمزاً جديداً.")
+
+    with SessionLocal() as db:
+        row = db.execute(text("""
+            SELECT id, code_hash, code_expires_at FROM email_tokens
+            WHERE user_id=:u AND purpose='verify' AND used_at IS NULL
+            ORDER BY created_at DESC LIMIT 1
+        """), {"u": ident.uid}).mappings().fetchone()
+
+        valid = bool(
+            row and row["code_hash"] and row["code_expires_at"]
+            and row["code_expires_at"] > datetime.now(timezone.utc)
+            and secrets.compare_digest(_hash_code(payload.code), row["code_hash"])
+        )
+        if not valid:
+            write_audit_log(db, "user", str(ident.uid), "email_verify_code_invalid", request)
+            db.commit()
+            raise HTTPException(status_code=400, detail="رمز غير صحيح أو منتهٍ.")
+
+        db.execute(text("UPDATE email_tokens SET used_at = now() WHERE id = :id"),
+                   {"id": row["id"]})
+        db.execute(text("UPDATE users SET is_email_verified = true, updated_at = now() "
+                        "WHERE id = :uid"), {"uid": ident.uid})
+        write_audit_log(db, "user", str(ident.uid), "email_verified", request)
         db.commit()
     return {"message": "فُعّل بريدك."}
 
@@ -2906,6 +3012,7 @@ def create_project(payload: MarketProjectCreate, request: Request):
     # require_user يعني دور 'user'، ومن له ملفّ شركة يُحسم دوره
     # 'company' فيُرفض بـ403 هنا. لا حاجة لفحص ثانٍ على جدول ثانٍ.
     user_id = require_user(request)
+    _require_verified_email(user_id)
     with SessionLocal() as db:
         result = db.execute(text("""
             INSERT INTO projects
@@ -3075,7 +3182,9 @@ def get_project(project_id: int, request: Request):
 
 @app.post("/projects/{project_id}/bid")
 def submit_bid(project_id: int, payload: ProjectBidCreate, request: Request):
-    company_id = require_company(request)
+    ident = require_role(request, ROLE_COMPANY)
+    company_id = ident.cid
+    _require_verified_email(ident.uid)
     if not check_rate_limit(f"bid:company:{company_id}", 30, 3600):
         with SessionLocal() as db:
             write_audit_log(db, "company", str(company_id), "rate_limit:bid", request)

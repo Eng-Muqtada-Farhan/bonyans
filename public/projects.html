@@ -371,13 +371,10 @@ $('closeBtn').innerHTML = svg('<path d="M18 6L6 18M6 6l12 12"/>', 18);
 $('ov').addEventListener('click', (e) => { if (e.target === $('ov')) closePost(); });
 document.addEventListener('keydown', (e) => { if (e.key === 'Escape') closePost(); });
 
-/* خيارات النموذج من نفس مصادر البيانات الحقيقية */
+/* محافظات العراق الثابتة من bn-filters.js — لا نسخة ثانية هنا */
 (async function fillOptions() {
-  const cities = ['بغداد','البصرة','أربيل','الموصل','النجف','كربلاء','السليمانية',
-                  'دهوك','كركوك','الأنبار','بابل','ذي قار','ديالى','واسط',
-                  'ميسان','المثنى','القادسية','صلاح الدين'];
   $('pCity').innerHTML = '<option value="">اختر المدينة</option>' +
-    cities.map(c => '<option>' + esc(c) + '</option>').join('');
+    BunyanFilters.IRAQ_CITIES.map(c => '<option>' + esc(c) + '</option>').join('');
   try {
     const r = await fetch(API + '/categories', { signal: AbortSignal.timeout(8000) });
     const cats = r.ok ? await r.json() : [];
