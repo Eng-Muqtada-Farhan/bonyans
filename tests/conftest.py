@@ -5,11 +5,16 @@
 بوابة إلزامية قبل كتابة أي كود يمحو بيانات مستخدم نهائياً
 (المرحلة ج في ROADMAP.md). بلا شبكة أمان لا يُكتب كود لا رجعة فيه.
 
-⛔ ترفض العمل عندما ENVIRONMENT=production.
+⛔ ترفض العمل إن غاب TEST_DATABASE_URL أو طابق DATABASE_URL —
+لا تفحص ENVIRONMENT: ذاك متغيّر محلّي بلا صلة بأيّ قاعدة تتصل بها
+هذه العملية فعلياً. صار bonyans.com حيّاً وDATABASE_URL في .env
+المحلّي يشير إلى قاعدته — حارس يفحص ENVIRONMENT وحده يطمئن كذباً
+بينما الاختبارات تكتب وتمحو في قاعدة الإنتاج نفسها.
 
-تعمل على قاعدة التطوير نفسها لأن المخطط فيها هو المرجع، فكل صف
-تنشئه تحمل اسمه بادئة SMOKE_ ويُحذف في التفكيك — بما فيه صفوف
-rate_limits التي تخلّفها اختبارات الحدّ.
+تعمل على فرع Neon مستقلّ باسم test (راجع README_LAUNCH.md لإنشائه)
+لا على القاعدة التي يخدمها الموقع، فكل صف تنشئه تحمل اسمه بادئة
+SMOKE_ ويُحذف في التفكيك — بما فيه صفوف rate_limits التي تخلّفها
+اختبارات الحدّ.
 """
 import os
 import sys
@@ -22,8 +27,27 @@ ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(ROOT))
 load_dotenv(ROOT / ".env")
 
-if os.getenv("ENVIRONMENT", "development") == "production":
-    sys.exit("⛔ رُفض: اختبارات الدخان للتطوير المحلي فقط، و ENVIRONMENT=production.")
+_PROD_DB_URL = os.getenv("DATABASE_URL", "")
+_TEST_DB_URL = os.getenv("TEST_DATABASE_URL", "")
+
+if not _TEST_DB_URL:
+    sys.exit(
+        "⛔ رُفض: TEST_DATABASE_URL غائب عن .env — الاختبارات بلا فرع "
+        "Neon مستقلّ ستكتب وتمحو في قاعدة الإنتاج نفسها. أنشئ فرعاً "
+        "باسم test من لوحة Neon وأضف رابطه كـ TEST_DATABASE_URL في "
+        ".env (التفصيل في README_LAUNCH.md)."
+    )
+if _TEST_DB_URL == _PROD_DB_URL:
+    sys.exit(
+        "⛔ رُفض: TEST_DATABASE_URL يطابق DATABASE_URL حرفياً — هذا "
+        "ليس فرعاً مستقلاً بل القاعدة الحيّة نفسها تحت اسم آخر. "
+        "أنشئ فرع Neon فعلياً منفصلاً (راجع README_LAUNCH.md)."
+    )
+
+# main.py يبني محرّك القاعدة من DATABASE_URL عند استيراده — إحلال
+# القيمة هنا قبل import main يعني أن كل SessionLocal في الاختبارات
+# يتّصل بفرع test لا بقاعدة الإنتاج، بلا لمس main.py نفسه.
+os.environ["DATABASE_URL"] = _TEST_DB_URL
 
 # حلقة التطهير الخلفية (main.lifespan) لا تعمل هنا — اختبارات
 # التطهير تستدعي main.purge_deleted_accounts()/run_purge_job()

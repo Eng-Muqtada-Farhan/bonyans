@@ -111,7 +111,40 @@ INTERNAL_JOB_TOKEN      # فارغ = /internal/run-purge-job يرفض كل شي�
 برأس `X-Internal-Token` يطابق `INTERNAL_JOB_TOKEN` — اربطه بـRailway Cron
 Job أو أي مُجدوِل خارجي يستدعيه يومياً.
 
-## ٨ · بعد النشر مباشرة
+## ٨ · قاعدة الاختبارات — فرع Neon مستقلّ
+
+`tests/conftest.py` كان يفحص `ENVIRONMENT != production` فقط ويظنّها
+حارساً كافياً — لكنها لا تفحص القاعدة الفعلية. منذ صار bonyans.com حيّاً
+و`DATABASE_URL` في `.env` المحلي يشير إلى قاعدة الإنتاج نفسها، فبيئة
+محلية (`ENVIRONMENT=development`) تعني اختبارات تكتب وتمحو في قاعدة
+الموقع الحيّ. الحارس الآن يفحص القاعدة لا اسم البيئة: يرفض العمل إن
+غاب `TEST_DATABASE_URL` أو طابق `DATABASE_URL` حرفياً.
+
+**إنشاء الفرع (مرّة واحدة):**
+
+1. لوحة Neon → المشروع → **Branches** → **Create branch**.
+2. اسمِه `test` (أو أي اسم واضح)، والفرع الأصل `main` — Neon ينسخ
+   البيانات الحالية عند الإنشاء (نسخ فوري copy-on-write، لا يكلّف
+   مساحة إضافية حتى تتغيّر الصفوف).
+3. من تفاصيل الفرع الجديد، انسخ رابط الاتصال (Pooled connection) وضعه
+   في `.env` المحلي:
+   ```
+   TEST_DATABASE_URL=postgresql://...@ep-xxxxx-pooler.../neondb?sslmode=require&channel_binding=require
+   ```
+4. رحّل الفرع الجديد إلى أحدث مخطّط (منفصل عن `.env` — لا يُقرأ منه
+   افتراضياً؛ `ALEMBIC_DATABASE_URL` يتفوّق على `DATABASE_URL_UNPOOLED`
+   وعلى `DATABASE_URL` في `alembic/env.py`):
+   ```bash
+   ALEMBIC_DATABASE_URL="<TEST_DATABASE_URL نفسها>" alembic upgrade head
+   ```
+
+بعدها `pytest tests/` يعمل معزولاً تماماً عن الإنتاج — لا صفّ يكتبه أو
+يمحوه يلمس قاعدة bonyans.com الحيّة. فرع Neon مستقلّ لا يُلغي بطء
+الشبكة (الاستعلامات لا تزال تعبر إلى فرانكفورت، فالحزمة الكاملة تأخذ
+دقائق) لكنه يُلغي الخطر الفعلي: تلوّث بيانات الإنتاج ببيانات اختبار،
+أو محوها بالخطأ.
+
+## ٩ · بعد النشر مباشرة
 
 `set_admin_password.py` مُستبعَد من صورة النشر عمداً (`.railwayignore`) —
 **لا يمكن تشغيله على Railway نفسها، فالملفّ غير موجود هناك أصلاً.**
@@ -130,7 +163,7 @@ python set_admin_password.py
 2. الصقها يدوياً في متغيّرات بيئة Railway (تستبدل القديمة).
 3. لا حاجة لإعادة نشر كود — تغيير متغيّر بيئة يكفي لإعادة تشغيل الخدمة.
 
-## ٩ · فحوص ما بعد النشر (على الموقع الحيّ)
+## ١٠ · فحوص ما بعد النشر (على الموقع الحيّ)
 
 - `https://bonyans.com/docs` → 404 (`ENVIRONMENT=production` يطفئها)
 - ترويسة `Set-Cookie` على تسجيل دخول حقيقي تحمل `Secure`، وHSTS موجودة
