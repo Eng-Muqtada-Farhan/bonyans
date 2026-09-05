@@ -91,7 +91,11 @@
 
   function sessionExpired() {
     try { localStorage.removeItem('bn_token'); } catch (e) {}
-    location.replace('../login.html?role=admin&next=' + encodeURIComponent(location.pathname));
+    /* لا "admin" بين أدوار login.html العامة (قرار متعمَّد: باب
+       الإدارة لا يُعلَن في صفحة عامة) — الوجهة الصحيحة الوحيدة هي
+       admin-login.html، لا login.html?role=admin التي كانت تسقط
+       صامتة على منتقي الأدوار العام بلا تفعيل أي دور. */
+    location.replace('../admin-login.html?next=' + encodeURIComponent(location.pathname));
   }
 
   function errText(e) {

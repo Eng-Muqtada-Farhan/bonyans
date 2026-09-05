@@ -108,7 +108,13 @@ body{
       if (!d.token) { msg('استجابة غير متوقّعة من الخادم.'); return; }
 
       /* الكعكة يضعها الخادم في الاستجابة نفسها — HttpOnly، لا تلمسها
-         الصفحة. حارس الأسطح يقرؤها عند التنقّل إلى /admin. */
+         الصفحة. حارس الأسطح (صفحات /admin) يقرؤها عند التنقّل.
+         لكن admin-core.js نفسه يصادق نداءات API بترويسة
+         Authorization لا بالكعكة (نفس نمط login.html لدوري
+         company/user) — بلا هذا السطر تنجح صفحة /admin/index.html
+         بالتنقّل ثم تفشل كل بياناتها فوراً بـ401 صامت، فيُعاد
+         المستخدم إلى login.html العامة ظنّاً منه أنه لم يدخل قط. */
+      localStorage.setItem('bn_token', d.token);
       var next = new URLSearchParams(location.search).get('next');
       location.replace(next && next.charAt(0) === '/' && next.indexOf('//') !== 0
         ? next : '/admin/index.html');

@@ -833,7 +833,18 @@ def login(data: dict, request: Request):
     username = data.get("username", "")
     password = data.get("password", "")
     hashed   = os.getenv("ADMIN_PASSWORD_HASH", "")
-    if username != ADMIN_USERNAME or not hashed or not pwd_context.verify(password, hashed):
+    # pwd_context.verify() يرفع استثناءً (لا False) على تجزئة لا
+    # تطابق أي مخطّط معروف — ADMIN_PASSWORD_HASH مصدره متغيّر بيئة
+    # بشري، عرضة للقصّ الخاطئ عند اللصق. مسار مصادقة ينهار بـ500 على
+    # إعداد خاطئ أخطر من رفضه بأدب: يفشل مغلقاً هنا — 401 كأي كلمة
+    # مرور خاطئة — بلا كشف السبب للمستخدم، وسطر واضح في السجلّ لمن
+    # يشخّص العطل.
+    try:
+        password_ok = bool(hashed) and pwd_context.verify(password, hashed)
+    except Exception as e:
+        print(f"[login] ADMIN_PASSWORD_HASH غير صالحة — تعذّر التحقّق: {e}")
+        password_ok = False
+    if username != ADMIN_USERNAME or not password_ok:
         with SessionLocal() as db:
             write_audit_log(db, "admin", username, "login_fail", request)
             db.commit()

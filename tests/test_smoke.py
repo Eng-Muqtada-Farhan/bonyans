@@ -2003,3 +2003,21 @@ def test_79_email_link_verifies_but_creates_no_session(client, user_token):
             db.execute(text("DELETE FROM email_tokens WHERE user_id=:u"), {"u": uid})
             db.execute(text("UPDATE users SET is_email_verified=true WHERE id=:u"), {"u": uid})
             db.commit()
+
+
+def test_81_malformed_admin_password_hash_fails_closed(client, monkeypatch):
+    """
+    عطب حيّ ثانٍ لوحظ أثناء تشخيص دخول المدير: ADMIN_PASSWORD_HASH
+    مصدرها متغيّر بيئة بشري (عرضة للقصّ الخاطئ عند اللصق) —
+    pwd_context.verify() يرفع استثناءً (لا يعيد False) على تجزئة لا
+    تطابق أي مخطّط معروف، فكان POST /login يعيد 500 بدل 401.
+    مسار مصادقة ينهار على إعداد خاطئ أخطر من رفضه بأدب: يجب أن يفشل
+    مغلقاً — 401 كأي كلمة مرور خاطئة، بلا كشف السبب للزائر.
+    """
+    monkeypatch.setenv("ADMIN_PASSWORD_HASH", "not-a-valid-bcrypt-hash")
+    r = client.post("/login", json={"username": main.ADMIN_USERNAME, "password": "anything"})
+    assert r.status_code == 401, (
+        f"تجزئة تالفة يجب أن تُرفض بـ401 (فشل مغلق) لا {r.status_code} — "
+        f"استثناء passlib غير المُعالَج ينهار المسار كاملاً"
+    )
+    _wipe_rate_limits()

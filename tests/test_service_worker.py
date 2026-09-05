@@ -214,3 +214,58 @@ def test_67_service_worker_update_shows_explicit_banner(live_server):
         finally:
             sw_path.write_text(original, encoding="utf-8")
             browser.close()
+
+
+# ══════════════════════════════════════════════════════════════
+# عطب دخول المدير — الجلسة تُنشأ ثم تُرفض عند التنقّل إلى /admin
+# ══════════════════════════════════════════════════════════════
+
+@pytest.mark.skipif(not _HAS_PLAYWRIGHT, reason="Playwright غير مثبَّت")
+def test_80_admin_login_survives_navigation_to_dashboard(live_server):
+    """
+    عطب حيّ على bonyans.com: POST /login بكلمة صحيحة ينجح (200)،
+    لكن التنقّل إلى /admin/ يعيد المستخدم إلى login.html العامة —
+    لا يتعلّق بـcompanies.status (identity_from_claims يعيد للمدير
+    فوراً قبل أي استعلام، مؤكَّد بفحص مباشر) ولا بالكعكة Secure
+    (تصل وتُقرأ بلا مشكلة، مؤكَّد بفحص مباشر تحت ENVIRONMENT=production).
+
+    السبب الحقيقي: admin-login.html كان يكتفي بالكعكة (لصفحات
+    /admin وحدها، عبر حارس الأسطح) ولا يكتب bn_token في
+    localStorage — لكن admin-core.js يصادق كل نداء API بترويسة
+    Authorization من localStorage لا بالكعكة (نفس نمط login.html
+    لدوري company/user). فتنجح الصفحة بالتنقّل ثم تفشل كل بياناتها
+    فوراً بـ401 صامت، فيُعاد المستخدم إلى ../login.html?role=admin —
+    رابط ميّت لأن "admin" ليس بين أدوار login.html العامة (قرار
+    متعمَّد: باب الإدارة لا يُعلَن في صفحة عامة)، فيهبط على منتقي
+    الأدوار العام ظنّاً منه أنه لم يدخل قط.
+
+    هذا اختبار متصفّح حقيقي (Playwright) بالضرورة: العطب في تفاعل
+    JS (admin-core.js وadmin-login.html) لا في منطق الخادم وحده —
+    TestClient لا يُنفِّذ JavaScript فلا يراه.
+    """
+    from conftest import SMOKE_ADMIN_PASSWORD
+
+    with sync_playwright() as p:
+        browser = p.chromium.launch()
+        page = browser.new_page()
+        try:
+            page.goto(f"{live_server}/admin-login.html")
+            page.fill("#adUser", main.ADMIN_USERNAME)
+            page.fill("#adPass", SMOKE_ADMIN_PASSWORD)
+            page.click("#adSubmit")
+
+            page.wait_for_url(re.compile(r"/admin/index\.html"), timeout=10000)
+            # أهمّ لحظة: admin-core.js يستدعي API فور تحميل الصفحة —
+            # إن فشلت الترويسة يُعاد التوجيه فوراً. الانتظار على
+            # عنصر حقيقي من لوحة الإدارة يثبت أن البيانات وصلت لا أن
+            # الصفحة عُرضت لحظة قبل أن تُهجَر.
+            page.wait_for_selector("text=لوحة الإدارة", timeout=10000)
+            page.wait_for_timeout(1500)  # فرصة كافية لأي تحويل متأخّر بعد فشل API
+
+            assert "/admin/index.html" in page.url, (
+                f"أُعيد التوجيه بعيداً عن لوحة الإدارة بعد الدخول — الوجهة: {page.url}"
+            )
+            assert "منتقي" not in page.content() and "اختر نوع حسابك" not in page.content(), \
+                "هبط على منتقي أدوار login.html العام بدل لوحة الإدارة"
+        finally:
+            browser.close()
