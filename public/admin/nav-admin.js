@@ -29,6 +29,7 @@
     grid:     '<rect x="3" y="3" width="7.5" height="7.5" rx="1.2"/><rect x="13.5" y="3" width="7.5" height="7.5" rx="1.2"/><rect x="3" y="13.5" width="7.5" height="7.5" rx="1.2"/><rect x="13.5" y="13.5" width="7.5" height="7.5" rx="1.2"/>',
     inbox:    '<path d="M3 13.5h4l1.5 2.5h7L17 13.5h4"/><path d="M4.6 5.2 3 13.5v4A1.5 1.5 0 0 0 4.5 19h15a1.5 1.5 0 0 0 1.5-1.5v-4l-1.6-8.3A1.5 1.5 0 0 0 17.9 4H6.1a1.5 1.5 0 0 0-1.5 1.2z"/>',
     building: '<rect x="4" y="3" width="16" height="18" rx="1.5"/><path d="M9 8h2M13 8h2M9 12h2M13 12h2M9 16h2M13 16h2"/>',
+    market:   '<path d="M4 8h16l-1.2 11.2a1.5 1.5 0 0 1-1.5 1.3H6.7a1.5 1.5 0 0 1-1.5-1.3z"/><path d="M8.5 8V6a3.5 3.5 0 0 1 7 0v2"/>',
     flag:     '<path d="M5 21V4"/><path d="M5 5h10.5l-1.4 3.2L15.5 12H5"/>',
     users:    '<circle cx="9" cy="8" r="3.2"/><path d="M2.8 19.5a6.2 6.2 0 0 1 12.4 0"/><path d="M16 5.2a3.2 3.2 0 0 1 0 5.9"/><path d="M17.8 14.4a5.6 5.6 0 0 1 3.4 5.1"/>',
     shield:   '<path d="M12 3l7.5 3v5.4c0 4.5-3 8.2-7.5 9.6-4.5-1.4-7.5-5.1-7.5-9.6V6z"/>',
@@ -51,7 +52,8 @@
     ]},
     { title: 'المراجعة', items: [
       { href: 'requests.html',  label: 'طلبات الاعتماد', icon: I.inbox },
-      { href: 'companies.html', label: 'الشركات',        icon: I.building }
+      { href: 'companies.html', label: 'الشركات',        icon: I.building },
+      { href: 'projects.html',  label: 'المشاريع',       icon: I.market }
     ]},
     { title: 'الإشراف', items: [
       { href: 'reports.html', label: 'البلاغات',   icon: I.flag },

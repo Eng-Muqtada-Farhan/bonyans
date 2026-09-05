@@ -37,7 +37,8 @@ const $ = (id) => document.getElementById(id);
 const esc = ME.esc, svg = ME.svg, I = ME.icons, num = ME.num, when = ME.when;
 
 const STATUS = { published:'مفتوح للعروض', contracted:'مُتعاقَد عليه',
-                 closed:'مغلق', cancelled:'ملغى', pending:'قيد المراجعة' };
+                 closed:'مغلق', cancelled:'ملغى', pending:'قيد المراجعة',
+                 admin_hidden:'مخفي — راجع بريدك' };
 
 $('body').innerHTML = ME.skeleton(3, 130);
 

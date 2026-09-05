@@ -1,0 +1,195 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>تفصيل المشروع — بُنيان</title>
+<meta name="robots" content="noindex, nofollow">
+<meta name="theme-color" content="#F4F2ED" media="(prefers-color-scheme: light)">
+<meta name="theme-color" content="#15120E" media="(prefers-color-scheme: dark)">
+<link rel="stylesheet" href="../tokens.css">
+<script>
+  (function(){ var t=localStorage.getItem('bn-theme')||'light';
+    document.documentElement.setAttribute('data-theme',t); })();
+</script>
+<script src="../guard.js" data-require="admin"></script>
+<style>
+.pd-back { display:inline-flex; align-items:center; gap:6px; min-height:44px;
+  color:var(--bn-ink-2); text-decoration:none; font:var(--bn-t-sm); margin-block-end:var(--bn-s4); }
+.pd-back:hover { color:var(--bn-ac); }
+.pd-card { padding:var(--bn-s6); border-radius:var(--bn-r-xl); margin-block-end:var(--bn-s6); }
+.pd-hd { display:flex; align-items:flex-start; justify-content:space-between;
+  gap:var(--bn-s4); flex-wrap:wrap; margin-block-end:var(--bn-s4); }
+.pd-title { font:var(--bn-t-h2); margin:0 0 8px; }
+.pd-meta { display:flex; flex-wrap:wrap; gap:var(--bn-s3); font:var(--bn-t-sm); color:var(--bn-ink-3); }
+.pd-meta i { display:inline-flex; align-items:center; gap:5px; font-style:normal; }
+.pd-desc { font:var(--bn-t-sm); color:var(--bn-ink-2); line-height:1.85;
+  white-space:pre-wrap; margin-block-start:var(--bn-s4); }
+.pd-contact { display:grid; grid-template-columns:repeat(auto-fit,minmax(200px,1fr));
+  gap:var(--bn-s3); margin-block-start:var(--bn-s4); }
+.pd-contact div { padding:var(--bn-s3) var(--bn-s4); border-radius:var(--bn-r);
+  background:var(--bn-glass-tint); }
+.pd-contact label { display:block; font:var(--bn-t-cap); color:var(--bn-ink-3); margin-block-end:3px; }
+.pd-hidden-note { padding:var(--bn-s4); border-radius:var(--bn-r); margin-block-start:var(--bn-s4);
+  background:var(--bn-err-bg); border:1px solid var(--bn-err-line); color:var(--bn-err);
+  font:var(--bn-t-sm); line-height:1.8; }
+.pd-act { display:flex; gap:var(--bn-s2); flex-wrap:wrap; margin-block-start:var(--bn-s5); }
+.pd-bid { padding:var(--bn-s4); border-radius:var(--bn-r-lg); margin-block-end:var(--bn-s2); }
+.pd-bid-h { display:flex; align-items:center; justify-content:space-between; gap:var(--bn-s3); }
+.pd-bid-p { font:700 18px/1 var(--bn-mono); color:var(--bn-ac); }
+</style>
+</head>
+<body class="bn-body">
+
+<div class="bn-backdrop" aria-hidden="true"></div>
+
+<main class="ad-wrap" id="main">
+  <a class="pd-back" href="projects.html">
+    <svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor"
+         stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M15 6l-6 6 6 6"/></svg>
+    المشاريع
+  </a>
+  <div id="body">جارٍ التحميل...</div>
+</main>
+
+<script src="admin-core.js"></script>
+<script src="nav-admin.js"></script>
+<script>
+(function () {
+'use strict';
+const AD = window.AdminCore;
+const $ = (id) => document.getElementById(id);
+const esc = AD.esc, svg = AD.svg, I = AD.icons, when = AD.when;
+
+const pid = new URLSearchParams(location.search).get('id');
+
+const STATUS = {
+  published: 'منشور', pending: 'قيد المراجعة', closed: 'مغلق',
+  cancelled: 'ملغى', contracted: 'مُتعاقَد', admin_hidden: 'مخفي إدارياً'
+};
+/* 'pending' و'submitted' معاً — بيانات قديمة على القاعدة تحمل
+   'pending' من إصدار سابق للحقل، بينما submit_bid الحالية تكتب
+   'submitted'. لا تُوحَّد القيمة هنا (خارج نطاق هذه الجولة)، لكن
+   عرضها يجب أن يفهم الاثنين لا أن يُظهر نصّاً إنكليزياً خاماً. */
+const BID_STATUS = { pending: 'مقدَّم', submitted: 'مقدَّم', accepted: 'مقبول', rejected: 'مرفوض' };
+
+function budgetText(p) {
+  if (p.budget_min == null && p.budget_max == null) return 'غير محدَّدة';
+  if (p.budget_min != null && p.budget_max != null)
+    return Number(p.budget_min).toLocaleString('en') + ' – ' + Number(p.budget_max).toLocaleString('en') + ' $';
+  return Number(p.budget_min ?? p.budget_max).toLocaleString('en') + ' $';
+}
+
+/* ── نافذة السبب — إجراء إداري بلا سبب مكتوب غير مقبول ── */
+function reasonModal(title, actionLabel, danger) {
+  return new Promise(function (resolve) {
+    const s = AD.sheet(title,
+      '<p class="ad-note" style="margin-block-end:var(--bn-s4)">' +
+        'يُسجَّل هذا السبب في سجلّ التدقيق، ويصل صاحب المشروع في رسالة بريد.</p>' +
+      '<div class="ad-fr"><label for="pdReason">السبب *</label>' +
+        '<textarea id="pdReason" maxlength="1000" placeholder="اكتب سبباً محدَّداً..."></textarea></div>' +
+      '<div class="ad-row-end">' +
+        '<button class="bn-btn bn-btn-ghost" type="button" data-cancel>إلغاء</button>' +
+        '<button class="bn-btn' + (danger ? ' ad-btn-danger' : '') + '" type="button" data-ok>' +
+          esc(actionLabel) + '</button>' +
+      '</div>', { onClose: function () { resolve(null); } });
+    s.el.querySelector('[data-cancel]').onclick = function () { s.close(); };
+    s.el.querySelector('[data-ok]').onclick = function () {
+      const reason = s.el.querySelector('#pdReason').value.trim();
+      if (!reason) { AD.toast('السبب إلزامي.', 'err'); return; }
+      resolve(reason);
+      s.close();
+    };
+  });
+}
+
+function render(p) {
+  const isHidden = p.status === 'admin_hidden';
+  const bidsHTML = p.bids.length
+    ? p.bids.map(b =>
+        '<div class="pd-bid bn-solid">' +
+          '<div class="pd-bid-h">' +
+            '<div><b>' + esc(b.company_name) + '</b> · ' +
+              '<span class="ad-tag ' + (b.status === 'accepted' ? 'ad-tag-on' : 'ad-tag-off') + '">' +
+                esc(BID_STATUS[b.status] || b.status) + '</span></div>' +
+            '<div class="pd-bid-p">' + Number(b.price).toLocaleString('en') + ' $</div>' +
+          '</div>' +
+          (b.duration_days ? '<div class="ad-item-m" style="margin-block-start:6px">مدّة التنفيذ: ' +
+            esc(b.duration_days) + ' يوم</div>' : '') +
+          (b.message ? '<p class="ad-note" style="margin-block-start:8px">' + esc(b.message) + '</p>' : '') +
+        '</div>').join('')
+    : '<div class="ad-note">لا عروض على هذا المشروع بعد.</div>';
+
+  $('body').innerHTML =
+    '<div class="pd-card bn-glass">' +
+      '<div class="pd-hd">' +
+        '<div>' +
+          '<h1 class="pd-title">' + esc(p.title) + '</h1>' +
+          '<div class="pd-meta">' +
+            '<span class="ad-tag ' + (isHidden ? 'ad-tag-off' : (p.status === 'published' ? 'ad-tag-on' : 'ad-tag-off')) + '">' +
+              esc(STATUS[p.status] || p.status) + '</span>' +
+            '<i>' + svg(I.pin, 12) + esc(p.city) + '</i>' +
+            '<i>' + esc(p.category) + '</i>' +
+            '<i>' + budgetText(p) + '</i>' +
+            '<i>' + esc(when(p.created_at)) + '</i>' +
+          '</div>' +
+        '</div>' +
+      '</div>' +
+      (p.description ? '<p class="pd-desc">' + esc(p.description) + '</p>' : '') +
+      '<div class="pd-contact">' +
+        '<div><label>صاحب المشروع</label>' + esc(p.owner_name || '—') + '</div>' +
+        '<div><label>هاتف التواصل</label><span dir="ltr">' + esc(p.contact_phone || '—') + '</span></div>' +
+        '<div><label>بريد التواصل</label>' + esc(p.contact_email || p.owner_email || '—') + '</div>' +
+      '</div>' +
+      (isHidden
+        ? '<div class="pd-hidden-note">' +
+            '<b>مخفيّ إدارياً</b> منذ ' + esc(when(p.admin_hidden_at)) + '<br>' +
+            'السبب: ' + esc(p.admin_hidden_reason) +
+          '</div>'
+        : '') +
+      '<div class="pd-act">' +
+        (isHidden
+          ? '<button class="bn-btn bn-btn-sm" type="button" id="btnUnhide">إعادة نشر</button>'
+          : '<button class="bn-btn bn-btn-sm bn-btn-ghost ad-btn-danger" type="button" id="btnHide">إخفاء</button>') +
+      '</div>' +
+    '</div>' +
+    '<div class="ad-sec">' +
+      '<h2 class="ad-sec-t">العروض المقدَّمة (' + p.bids.length + ')</h2>' +
+      bidsHTML +
+    '</div>';
+
+  const hideBtn = $('btnHide'), unhideBtn = $('btnUnhide');
+  if (hideBtn) hideBtn.onclick = async function () {
+    const reason = await reasonModal('إخفاء المشروع', 'إخفاء', true);
+    if (reason == null) return;
+    AD.runAction(hideBtn,
+      () => AD.api('/admin/projects/' + pid + '/hide', { method: 'POST', body: { reason } }),
+      { loading: 'جارٍ', success: 'أُخفي', then: load });
+  };
+  if (unhideBtn) unhideBtn.onclick = async function () {
+    const reason = await reasonModal('إعادة نشر المشروع', 'إعادة نشر', false);
+    if (reason == null) return;
+    AD.runAction(unhideBtn,
+      () => AD.api('/admin/projects/' + pid + '/unhide', { method: 'POST', body: { reason } }),
+      { loading: 'جارٍ', success: 'نُشر', then: load });
+  };
+}
+
+async function load() {
+  try {
+    const p = await AD.api('/admin/projects/' + pid);
+    render(p);
+  } catch (e) {
+    $('body').innerHTML = AD.errorState(AD.errText(e));
+    AD.onRetry($('body'), load);
+  }
+}
+if (!pid) {
+  $('body').innerHTML = AD.emptyState('لا رقم مشروع', 'افتح هذه الصفحة من قائمة المشاريع.', '', I.market);
+} else {
+  load();
+}
+})();
+</script>
+</body>
+</html>

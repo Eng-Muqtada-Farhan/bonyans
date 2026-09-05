@@ -1,0 +1,181 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>المشاريع — بُنيان</title>
+<meta name="robots" content="noindex, nofollow">
+<meta name="theme-color" content="#F4F2ED" media="(prefers-color-scheme: light)">
+<meta name="theme-color" content="#15120E" media="(prefers-color-scheme: dark)">
+<link rel="stylesheet" href="../tokens.css">
+<script>
+  (function(){ var t=localStorage.getItem('bn-theme')||'light';
+    document.documentElement.setAttribute('data-theme',t); })();
+</script>
+<script src="../guard.js" data-require="admin"></script>
+<style>
+.pj-filters { display:flex; gap:var(--bn-s2); flex-wrap:wrap; align-items:center;
+  margin-block-end:var(--bn-s4); }
+.pj-filters .bn-input { min-height:44px; min-width:150px; }
+.pj-filters select { border:0; background:transparent; color:var(--bn-ink);
+  font:400 13.5px/1.5 var(--bn-font); min-height:42px; padding-inline:2px; }
+.pj-search { flex:1; min-width:220px; }
+.pj-search input { min-height:44px; padding:11px var(--bn-s4);
+  border:1px solid var(--bn-line); border-radius:var(--bn-r-pill);
+  background:var(--bn-bg); color:var(--bn-ink); font:400 14px/1.5 var(--bn-font);
+  width:100%; box-sizing:border-box; }
+.pj-search input:focus { outline:none; border-color:var(--bn-ac); }
+.pj-pager { display:flex; align-items:center; justify-content:center; gap:var(--bn-s3);
+  margin-block-start:var(--bn-s5); }
+.pj-pager span { font:var(--bn-t-cap); color:var(--bn-ink-3); }
+</style>
+</head>
+<body class="bn-body">
+
+<div class="bn-backdrop" aria-hidden="true"></div>
+
+<main class="ad-wrap" id="main">
+  <div class="ad-head">
+    <h1>المشاريع</h1>
+    <p>كل مشاريع سوق المنصّة — الفلترة والترقيم من الخادم.</p>
+  </div>
+
+  <div class="ad-tabs" id="statusTabs"></div>
+
+  <div class="pj-filters">
+    <div class="bn-input"><select id="fCity"><option value="">كل المحافظات</option></select></div>
+    <div class="bn-input"><select id="fCat"><option value="">كل التخصصات</option></select></div>
+    <div class="pj-search">
+      <input id="q" type="search" placeholder="ابحث بالعنوان أو اسم صاحب المشروع" aria-label="بحث">
+    </div>
+  </div>
+
+  <div id="body"></div>
+  <div class="pj-pager" id="pager" hidden></div>
+</main>
+
+<script src="admin-core.js"></script>
+<script src="nav-admin.js"></script>
+<script>
+(function () {
+'use strict';
+const AD = window.AdminCore;
+const $ = (id) => document.getElementById(id);
+const esc = AD.esc, svg = AD.svg, I = AD.icons, when = AD.when;
+
+const CITIES = ['بغداد','البصرة','أربيل','الموصل','النجف','كربلاء','السليمانية',
+                'دهوك','كركوك','الأنبار','بابل','ذي قار','ديالى','واسط',
+                'ميسان','المثنى','القادسية','صلاح الدين'];
+CITIES.forEach(c => $('fCity').add(new Option(c, c)));
+
+const STATUS = {
+  published: 'منشور', pending: 'قيد المراجعة', closed: 'مغلق',
+  cancelled: 'ملغى', contracted: 'مُتعاقَد', admin_hidden: 'مخفي إدارياً'
+};
+const TABS = [
+  { k: '', t: 'الكل' }, { k: 'published', t: 'منشور' },
+  { k: 'admin_hidden', t: 'مخفي إدارياً' }, { k: 'contracted', t: 'مُتعاقَد' },
+  { k: 'closed', t: 'مغلق' }, { k: 'cancelled', t: 'ملغى' }, { k: 'pending', t: 'قيد المراجعة' }
+];
+
+let STATE = { status: '', city: '', category: '', q: '', page: 1 };
+let LAST = null;
+
+$('body').innerHTML = AD.skeleton(4, 76);
+
+function renderTabs() {
+  $('statusTabs').innerHTML = TABS.map(t =>
+    '<button class="ad-tab' + (STATE.status === t.k ? ' is-on' : '') +
+    '" type="button" data-tab="' + esc(t.k) + '">' + esc(t.t) + '</button>').join('');
+  $('statusTabs').querySelectorAll('[data-tab]').forEach(b => {
+    b.onclick = () => { STATE.status = b.dataset.tab; STATE.page = 1; load(); };
+  });
+}
+
+async function loadCategories() {
+  try {
+    const cats = await AD.api('/categories');
+    (cats || []).forEach(c => $('fCat').add(new Option(c.name_ar, c.name_ar)));
+  } catch (e) {}
+}
+
+function budgetText(p) {
+  if (p.budget_min == null && p.budget_max == null) return '—';
+  if (p.budget_min != null && p.budget_max != null)
+    return Number(p.budget_min).toLocaleString('en') + ' – ' + Number(p.budget_max).toLocaleString('en');
+  return Number(p.budget_min ?? p.budget_max).toLocaleString('en');
+}
+
+function render() {
+  renderTabs();
+  const items = LAST ? LAST.items : [];
+  if (!items.length) {
+    $('body').className = '';
+    $('body').innerHTML = AD.emptyState('لا مشاريع بهذه الفلاتر', '', '', I.market);
+    $('pager').hidden = true;
+    return;
+  }
+  $('body').className = 'ad-list';
+  $('body').innerHTML = items.map(p => {
+    const isHidden = p.status === 'admin_hidden';
+    return '<a class="ad-item bn-solid" href="project_details.html?id=' + esc(p.id) +
+      '" style="text-decoration:none;color:inherit">' +
+      '<div class="ad-item-b">' +
+        '<div class="ad-item-t">' + esc(p.title) + '</div>' +
+        '<div class="ad-item-m">' +
+          '<span class="ad-tag ' + (isHidden ? 'ad-tag-off' : (p.status === 'published' ? 'ad-tag-on' : 'ad-tag-off')) + '">' +
+            esc(STATUS[p.status] || p.status) + '</span>' +
+          '<i>' + esc(p.owner_name || 'بلا اسم') + '</i>' +
+          (p.city ? '<i>' + svg(I.pin, 11) + esc(p.city) + '</i>' : '') +
+          (p.category ? '<i>' + esc(p.category) + '</i>' : '') +
+          '<i>' + budgetText(p) + ' $</i>' +
+          '<i>' + svg(I.tag, 11) + ' ' + (p.bids_count || 0) + ' عرض</i>' +
+          '<i>' + esc(when(p.created_at)) + '</i>' +
+        '</div>' +
+      '</div></a>';
+  }).join('');
+
+  $('pager').hidden = LAST.pages <= 1;
+  if (LAST.pages > 1) {
+    $('pager').innerHTML =
+      '<button class="bn-btn bn-btn-ghost bn-btn-sm" type="button" id="pPrev"' +
+        (LAST.page <= 1 ? ' disabled' : '') + '>السابق</button>' +
+      '<span>صفحة ' + LAST.page + ' من ' + LAST.pages + ' — ' + LAST.total + ' مشروع</span>' +
+      '<button class="bn-btn bn-btn-ghost bn-btn-sm" type="button" id="pNext"' +
+        (LAST.page >= LAST.pages ? ' disabled' : '') + '>التالي</button>';
+    const prev = $('pPrev'), next = $('pNext');
+    if (prev) prev.onclick = () => { STATE.page = Math.max(1, STATE.page - 1); load(); };
+    if (next) next.onclick = () => { STATE.page = STATE.page + 1; load(); };
+  }
+}
+
+let searchTimer = null;
+$('q').oninput = function () {
+  clearTimeout(searchTimer);
+  const v = this.value;
+  searchTimer = setTimeout(() => { STATE.q = v; STATE.page = 1; load(); }, 350);
+};
+$('fCity').onchange = function () { STATE.city = this.value; STATE.page = 1; load(); };
+$('fCat').onchange = function () { STATE.category = this.value; STATE.page = 1; load(); };
+
+async function load() {
+  try {
+    const params = new URLSearchParams({ page: STATE.page, per_page: 20 });
+    if (STATE.status)   params.set('status', STATE.status);
+    if (STATE.city)     params.set('city', STATE.city);
+    if (STATE.category) params.set('category', STATE.category);
+    if (STATE.q)        params.set('q', STATE.q);
+    LAST = await AD.api('/admin/projects?' + params.toString());
+    render();
+  } catch (e) {
+    $('body').className = '';
+    $('body').innerHTML = AD.errorState(AD.errText(e));
+    AD.onRetry($('body'), load);
+  }
+}
+loadCategories();
+load();
+})();
+</script>
+</body>
+</html>

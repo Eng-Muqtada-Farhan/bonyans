@@ -206,12 +206,18 @@ function renderReports() {
       '</div>' +
       (r.details ? '<p class="rp-d">' + esc(r.details) + '</p>' : '') +
       (r.resolved_note ? '<p class="rp-d">القرار: ' + esc(r.resolved_note) + '</p>' : '') +
-      (r.status === 'open'
-        ? '<div class="rp-act">' +
-            '<button class="bn-btn bn-btn-sm bn-btn-ghost" type="button" data-dismiss="' + esc(r.id) + '">رفض البلاغ</button>' +
-            '<button class="bn-btn bn-btn-sm" type="button" data-action="' + esc(r.id) + '">اتُّخذ إجراء</button>' +
-          '</div>'
-        : '') +
+      '<div class="rp-act">' +
+        /* بلاغ هدفه مشروع ← رابط يفتح صفحة تفصيله مباشرة — نقرتان
+           من البلاغ إلى القرار (فتح المشروع، ثم الإخفاء) لا أكثر. */
+        (r.target_type === 'project'
+          ? '<a class="bn-btn bn-btn-sm bn-btn-ghost" href="project_details.html?id=' +
+              esc(r.target_id) + '">فتح المشروع</a>'
+          : '') +
+        (r.status === 'open'
+          ? '<button class="bn-btn bn-btn-sm bn-btn-ghost" type="button" data-dismiss="' + esc(r.id) + '">رفض البلاغ</button>' +
+            '<button class="bn-btn bn-btn-sm" type="button" data-action="' + esc(r.id) + '">اتُّخذ إجراء</button>'
+          : '') +
+      '</div>' +
     '</div>';
   }).join('');
 

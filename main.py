@@ -2,6 +2,7 @@ import asyncio
 import base64
 import hashlib
 import io
+import json
 import logging
 import os
 import secrets
@@ -3155,6 +3156,11 @@ def list_projects(
     per_page = min(max(per_page, 1), 100)
     offset   = (page - 1) * per_page
 
+    # admin_hidden داخلية بحتة (جولة إدارة المشاريع) — تمريرها هنا
+    # يكشف مشاريع أخفاها مدير عمداً لأي زائر يعرف قيمة الحالة.
+    if status == "admin_hidden":
+        raise HTTPException(status_code=400, detail="Invalid status")
+
     where_parts = ["p.status = 'published'"]
     params: dict = {}
     if status:
@@ -3247,6 +3253,19 @@ def get_project(project_id: int, request: Request):
         """), {"id": project_id}).mappings().fetchone()
     if not row:
         raise HTTPException(status_code=404, detail="Project not found")
+
+    if row["status"] == "admin_hidden":
+        # مخفيّ إدارياً: لا رابط مباشر يتجاوز الإخفاء — يراه صاحبه
+        # (ليعرف ما جرى) والمدير وحدهما. غيرهما يرى 404 كأنه لم
+        # يوجد قطّ، لا رسالة "أُخفي" تُثبت أن الرابط كان صحيحاً.
+        try:
+            ident = resolve_identity(request)
+        except HTTPException:
+            ident = None
+        is_owner = ident and ident.role == ROLE_USER and ident.uid == row["owner_user_id"]
+        is_admin = ident and ident.role == ROLE_ADMIN
+        if not (is_owner or is_admin):
+            raise HTTPException(status_code=404, detail="Project not found")
 
     out = row_to_project_dict(dict(row))
     if not _may_see_project_contact(request, out):
@@ -3478,17 +3497,182 @@ def my_projects(request: Request):
 
 
 @app.get("/admin/projects")
-def admin_list_projects(request: Request, status: Optional[str] = None):
+def admin_list_projects(
+    request: Request,
+    status: Optional[str] = None,
+    city: Optional[str] = None,
+    category: Optional[str] = None,
+    q: Optional[str] = None,
+    page: int = 1,
+    per_page: int = 20,
+):
+    """
+    كانت بلا LIMIT — كل المشاريع في استجابة واحدة، ينمو حجمها بلا
+    حدّ مع نمو المنصّة. ترقيم حقيقي الآن (نفس شكل GET /projects
+    العامّة: {items, page, per_page, total, pages})، والفلترة على
+    الخادم لا في المتصفّح.
+    """
     require_admin(request)
-    where = "WHERE p.status = :status" if status else ""
-    params = {"status": status} if status else {}
+    page     = min(max(page, 1), 1_000_000)
+    per_page = min(max(per_page, 1), 100)
+    offset   = (page - 1) * per_page
+
+    where_parts = []
+    params: dict = {}
+    if status:
+        where_parts.append("p.status = :status")
+        params["status"] = status
+    if city:
+        where_parts.append("p.city = :city")
+        params["city"] = city
+    if category:
+        where_parts.append("p.category = :category")
+        params["category"] = category
+    if q:
+        where_parts.append(
+            "(p.title ILIKE :q OR p.contact_name ILIKE :q OR p.description ILIKE :q)"
+        )
+        params["q"] = f"%{q.strip()}%"
+    where = ("WHERE " + " AND ".join(where_parts)) if where_parts else ""
+
     with SessionLocal() as db:
         rows = db.execute(text(f"""
-            SELECT p.*,
+            SELECT p.*, u.display_name AS owner_name,
                    (SELECT COUNT(*) FROM project_bids pb WHERE pb.project_id = p.id) AS bids_count
-            FROM projects p {where} ORDER BY p.created_at DESC
-        """), params).mappings().fetchall()
-    return [row_to_project_dict(dict(r)) for r in rows]
+            FROM projects p
+            LEFT JOIN users u ON u.id = p.owner_user_id
+            {where}
+            ORDER BY p.created_at DESC
+            LIMIT :_per_page OFFSET :_offset
+        """), {**params, "_per_page": per_page, "_offset": offset}).mappings().fetchall()
+
+        total = db.execute(
+            text(f"SELECT COUNT(*) FROM projects p {where}"), params
+        ).scalar() or 0
+
+    items = []
+    for r in rows:
+        d = row_to_project_dict(dict(r))
+        d["owner_name"] = r["owner_name"] or ""
+        items.append(d)
+    return {
+        "items":    items,
+        "page":     page,
+        "per_page": per_page,
+        "total":    int(total),
+        "pages":    ceil(total / per_page) if total else 0,
+    }
+
+
+@app.get("/admin/projects/{project_id}")
+def admin_get_project(project_id: int, request: Request):
+    """
+    تفصيل كامل — بيانات التواصل بلا حجب (الإدارة تراها بحقّ، ولا
+    ينقض هذا قاعدة إخفائها عن غير المستحقّ في المسارات العامّة)،
+    مع عروض الشركات عليه للقراءة فقط من هنا.
+    """
+    require_admin(request)
+    with SessionLocal() as db:
+        row = db.execute(text("""
+            SELECT p.*, u.display_name AS owner_name, u.email AS owner_email,
+                   u.phone AS owner_phone,
+                   (SELECT COUNT(*) FROM project_bids pb WHERE pb.project_id = p.id) AS bids_count
+            FROM projects p
+            LEFT JOIN users u ON u.id = p.owner_user_id
+            WHERE p.id = :id
+        """), {"id": project_id}).mappings().fetchone()
+        if not row:
+            raise HTTPException(status_code=404, detail="Project not found")
+
+        bids = db.execute(text("""
+            SELECT pb.*, c.name AS company_name, c.image_url AS company_image
+            FROM project_bids pb
+            JOIN companies c ON c.id = pb.company_id
+            WHERE pb.project_id = :id
+            ORDER BY pb.created_at DESC
+        """), {"id": project_id}).mappings().fetchall()
+
+    out = row_to_project_dict(dict(row))
+    out["owner_name"]  = row["owner_name"] or ""
+    out["owner_email"] = row["owner_email"] or ""
+    out["owner_phone"] = row["owner_phone"] or ""
+    out["admin_hidden_reason"] = row["admin_hidden_reason"] or ""
+    out["admin_hidden_at"] = str(row["admin_hidden_at"]) if row["admin_hidden_at"] else None
+    out["bids"] = [row_to_bid_dict(dict(b)) for b in bids]
+    return out
+
+
+class ProjectAdminAction(BaseModel):
+    reason: str = Field(..., min_length=1, max_length=1000)
+
+
+@app.post("/admin/projects/{project_id}/hide")
+def admin_hide_project(project_id: int, payload: ProjectAdminAction, request: Request):
+    """
+    إخفاء إداري — حالة admin_hidden منفصلة عمداً عن closed/cancelled
+    (يملكهما صاحب المشروع مفهومياً): لو أخفينا بـclosed، يستطيع
+    صاحب المشروع نظرياً إعادة نشره ببساطة (حين يُبنى مسار كهذا له)
+    فيُبطل قرار المدير من حيث لا يدري. admin_hidden لا يصل إليها
+    المالك من أي مسار يملكه، ولا حتى PUT .../status العامّة (مرفوضة
+    عمداً هناك). تُحذف من البحث العام فوراً، ولا تُعرض حتى بالرابط
+    المباشر لغير صاحبها أو المدير (GET /projects/{id}).
+
+    السبب إلزامي (Pydantic) ويُسجَّل في security_audit_log مع هوية
+    المنفّذ ووقته — إجراء إداري بلا سبب مسجَّل غير قابل للمساءلة.
+    """
+    require_admin(request)
+    with SessionLocal() as db:
+        row = db.execute(text(
+            "SELECT owner_user_id, title, status FROM projects WHERE id=:id"
+        ), {"id": project_id}).mappings().fetchone()
+        if not row:
+            raise HTTPException(status_code=404, detail="Project not found")
+
+        db.execute(text("""
+            UPDATE projects
+            SET status='admin_hidden', admin_hidden_reason=:reason,
+                admin_hidden_at=now(), updated_at=now()
+            WHERE id=:id
+        """), {"id": project_id, "reason": payload.reason.strip()})
+        write_audit_log(db, "admin", ADMIN_USERNAME, f"project_hidden:{project_id}",
+                        request, meta=json.dumps({"reason": payload.reason.strip()}, ensure_ascii=False))
+        db.commit()
+
+        owner = db.execute(text("SELECT email FROM users WHERE id=:u"),
+                           {"u": row["owner_user_id"]}).mappings().fetchone()
+
+    if owner and owner["email"]:
+        try:
+            mailer.project_hidden(owner["email"], row["title"], payload.reason.strip())
+        except Exception as e:
+            log.error("mail_failed:project_hidden: %s", e)
+
+    return {"message": "أُخفي المشروع.", "id": project_id, "status": "admin_hidden"}
+
+
+@app.post("/admin/projects/{project_id}/unhide")
+def admin_unhide_project(project_id: int, payload: ProjectAdminAction, request: Request):
+    """إعادة نشر — الوحيدة القادرة على إخراج مشروع من admin_hidden."""
+    require_admin(request)
+    with SessionLocal() as db:
+        row = db.execute(text(
+            "SELECT status FROM projects WHERE id=:id"
+        ), {"id": project_id}).mappings().fetchone()
+        if not row:
+            raise HTTPException(status_code=404, detail="Project not found")
+        if row["status"] != "admin_hidden":
+            raise HTTPException(status_code=400, detail="المشروع ليس مخفياً إدارياً.")
+
+        db.execute(text("""
+            UPDATE projects
+            SET status='published', admin_hidden_reason=NULL,
+                admin_hidden_at=NULL, updated_at=now()
+            WHERE id=:id
+        """), {"id": project_id})
+        write_audit_log(db, "admin", ADMIN_USERNAME, f"project_unhidden:{project_id}",
+                        request, meta=json.dumps({"reason": payload.reason.strip()}, ensure_ascii=False))
+        db.commit()
+    return {"message": "أُعيد نشر المشروع.", "id": project_id, "status": "published"}
 
 
 @app.get("/admin/bids")
@@ -3520,13 +3704,23 @@ async def admin_update_project_status(project_id: int, request: Request):
     if status not in valid:
         raise HTTPException(status_code=400, detail=f"Invalid status. Must be one of: {', '.join(valid)}")
     with SessionLocal() as db:
+        current = db.execute(text("SELECT status FROM projects WHERE id=:id"),
+                             {"id": project_id}).scalar()
+        if current is None:
+            raise HTTPException(status_code=404, detail="Project not found")
+        if current == "admin_hidden":
+            # الخروج من الإخفاء الإداري له مسار واحد — POST .../unhide،
+            # الذي يفرض سبباً مكتوباً وسجلّ تدقيق. هذا المسار العامّ
+            # كان سيسمح بتجاوزه صامتاً (status=published بلا سبب).
+            raise HTTPException(
+                status_code=400,
+                detail="المشروع مخفيّ إدارياً — استعمل POST /admin/projects/{id}/unhide."
+            )
         result = db.execute(
             text("UPDATE projects SET status=:status, updated_at=now() WHERE id=:id RETURNING id, status"),
             {"status": status, "id": project_id}
         )
         row = result.mappings().fetchone()
-        if not row:
-            raise HTTPException(status_code=404, detail="Project not found")
         db.commit()
     return {"id": row["id"], "status": row["status"]}
 

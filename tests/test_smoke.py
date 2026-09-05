@@ -2084,7 +2084,7 @@ def test_83_mailer_send_includes_reply_to_support_email(monkeypatch):
 def test_84_every_mail_template_sends_both_text_and_html(monkeypatch):
     """
     "نسخة نصّية دائماً مع كل رسالة HTML" (MAIL-TEXTS.md، القاعدة ٦) —
-    يعترض mailer.send نفسها ويستدعي القوالب الخمسة جميعاً، فيتحقّق
+    يعترض mailer.send نفسها ويستدعي القوالب الستّة جميعاً، فيتحقّق
     أن كل استدعاء حمل نصّاً وHTML غير فارغين معاً — لا أحدهما فقط.
     """
     import mailer
@@ -2101,8 +2101,9 @@ def test_84_every_mail_template_sends_both_text_and_html(monkeypatch):
     mailer.email_change_confirm("someone@seed.test", "https://bonyans.com/verify.html?change=x")
     mailer.email_change_alert("someone@seed.test")
     mailer.account_deleted("someone@seed.test", "٢٠٢٦-١٠-٠١")
+    mailer.project_hidden("someone@seed.test", "SMOKE مشروع", "محتوى مخالف")
 
-    assert len(calls) == 5, f"توقّعت ٥ رسائل، نُفِّذت {len(calls)}"
+    assert len(calls) == 6, f"توقّعت ٦ رسائل، نُفِّذت {len(calls)}"
     for subject, txt, html in calls:
         assert txt and txt.strip(), f"«{subject}» بلا نسخة نصّية"
         assert html and html.strip(), f"«{subject}» بلا نسخة HTML"
@@ -2196,4 +2197,182 @@ def test_86_read_receipt_moved_off_get_to_dedicated_post(client, company_token, 
         with main.SessionLocal() as db:
             db.execute(text("DELETE FROM chat_messages WHERE conversation_id=:c"), {"c": conv_id})
             db.execute(text("DELETE FROM conversations WHERE id=:c"), {"c": conv_id})
+            db.commit()
+
+
+# ══════════════════════════════════════════════════════════════
+# جولة إدارة المشاريع — ترقيم /admin/projects · إخفاء لا رجعة فيه
+# ══════════════════════════════════════════════════════════════
+
+def _seed_smoke_projects(db, owner_uid, n=3, status="published"):
+    ids = []
+    for i in range(n):
+        pid = db.execute(text("""
+            INSERT INTO projects (title, category, city, country, contact_name,
+                                   contact_phone, status, owner_user_id)
+            VALUES (:t, 'اختبار', 'بغداد', 'IQ', 'SMOKE مالك', '07700000000', :s, :u)
+            RETURNING id
+        """), {"t": f"SMOKE مشروع {i}", "s": status, "u": owner_uid}).scalar()
+        ids.append(pid)
+    db.commit()
+    return ids
+
+
+def test_87_admin_projects_paginates_on_server(client, admin_token):
+    """
+    كانت /admin/projects بلا LIMIT — كل الصفوف في استجابة واحدة.
+    يزرع أكثر من صفحة واحدة (per_page=2) ويتحقّق أن {items} لا يتجاوز
+    الحدّ، وأن {total, pages} حسابان حقيقيان لا تقديريان.
+    """
+    with main.SessionLocal() as db:
+        uid = db.execute(text("SELECT id FROM users WHERE lower(email)='client@seed.test'"),
+                         ).scalar()
+        ids = _seed_smoke_projects(db, uid, n=3)
+
+    try:
+        r = client.get("/admin/projects", params={"q": "SMOKE مشروع", "per_page": 2, "page": 1},
+                       headers=bearer(admin_token))
+        assert r.status_code == 200, r.text
+        d = r.json()
+        assert set(d.keys()) >= {"items", "page", "per_page", "total", "pages"}
+        assert len(d["items"]) <= 2, "يتجاوز per_page — لا ترقيم فعلياً"
+        assert d["total"] >= 3
+        assert d["pages"] >= 2
+    finally:
+        with main.SessionLocal() as db:
+            db.execute(text("DELETE FROM projects WHERE id = ANY(:ids)"), {"ids": ids})
+            db.commit()
+
+
+def test_88_admin_hidden_project_cannot_be_reverted_outside_unhide(client, admin_token, company_token):
+    """
+    🔴 أهمّ اختبار في الجولة. admin_hidden منفصلة عمداً عن closed:
+    لا مسار يُخرج مشروعاً منها غير POST /unhide (يفرض سبباً مسجَّلاً).
+    يثبت ثلاثة أشياء معاً: الإخفاء ينجح · العرض الجديد يُرفض على
+    مشروع مخفي (submit_bid) · محاولة تجاوز الإخفاء عبر المسار العامّ
+    القديم PUT /admin/projects/{id}/status تُرفض صراحةً — لا "نجاح"
+    صامت يُعيد النشر بلا سبب مسجَّل.
+    """
+    with main.SessionLocal() as db:
+        uid = db.execute(text("SELECT id FROM users WHERE lower(email)='client@seed.test'")).scalar()
+        pid = _seed_smoke_projects(db, uid, n=1)[0]
+        # submit_bid يشترط شركة معتمدة قبل فحص حالة المشروع — شركة
+        # البذر قد لا تكون معتمدة على فرع طازج، فنعتمدها مؤقّتاً هنا
+        # (نُعيدها في finally) لعزل ما يختبره هذا البند فعلاً: رفض
+        # العروض على مشروع مخفي، لا حالة اعتماد الشركة.
+        cid = db.execute(text(
+            "SELECT company_id FROM profiles p JOIN users u ON u.id=p.user_id "
+            "WHERE p.role='company' AND lower(u.email)='company@seed.test' "
+            "ORDER BY p.created_at LIMIT 1"
+        )).scalar()
+        prev_company_status = db.execute(
+            text("SELECT status FROM companies WHERE id=:c"), {"c": cid}
+        ).scalar()
+        db.execute(text("UPDATE companies SET status='approved' WHERE id=:c"), {"c": cid})
+        db.commit()
+
+    try:
+        r = client.post(f"/admin/projects/{pid}/hide", headers=bearer(admin_token),
+                        json={"reason": "SMOKE محتوى مخالف"})
+        assert r.status_code == 200, r.text
+        assert r.json()["status"] == "admin_hidden"
+
+        with main.SessionLocal() as db:
+            status = db.execute(text("SELECT status FROM projects WHERE id=:i"),
+                                {"i": pid}).scalar()
+        assert status == "admin_hidden"
+
+        # الطريق العامّ القديم يُرفض على مشروع مخفي — لا "نجاح" صامت
+        r = client.put(f"/admin/projects/{pid}/status", headers=bearer(admin_token),
+                       json={"status": "published"})
+        assert r.status_code == 400, \
+            f"المسار العامّ يجب أن يرفض تجاوز admin_hidden، وردّ {r.status_code}"
+
+        with main.SessionLocal() as db:
+            status = db.execute(text("SELECT status FROM projects WHERE id=:i"),
+                                {"i": pid}).scalar()
+        assert status == "admin_hidden", "تجاوز المسار العامّ الإخفاء الإداري فعلياً"
+
+        # عرض جديد على مشروع مخفي يُرفض
+        r = client.post(f"/projects/{pid}/bid", headers=bearer(company_token),
+                        json={"price": 1000.0})
+        assert r.status_code == 400, "عرض قُبل على مشروع مخفي إدارياً"
+
+        # المسار الوحيد الصحيح للخروج
+        r = client.post(f"/admin/projects/{pid}/unhide", headers=bearer(admin_token),
+                        json={"reason": "SMOKE تراجعت الإدارة"})
+        assert r.status_code == 200, r.text
+        with main.SessionLocal() as db:
+            status = db.execute(text("SELECT status FROM projects WHERE id=:i"),
+                                {"i": pid}).scalar()
+        assert status == "published"
+    finally:
+        with main.SessionLocal() as db:
+            db.execute(text("DELETE FROM projects WHERE id=:i"), {"i": pid})
+            db.execute(text("UPDATE companies SET status=:s WHERE id=:c"),
+                      {"s": prev_company_status, "c": cid})
+            db.commit()
+
+
+def test_89_project_admin_actions_write_audit_log_with_reason(client, admin_token):
+    """لا إجراء بلا سبب مكتوب يُسجَّل في security_audit_log."""
+    with main.SessionLocal() as db:
+        uid = db.execute(text("SELECT id FROM users WHERE lower(email)='client@seed.test'")).scalar()
+        pid = _seed_smoke_projects(db, uid, n=1)[0]
+
+    try:
+        r = client.post(f"/admin/projects/{pid}/hide", headers=bearer(admin_token),
+                        json={"reason": "SMOKE سبب قابل للتتبّع"})
+        assert r.status_code == 200, r.text
+
+        with main.SessionLocal() as db:
+            row = db.execute(text("""
+                SELECT actor_type, actor_id, meta FROM security_audit_log
+                WHERE action = :a ORDER BY created_at DESC LIMIT 1
+            """), {"a": f"project_hidden:{pid}"}).mappings().fetchone()
+        assert row, "لا صفّ في security_audit_log لإجراء الإخفاء"
+        assert row["actor_type"] == "admin"
+        assert row["actor_id"] == main.ADMIN_USERNAME
+        assert "SMOKE سبب قابل للتتبّع" in (row["meta"] or ""), \
+            "السبب المكتوب غير مسجَّل في meta"
+
+        # السبب إلزامي فعلياً — بلا حقل reason يُرفض الطلب بدلاً من
+        # المرور بسبب فارغ لا يُسجَّل شيئاً مفيداً
+        r2 = client.post(f"/admin/projects/{pid}/hide", headers=bearer(admin_token), json={})
+        assert r2.status_code == 422, "غياب السبب يجب أن يُرفض لا أن يُقبَل فارغاً"
+    finally:
+        with main.SessionLocal() as db:
+            db.execute(text("DELETE FROM projects WHERE id=:i"), {"i": pid})
+            db.commit()
+
+
+def test_90_non_admin_rejected_on_project_admin_action_routes(client, company_token, user_token):
+    """غير المدير يُرفض على كل مسارات إجراءات المشاريع الإدارية."""
+    with main.SessionLocal() as db:
+        uid = db.execute(text("SELECT id FROM users WHERE lower(email)='client@seed.test'")).scalar()
+        pid = _seed_smoke_projects(db, uid, n=1)[0]
+
+    try:
+        for tok in (company_token, user_token):
+            assert client.get("/admin/projects", headers=bearer(tok)).status_code == 403
+            assert client.get(f"/admin/projects/{pid}", headers=bearer(tok)).status_code == 403
+            assert client.post(f"/admin/projects/{pid}/hide", headers=bearer(tok),
+                               json={"reason": "x"}).status_code == 403
+            assert client.post(f"/admin/projects/{pid}/unhide", headers=bearer(tok),
+                               json={"reason": "x"}).status_code == 403
+
+        # TestClient يحتفظ بالكعكات بين الاختبارات (نفس عميل الجلسة)،
+        # و_decode_token صار يقبل الكعكة احتياطاً (توحيد المصادقة) —
+        # بلا مسحٍ صريح قد تتسرّب كعكة دور من fixture آخر فتُخفي
+        # الحالة "بلا جلسة إطلاقاً" الحقيقية (401 لا 403).
+        client.cookies.clear()
+        try:
+            assert client.get("/admin/projects", headers={"Authorization": ""}).status_code == 401
+            assert client.post(f"/admin/projects/{pid}/hide", headers={"Authorization": ""},
+                               json={"reason": "x"}).status_code == 401
+        finally:
+            client.cookies.clear()
+    finally:
+        with main.SessionLocal() as db:
+            db.execute(text("DELETE FROM projects WHERE id=:i"), {"i": pid})
             db.commit()
