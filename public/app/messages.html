@@ -134,6 +134,9 @@ async function open(id) {
     AC.skeleton(3, 44) + '</div></div>';
   try {
     const page = await AC.api('/conversations/' + id + '/messages');
+    /* تعليم مقروءة صار طلباً منفصلاً (GET صار قراءة صرفة — توحيد
+       المصادقة). لا ننتظره: فشله لا يمنع عرض المحادثة. */
+    AC.api('/conversations/' + id + '/mark-read', { method: 'POST' }).catch(() => {});
     let oldestId = page.oldest_id, hasMore = page.has_more;
     const conv = CONVS.find(c => c.id === id) || {};
     const peer = conv.peer_user_id;

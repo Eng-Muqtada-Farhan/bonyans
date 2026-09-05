@@ -339,23 +339,6 @@ def create_access_token(subject: str) -> str:
     return jwt.encode({"sub": subject, "exp": expire}, JWT_SECRET, algorithm=ALGORITHM)
 
 
-def verify_admin(request: Request) -> None:
-    auth  = request.headers.get("Authorization", "")
-    token = auth.removeprefix("Bearer ").strip() if auth.startswith("Bearer ") else auth.strip()
-    if not token:
-        raise HTTPException(status_code=401, detail="unauthorized")
-    try:
-        payload = jwt.decode(token, JWT_SECRET, algorithms=[ALGORITHM])
-        if payload.get("sub") != ADMIN_USERNAME:
-            raise HTTPException(status_code=401, detail="unauthorized")
-    except JWTError:
-        raise HTTPException(status_code=401, detail="unauthorized")
-
-
-def require_admin(request: Request) -> None:
-    verify_admin(request)
-
-
 # ══════════════════════════════════════════════════════════════════════════════
 # PHASE 9 — SECURITY HELPERS
 # ══════════════════════════════════════════════════════════════════════════════
@@ -1037,8 +1020,57 @@ class Identity:
 
 
 def _decode_token(request: Request) -> dict:
+    """
+    مصدرا الرمز — ترويسة Authorization أولاً، فكعكة الجلسة احتياطاً.
+
+    الازدواج الذي انكسر فعلاً: صفحة تكتب كعكة (يضعها الخادم دائماً،
+    كل مسار دخول) لكن لا تكتب بالضرورة bn_token في localStorage
+    (JS صفحة الدخول تحديداً — اصطلاح غير محروس، ونسيَته
+    admin-login.html فعلاً). لو بقي resolve_identity يقرأ الترويسة
+    وحدها، فكل صفحة دخول جديدة تحمل نفس القنبلة الموقوتة: تعمل
+    الصفحات (حارس الأسطح في middleware يقرأ الكعكة) بينما تفشل كل
+    نداءات الـAPI بصمت — بالضبط ما وقع في /admin.
+
+    الحلّ هنا لا هناك: نقطة عبور واحدة (كل require_role/require_admin
+    /require_company/require_user يمرّ من هنا) تقبل الكعكة متى غابت
+    الترويسة، فتُنشئ set_session_cookie (يستدعيها كل مسار دخول
+    فعلاً، بلا استثناء، لأنها في main.py لا في صفحة HTML منفصلة)
+    جلسة عاملة للصفحة والـAPI معاً — بلا حاجة لأي صفحة دخول أن
+    "تتذكّر" كتابة شيء إلى localStorage كي تعمل نداءاتها. localStorage
+    يبقى مفيداً لعرض الدور في الواجهة (nav-public.js وأمثاله) لكنه
+    لم يعد الاعتماد الوحيد لصلاحية الوصول.
+
+    قرار CSRF — لماذا هذا آمن، وما يحميه فعلاً، وما ينكسر لو تغيّر:
+
+    قبول الكعكة هنا يُسقط الحصانة التي كانت ترويسة Authorization
+    تمنحها مجاناً (متصفّح لا يُرفق ترويسات مخصّصة تلقائياً عبر
+    المواقع). الحماية البديلة الوحيدة الآن: SameSite=Lax على الكعكة
+    نفسها (set_session_cookie). Lax يرسل الكعكة عبر المواقع في حالة
+    واحدة فقط — تنقّل صفحة كامل بطريقة "آمنة" (GET عبر رابط، تحويل
+    JS، أو نموذج method=GET يُبدّل الصفحة) — لا في طلبات فرعية
+    (fetch/XHR/img/script من أصل آخر تُستبعَد كلياً بلا صلة بالطريقة)
+    ولا في POST/PUT/DELETE عابرة المواقع حتى لو كانت تنقّلاً كاملاً
+    (نموذج مخفي يُرسَل تلقائياً بـPOST من موقع آخر لا يحمل الكعكة).
+
+    الثغرة الوحيدة الممكنة إذن: GET يُغيّر حالة، يصل إليه الضحية عبر
+    رابط أو تحويل تلقائي على موقع آخر فتنفّذ الكتابة قبل أن يعرف.
+    فُحصت كل مسارات GET في main.py (بحث آلي عن db.commit() و
+    INSERT/UPDATE/DELETE داخل كل دالّة @app.get) — لا واحد يكتب بعد
+    اليوم؛ الوحيدة التي فعلت (GET /conversations/{id}/messages، تعليم
+    مقروءة) نُقلت إلى POST /conversations/{id}/mark-read مستقلّة.
+    هذا فحص لمرّة واحدة لا حارساً دائماً — أي @app.get جديد يكتب في
+    القاعدة يعيد فتح هذا الباب صامتاً، فليقرأه من يضيف مساراً جديداً.
+
+    لو تغيّر SameSite يوماً إلى None (لِدمج iframe عبر مواقع مثلاً):
+    يسقط الافتراض كاملاً — تصبح حتى POST/PUT/DELETE عرضة لنموذج
+    مخفي يُرسَل تلقائياً من أي موقع، ولا يكفي عندها التحقّق من طريقة
+    الطلب وحدها؛ يلزم رمز CSRF صريح (double-submit token أو مثله)
+    لا الاعتماد على خاصية الكعكة وحدها.
+    """
     auth  = request.headers.get("Authorization", "")
     token = auth.removeprefix("Bearer ").strip() if auth.startswith("Bearer ") else auth.strip()
+    if not token:
+        token = request.cookies.get(SESSION_COOKIE, "")
     if not token:
         raise HTTPException(status_code=401, detail="auth required")
     try:
@@ -3977,18 +4009,12 @@ def get_messages(conv_id: int, request: Request,
         if role == "company":
             if conv["company_id"] != actor_id:
                 raise HTTPException(status_code=403, detail="Forbidden")
-            db.execute(text("""
-                UPDATE chat_messages SET is_read=true
-                WHERE conversation_id=:cid AND sender_type = 'client'
-            """), {"cid": conv_id})
         else:
             if conv["client_user_id"] != actor_id:
                 raise HTTPException(status_code=403, detail="Forbidden")
-            db.execute(text("""
-                UPDATE chat_messages SET is_read=true
-                WHERE conversation_id=:cid AND sender_type != 'client'
-            """), {"cid": conv_id})
-        db.commit()
+        # تعليم الرسائل مقروءة لم يعد هنا — انظر POST .../mark-read
+        # أدناه ولماذا: GET لا يجوز أن يكتب في القاعدة (§ توحيد
+        # المصادقة، _decode_token).
 
         where = "conversation_id=:cid"
         params = {"cid": conv_id, "lim": limit + 1}
@@ -4009,6 +4035,43 @@ def get_messages(conv_id: int, request: Request,
         "has_more": has_more,
         "oldest_id": items[0]["id"] if items else None,
     }
+
+
+@app.post("/conversations/{conv_id}/mark-read")
+def mark_conversation_read(conv_id: int, request: Request):
+    """
+    كانت هذه الكتابة تقع داخل GET /conversations/{id}/messages —
+    منفصلة الآن إلى POST مستقلّة (توحيد المصادقة، الجولة الحالية):
+    _decode_token صار يقبل كعكة الجلسة حين تغيب الترويسة، وSameSite
+    =Lax يرسلها مع GET في تنقّل صفحة كامل عابر مواقع (رابط، تحويل)
+    — أي GET يكتب في القاعدة كان قابلاً للاستغلال عبر CSRF بعد هذا
+    التغيير. القراءة (GET أعلاه) صارت قراءة صرفة، والكتابة هنا خلف
+    POST — Lax لا يرسل الكعكة مع POST عابر مواقع مهما كان شكل الطلب.
+    التفصيل الكامل في تعليق _decode_token.
+    """
+    role, actor_id = _resolve_auth(request)
+    with SessionLocal() as db:
+        conv = db.execute(text(
+            "SELECT * FROM conversations WHERE id=:id"
+        ), {"id": conv_id}).mappings().first()
+        if not conv:
+            raise HTTPException(status_code=404, detail="Not found")
+        if role == "company":
+            if conv["company_id"] != actor_id:
+                raise HTTPException(status_code=403, detail="Forbidden")
+            db.execute(text("""
+                UPDATE chat_messages SET is_read=true
+                WHERE conversation_id=:cid AND sender_type = 'client'
+            """), {"cid": conv_id})
+        else:
+            if conv["client_user_id"] != actor_id:
+                raise HTTPException(status_code=403, detail="Forbidden")
+            db.execute(text("""
+                UPDATE chat_messages SET is_read=true
+                WHERE conversation_id=:cid AND sender_type != 'client'
+            """), {"cid": conv_id})
+        db.commit()
+    return {"ok": True}
 
 
 @app.put("/messages/{msg_id}/read")

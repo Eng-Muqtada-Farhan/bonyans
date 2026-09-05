@@ -2021,3 +2021,179 @@ def test_81_malformed_admin_password_hash_fails_closed(client, monkeypatch):
         f"استثناء passlib غير المُعالَج ينهار المسار كاملاً"
     )
     _wipe_rate_limits()
+
+
+# ══════════════════════════════════════════════════════════════
+# توحيد المصادقة — الكعكة تُقبَل حين تغيب الترويسة + Reply-To
+# ══════════════════════════════════════════════════════════════
+
+def test_82_api_call_authenticates_from_cookie_alone(client, admin_token):
+    """
+    عطب دخول المدير الحقيقي: صفحة دخول قد تكتب الكعكة (يضعها الخادم
+    دائماً) بلا أن تكتب bn_token في localStorage — فتفشل نداءات
+    الـAPI (Authorization فقط) صامتة رغم جلسة صالحة فعلاً. الإصلاح:
+    _decode_token يقبل كعكة الجلسة حين تغيب الترويسة، فتعمل نداءات
+    الـAPI حتى لو نسيت صفحة الدخول (الحالية أو مستقبلية) كتابة
+    localStorage — الاصطلاح صار محروساً لا معتمَداً على الذاكرة.
+    """
+    # TestClient يحتفظ بالكعكات بين الاختبارات (نفس عميل الجلسة) —
+    # بلا مسحٍ صريح قد تتسرّب كعكة admin_token من اختبار سابق فتُخفي
+    # الحالة "بلا جلسة" الحقيقية.
+    client.cookies.clear()
+    try:
+        r = client.get("/admin/companies", headers={"Authorization": ""})
+        assert r.status_code == 401, "بلا كعكة ولا ترويسة يجب أن يُرفض"
+
+        client.cookies.set(main.SESSION_COOKIE, admin_token)
+        r = client.get("/admin/companies", headers={"Authorization": ""})
+        assert r.status_code == 200, (
+            f"كعكة جلسة صالحة وحدها يجب أن تكفي لمصادقة نداء API — وردّ {r.status_code}"
+        )
+    finally:
+        client.cookies.clear()
+
+
+def test_83_mailer_send_includes_reply_to_support_email(monkeypatch):
+    """
+    Reply-To عنوان دعم حقيقي على كل رسالة (لا اسم قالب بعينه) —
+    يُضاف مرّة واحدة في send() نفسها. يعترض httpx.post ليقرأ الحمولة
+    الفعلية المُرسَلة لا افتراضاً عنها.
+    """
+    import mailer
+
+    monkeypatch.setenv("RESEND_API_KEY", "smoke-fake-key")
+    monkeypatch.setenv("SUPPORT_EMAIL", "support@bonyans.com")
+    captured = {}
+
+    class _FakeResp:
+        status_code = 200
+        text = "{}"
+
+    def _fake_post(url, headers=None, json=None, timeout=None):
+        captured["json"] = json
+        return _FakeResp()
+
+    monkeypatch.setattr(mailer.httpx, "post", _fake_post)
+
+    ok = mailer.send("someone@seed.test", "موضوع", "نصّ", "<p>HTML</p>")
+    assert ok is True
+    assert captured["json"].get("reply_to") == "support@bonyans.com", \
+        f"Reply-To غائب أو خاطئ في الحمولة المُرسَلة: {captured['json']}"
+
+
+def test_84_every_mail_template_sends_both_text_and_html(monkeypatch):
+    """
+    "نسخة نصّية دائماً مع كل رسالة HTML" (MAIL-TEXTS.md، القاعدة ٦) —
+    يعترض mailer.send نفسها ويستدعي القوالب الخمسة جميعاً، فيتحقّق
+    أن كل استدعاء حمل نصّاً وHTML غير فارغين معاً — لا أحدهما فقط.
+    """
+    import mailer
+
+    calls = []
+    monkeypatch.setattr(
+        mailer, "send",
+        lambda to, subject, text, html: calls.append((subject, text, html)) or True
+    )
+
+    mailer.password_reset("someone@seed.test", "https://bonyans.com/reset.html?token=x")
+    mailer.email_verify("someone@seed.test", "https://bonyans.com/verify.html?token=x",
+                        "user", "123456")
+    mailer.email_change_confirm("someone@seed.test", "https://bonyans.com/verify.html?change=x")
+    mailer.email_change_alert("someone@seed.test")
+    mailer.account_deleted("someone@seed.test", "٢٠٢٦-١٠-٠١")
+
+    assert len(calls) == 5, f"توقّعت ٥ رسائل، نُفِّذت {len(calls)}"
+    for subject, txt, html in calls:
+        assert txt and txt.strip(), f"«{subject}» بلا نسخة نصّية"
+        assert html and html.strip(), f"«{subject}» بلا نسخة HTML"
+
+
+def test_85_no_get_route_writes_to_database(client):
+    """
+    الحارس الدائم على قرار CSRF في _decode_token: قبول الكعكة حين
+    تغيب الترويسة آمن فقط طالما لا @app.get يكتب في القاعدة (SameSite
+    =Lax يرسل الكعكة عبر المواقع في تنقّل GET كامل). فحص لمرّة واحدة
+    وقت الإصلاح ليس حارساً — @app.get جديد يستدعي db.commit() يعيد
+    فتح الباب صامتاً. هذا الاختبار يحوّل ذلك الفحص اليدوي إلى حارس
+    آلي دائم يقرأ main.py نصّياً.
+    """
+    root = Path(__file__).resolve().parent.parent
+    src = (root / "main.py").read_text(encoding="utf-8")
+    lines = src.split("\n")
+
+    decorators = []
+    for i, line in enumerate(lines):
+        m = re.match(r'@app\.(get|post|put|delete|patch)\("([^"]+)"', line.strip())
+        if m:
+            decorators.append((i, m.group(1), m.group(2)))
+
+    offenders = []
+    for idx, (i, method, path) in enumerate(decorators):
+        if method != "get":
+            continue
+        end = decorators[idx + 1][0] if idx + 1 < len(decorators) else len(lines)
+        body = "\n".join(lines[i:end])
+        if "db.commit()" in body:
+            offenders.append(path)
+
+    # الاستثناء الوحيد المقبول: GET /company/{company_id} يكتب عدّاد
+    # مشاهدة عام بلا مصادقة إطلاقاً (لا resolve_identity ولا كعكة) —
+    # لا علاقة له بقرار CSRF هذا، فأي زائر يصل إليه بلا جلسة أصلاً.
+    offenders = [p for p in offenders if p != "/company/{company_id}"]
+    assert not offenders, (
+        f"مسارات GET التالية تكتب في القاعدة — قابلة للاستغلال عبر CSRF "
+        f"(SameSite=Lax يسمح بها في تنقّل كامل): {offenders}. حوّلها إلى POST."
+    )
+
+
+def test_86_read_receipt_moved_off_get_to_dedicated_post(client, company_token, user_token):
+    """
+    كانت GET /conversations/{id}/messages تُعلّم الرسائل مقروءة —
+    كتابة داخل GET، منفذ CSRF محتمل بعد قبول الكعكة في _decode_token.
+    نُقلت إلى POST /conversations/{id}/mark-read: يثبت أن GET صار
+    قراءة صرفة (لا تُعلّم شيئاً)، وأن POST الجديدة تفعل ذلك فعلاً.
+    """
+    with main.SessionLocal() as db:
+        # company_id عبر بريد البذر تحديداً — لا "أوّل ملفّ شركة"
+        # (فرع الاختبار الآن نسخة كاملة من الإنتاج، وأوّل ملفّ
+        # زمنياً قد يكون شركة حقيقية غير company@seed.test التي
+        # يصادق بها company_token فعلياً، فيُرفض الطلب بـ403 كاذب).
+        cid = db.execute(text("""
+            SELECT p.company_id FROM profiles p JOIN users u ON u.id=p.user_id
+            WHERE p.role='company' AND lower(u.email)='company@seed.test'
+            ORDER BY p.created_at LIMIT 1
+        """)).scalar()
+        uid = db.execute(text(
+            "SELECT id FROM users WHERE lower(email)='client@seed.test'"
+        )).scalar()
+    assert cid and uid, "تحتاج بيانات البذر"
+
+    with main.SessionLocal() as db:
+        conv_id = db.execute(text(
+            "INSERT INTO conversations(client_user_id, company_id) VALUES (:u,:c) RETURNING id"
+        ), {"u": uid, "c": cid}).scalar()
+        mid = db.execute(text("""
+            INSERT INTO chat_messages(conversation_id, sender_type, sender_id, message)
+            VALUES (:conv,'client',:u,'SMOKE unread') RETURNING id
+        """), {"conv": conv_id, "u": uid}).scalar()
+        db.commit()
+
+    try:
+        r = client.get(f"/conversations/{conv_id}/messages", headers=bearer(company_token))
+        assert r.status_code == 200, r.text
+        with main.SessionLocal() as db:
+            is_read = db.execute(text("SELECT is_read FROM chat_messages WHERE id=:i"),
+                                 {"i": mid}).scalar()
+        assert is_read is False, "GET وحدها علّمت الرسالة مقروءة — الكتابة عادت إلى GET"
+
+        r = client.post(f"/conversations/{conv_id}/mark-read", headers=bearer(company_token))
+        assert r.status_code == 200, r.text
+        with main.SessionLocal() as db:
+            is_read = db.execute(text("SELECT is_read FROM chat_messages WHERE id=:i"),
+                                 {"i": mid}).scalar()
+        assert is_read is True, "POST /mark-read لم تُعلّم الرسالة مقروءة"
+    finally:
+        with main.SessionLocal() as db:
+            db.execute(text("DELETE FROM chat_messages WHERE conversation_id=:c"), {"c": conv_id})
+            db.execute(text("DELETE FROM conversations WHERE id=:c"), {"c": conv_id})
+            db.commit()

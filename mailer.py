@@ -88,8 +88,12 @@ def send(to: str, subject: str, text: str, html: str) -> bool:
             RESEND_ENDPOINT,
             headers={"Authorization": f"Bearer {api_key()}",
                      "Content-Type": "application/json"},
+            # Reply-To عنوان دعم حقيقي — يقلّل تصنيف no-reply@ كإرسال
+            # آلي، ويعطي من يردّ مباشرة (بريده لا يدعم زرّاً في الرسالة)
+            # وجهة تصل. دالّة إرسال واحدة تعني: كل رسالة من الأربع
+            # تحمله بلا استثناء ولا تكرار لكتابته في كل قالب.
             json={"from": mail_from(), "to": [to], "subject": subject,
-                  "text": text, "html": html},
+                  "text": text, "html": html, "reply_to": support_email()},
             timeout=15.0,
         )
     except Exception as e:                                   # noqa: BLE001
