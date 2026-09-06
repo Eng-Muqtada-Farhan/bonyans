@@ -311,5 +311,6 @@ Internal Testing (Play) · TestFlight (Apple)
 ## الدَّين المؤجَّل — بعد الإطلاق
 
 إبطال JWT (قائمة سوداء أو refresh) · تقسيم `main.py` إلى `routers/` · طلب عرض سعر
-موجَّه بـ `company_id` · `companies.rating` الافتراضي ٥ بلا مقيّم · دمج
-`project_requests` مع `projects` · استبدال `passlib` بـ `bcrypt` مباشرةً
+موجَّه (مؤجَّل — `project_requests` القديم حُذف بلا رجعة، تُبنى نظيفة على
+`profiles`/RBAC حين يحين دورها) · `companies.rating` الافتراضي ٥ بلا مقيّم ·
+استبدال `passlib` بـ `bcrypt` مباشرةً

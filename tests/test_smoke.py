@@ -152,9 +152,9 @@ def test_16_guard_does_not_break_admin_api(client, admin_token):
     الحارس يحرس الصفحات لا الواجهات البرمجية.
     بلا هذا الفصل ترجع مسارات /admin/* تحويلاً ٣٠٢ بدل ٤٠١/٢٠٠.
     """
-    r = client.get("/admin/project-requests", headers=bearer(admin_token))
+    r = client.get("/admin/companies", headers=bearer(admin_token))
     assert r.status_code == 200
-    assert client.get("/admin/project-requests").status_code == 401
+    assert client.get("/admin/companies").status_code == 401
 
 
 # ══════════════════════════════════════════════════════════════

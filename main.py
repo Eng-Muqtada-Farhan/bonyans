@@ -964,16 +964,6 @@ class CompanyMeUpdateV2(BaseModel):
     _v_map_link = field_validator("map_link")(_require_http_url)
 
 
-class ProjectRequestCreate(BaseModel):
-    customer_name: str          = Field(..., max_length=200)
-    phone:         str          = Field(..., max_length=30)
-    email:         Optional[str] = Field(None, max_length=200)
-    city:          str          = Field(..., max_length=100)
-    project_type:  str          = Field(..., max_length=100)
-    description:   Optional[str] = Field(None, max_length=5000)
-    budget:        Optional[str] = Field(None, max_length=100)
-
-
 # ══════════════════════════════════════════════════════════════════════════════
 # المصادقة والصلاحيات — مسار واحد
 #
@@ -2983,43 +2973,6 @@ def legal_contact():
         "support_email": support if "@" in support else "",
         "legal_version": LEGAL_VERSION,
     }
-
-
-# ── Project Requests (public submission, future bidding system) ───────────────
-
-@app.post("/project-requests")
-def submit_project_request(payload: ProjectRequestCreate):
-    """Public endpoint — anyone can submit a project request (no auth required)."""
-    with SessionLocal() as db:
-        result = db.execute(text("""
-            INSERT INTO project_requests
-                (customer_name, phone, email, city, project_type, description, budget, status)
-            VALUES
-                (:customer_name, :phone, :email, :city, :project_type, :description, :budget, 'open')
-            RETURNING id, created_at
-        """), {
-            "customer_name": payload.customer_name.strip(),
-            "phone":         payload.phone.strip(),
-            "email":         payload.email or None,
-            "city":          payload.city.strip(),
-            "project_type":  payload.project_type.strip(),
-            "description":   payload.description or None,
-            "budget":        payload.budget or None,
-        })
-        row = result.mappings().fetchone()
-        db.commit()
-    return {"message": "Request submitted", "id": row["id"]}
-
-
-@app.get("/admin/project-requests")
-def get_project_requests(request: Request):
-    """Admin: list all project requests."""
-    require_admin(request)
-    with SessionLocal() as db:
-        rows = db.execute(
-            text("SELECT * FROM project_requests ORDER BY created_at DESC")
-        ).mappings().fetchall()
-    return [dict(r) for r in rows]
 
 
 # ── PROJECT MARKETPLACE (Phase 6) ────────────────────────────────────────────
