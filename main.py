@@ -1554,8 +1554,26 @@ def delete_gallery_image(image_id: int, request: Request):
 
 # ── PHASE 7: Subscription helpers (must be before wildcard routes) ────────────
 
+# قرار منتج (جولة الاشتراكات — الأقل لا الأكثر): لا تسعير قبل وجود
+# مشاريع حقيقية على المنصّة. الثلاثون شركة القادمة تعمل بلا أي قيد
+# مشتقّ من باقة — لا حدّ صور، لا حدّ عروض شهرية — لأن لا اشتراك
+# مدفوع مطروح أصلاً. حين يُحسَم نموذج التسعير (بعد أن تثبت المنصّة
+# قيمتها بمشاريع حقيقية) تُعاد هذه القيمة إلى True فتعمل حدود
+# STARTER كما صُمِّمت أصلاً — قيد واحد يتحكّم بكل قرارات الحدّ.
+# مطابقه في public/index.html يتحكّم بعرض قسم الأسعار — علمان
+# منفصلان لأن لا رابط شبكي بين الواجهة والخادم هنا، لا علماً واحداً
+# منسياً في أحدهما.
+PRICING_LIVE = False
+
+
 def get_company_plan(company_id: int) -> dict:
-    """Returns the active plan for a company. Defaults to STARTER if none."""
+    """
+    الباقة الفعّالة للشركة. اشتراك نشط فعلي (أسنده مدير يدوياً، مثلاً)
+    يُطبَّق دائماً بغضّ النظر عن PRICING_LIVE — الإخفاء يخصّ التسعير
+    العلني والحدّ الافتراضي وحدهما. بلا اشتراك نشط: بلا قيد أثناء
+    PRICING_LIVE=False (انظر التعليق أعلاه)، وSTARTER المحدودة
+    بعد إعادة التفعيل.
+    """
     with SessionLocal() as db:
         sub = db.execute(text("""
             SELECT cs.*, sp.code, sp.name AS plan_name, sp.monthly_price,
@@ -1572,6 +1590,14 @@ def get_company_plan(company_id: int) -> dict:
 
         if sub:
             return dict(sub)
+
+        if not PRICING_LIVE:
+            return {
+                "code": "starter", "plan_name": "STARTER", "monthly_price": 0,
+                "max_images": -1, "max_project_leads": -1, "search_priority": 0,
+                "is_verified": False, "is_featured": False,
+                "is_founder": False, "status": "free", "expires_at": None,
+            }
 
         starter = db.execute(
             text("SELECT * FROM subscription_plans WHERE code='starter'")
@@ -3688,7 +3714,9 @@ class AdminSubscriptionSet(BaseModel):
     plan_code: str = Field(..., max_length=50)
     months: int = 1
     is_founder: bool = False
-    notes: Optional[str] = Field(None, max_length=2000)
+    # سبب إلزامي — إجراء إداري بلا سبب مسجَّل غير قابل للمساءلة
+    # (نفس مبدأ إخفاء المشاريع، جولة إدارة المشاريع).
+    notes: str = Field(..., min_length=1, max_length=2000)
 
 
 @app.get("/subscription/plans")
@@ -3935,6 +3963,12 @@ def admin_set_company_subscription(company_id: int, payload: AdminSubscriptionSe
 
         # المصدر الوحيد للباقة هو company_subscriptions أعلاه.
 
+        write_audit_log(db, "admin", ADMIN_USERNAME,
+                        f"subscription_assigned:{company_id}", request,
+                        meta=json.dumps({
+                            "plan_code": plan["code"], "months": payload.months,
+                            "is_founder": is_founder, "reason": payload.notes.strip(),
+                        }, ensure_ascii=False))
         db.commit()
 
     return {

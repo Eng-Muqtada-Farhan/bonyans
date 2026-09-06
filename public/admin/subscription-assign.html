@@ -1,0 +1,149 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>إسناد باقة — بُنيان</title>
+<meta name="robots" content="noindex, nofollow">
+<meta name="theme-color" content="#F4F2ED" media="(prefers-color-scheme: light)">
+<meta name="theme-color" content="#15120E" media="(prefers-color-scheme: dark)">
+<link rel="stylesheet" href="../tokens.css">
+<script>
+  (function(){ var t=localStorage.getItem('bn-theme')||'light';
+    document.documentElement.setAttribute('data-theme',t); })();
+</script>
+<script src="../guard.js" data-require="admin"></script>
+<style>
+.sa-card { max-width:560px; padding:var(--bn-s6); border-radius:var(--bn-r-xl); }
+.sa-search { position:relative; }
+.sa-results { position:absolute; inset-inline:0; inset-block-start:calc(100% + 4px);
+  z-index:10; max-height:220px; overflow-y:auto; border-radius:var(--bn-r-lg);
+  box-shadow:var(--bn-sh-2); background:var(--bn-bg); border:1px solid var(--bn-line); }
+.sa-result { display:block; width:100%; text-align:start; padding:10px var(--bn-s4);
+  border:0; background:0; cursor:pointer; color:var(--bn-ink); font:400 13.5px/1.5 var(--bn-font); }
+.sa-result:hover { background:var(--bn-glass-tint); }
+.sa-picked { display:flex; align-items:center; justify-content:space-between; gap:var(--bn-s3);
+  padding:var(--bn-s3) var(--bn-s4); border-radius:var(--bn-r); background:var(--bn-ac-bg);
+  border:1px solid var(--bn-ac-line); margin-block-start:var(--bn-s2); }
+.sa-picked button { background:0; border:0; color:var(--bn-ink-3); cursor:pointer; min-height:32px; }
+</style>
+</head>
+<body class="bn-body">
+
+<div class="bn-backdrop" aria-hidden="true"></div>
+
+<main class="ad-wrap" id="main">
+  <div class="ad-head">
+    <h1>إسناد باقة</h1>
+    <p>إسناد يدوي — لا تسعير علنيّ اليوم؛ هذه أداة استثناء لا نظام تحصيل.
+       كل إسناد يُسجَّل بسببه في سجلّ التدقيق.</p>
+  </div>
+
+  <div class="sa-card bn-glass">
+    <div class="bn-field sa-search">
+      <label for="saQ">الشركة</label>
+      <div class="bn-input"><input id="saQ" type="search" placeholder="ابحث بالاسم..." autocomplete="off"></div>
+      <div class="sa-results" id="saResults" hidden></div>
+    </div>
+    <div id="saPickedWrap"></div>
+
+    <div class="bn-field">
+      <label for="saPlan">الباقة</label>
+      <div class="bn-input"><select id="saPlan"><option value="">اختر باقة</option></select></div>
+    </div>
+    <div class="bn-field">
+      <label for="saMonths">عدد الأشهر</label>
+      <div class="bn-input"><input id="saMonths" type="number" min="1" max="36" value="1"></div>
+    </div>
+    <div class="bn-field">
+      <label for="saReason">السبب *</label>
+      <div class="bn-input"><textarea id="saReason" maxlength="2000"
+        placeholder="مثال: من الثلاثين شركة الأولى — اتفاق مجّاني لمدّة..."></textarea></div>
+    </div>
+
+    <div class="ad-row-end" style="margin-block-start:var(--bn-s5)">
+      <button class="bn-btn" type="button" id="saSubmit">تأكيد الإسناد</button>
+    </div>
+  </div>
+</main>
+
+<script src="admin-core.js"></script>
+<script src="nav-admin.js"></script>
+<script>
+(function () {
+'use strict';
+const AD = window.AdminCore;
+const $ = (id) => document.getElementById(id);
+const esc = AD.esc;
+
+let COMPANIES = [], PICKED = null;
+
+async function loadCompanies() {
+  try { COMPANIES = await AD.api('/admin/companies'); } catch (e) { COMPANIES = []; }
+}
+async function loadPlans() {
+  try {
+    const plans = await AD.api('/subscription/plans');
+    $('saPlan').innerHTML = '<option value="">اختر باقة</option>' +
+      plans.map(p => '<option value="' + esc(p.code) + '">' + esc(p.name) +
+        ' — ' + (Number(p.monthly_price) || 0) + ' $/شهر</option>').join('');
+  } catch (e) {}
+}
+
+function renderResults(q) {
+  const box = $('saResults');
+  if (!q) { box.hidden = true; box.innerHTML = ''; return; }
+  const list = COMPANIES.filter(c => (c.name || '').toLowerCase().includes(q.toLowerCase())).slice(0, 8);
+  if (!list.length) { box.hidden = true; box.innerHTML = ''; return; }
+  box.hidden = false;
+  box.innerHTML = list.map(c =>
+    '<button class="sa-result" type="button" data-id="' + esc(c.id) + '">' +
+      esc(c.name) + (c.city ? ' — ' + esc(c.city) : '') + '</button>').join('');
+  box.querySelectorAll('[data-id]').forEach(b => {
+    b.onclick = () => pick(Number(b.dataset.id));
+  });
+}
+
+function pick(id) {
+  PICKED = COMPANIES.find(c => c.id === id) || null;
+  $('saQ').value = '';
+  $('saResults').hidden = true;
+  $('saResults').innerHTML = '';
+  $('saPickedWrap').innerHTML = PICKED
+    ? '<div class="sa-picked"><span>' + esc(PICKED.name) + '</span>' +
+        '<button type="button" id="saUnpick">تغيير</button></div>'
+    : '';
+  const un = $('saUnpick');
+  if (un) un.onclick = () => { PICKED = null; $('saPickedWrap').innerHTML = ''; };
+}
+
+$('saQ').oninput = function () { renderResults(this.value.trim()); };
+
+$('saSubmit').onclick = async function () {
+  const btn = this;
+  const planCode = $('saPlan').value;
+  const months   = Number($('saMonths').value) || 1;
+  const reason   = $('saReason').value.trim();
+
+  if (!PICKED)   { AD.toast('اختر شركة أولاً.', 'err'); return; }
+  if (!planCode) { AD.toast('اختر باقة.', 'err'); return; }
+  if (!reason)   { AD.toast('السبب إلزامي.', 'err'); return; }
+
+  AD.runAction(btn, () => AD.api('/admin/company/' + PICKED.id + '/subscription', {
+    method: 'PUT',
+    body: { plan_code: planCode, months: months, notes: reason }
+  }), {
+    loading: 'جارٍ الإسناد...', success: 'أُسندت الباقة',
+    then: () => {
+      PICKED = null; $('saPickedWrap').innerHTML = '';
+      $('saPlan').value = ''; $('saMonths').value = 1; $('saReason').value = '';
+    }
+  });
+};
+
+loadCompanies();
+loadPlans();
+})();
+</script>
+</body>
+</html>

@@ -2376,3 +2376,177 @@ def test_90_non_admin_rejected_on_project_admin_action_routes(client, company_to
         with main.SessionLocal() as db:
             db.execute(text("DELETE FROM projects WHERE id=:i"), {"i": pid})
             db.commit()
+
+
+# ══════════════════════════════════════════════════════════════
+# جولة الاشتراكات — بلا تسعير علنيّ، وبلا قيد على شركة بلا اشتراك
+# ══════════════════════════════════════════════════════════════
+
+def test_91_company_without_subscription_works_fully(client, admin_token, company_token, user_token):
+    """
+    🔴 أهمّ اختبار في الجولة. شركة بلا صفّ في company_subscriptions
+    (PRICING_LIVE=False) يجب أن تعمل بالكامل: تظهر في الدليل العام،
+    تقدّم أكثر من عرض واحد شهرياً (حدّ STARTER القديم كان ١)،
+    وتُراسَل وتُراسِل. لا شيء يمنعها.
+    """
+    with main.SessionLocal() as db:
+        cid = db.execute(text(
+            "SELECT company_id FROM profiles p JOIN users u ON u.id=p.user_id "
+            "WHERE p.role='company' AND lower(u.email)='company@seed.test' "
+            "ORDER BY p.created_at LIMIT 1"
+        )).scalar()
+        uid = db.execute(text("SELECT id FROM users WHERE lower(email)='client@seed.test'")).scalar()
+
+        # لقطة الحالة الحالية — تُستعاد كاملة في finally
+        prev_status = db.execute(text("SELECT status, name FROM companies WHERE id=:c"),
+                                 {"c": cid}).mappings().fetchone()
+        active_subs = db.execute(text(
+            "SELECT id FROM company_subscriptions WHERE company_id=:c AND status='active'"
+        ), {"c": cid}).mappings().fetchall()
+
+        # بلا اشتراك نشط فعلاً — هذا ما يختبره البند
+        db.execute(text("UPDATE company_subscriptions SET status='expired' "
+                        "WHERE company_id=:c AND status='active'"), {"c": cid})
+        db.execute(text("UPDATE companies SET status='approved' WHERE id=:c"), {"c": cid})
+        db.commit()
+
+    pids = []
+    conv_id = None
+    try:
+        with main.SessionLocal() as db:
+            pids = _seed_smoke_projects(db, uid, n=2)
+
+        # ١ · تظهر في الدليل العام
+        r = client.get("/companies", params={"q": prev_status["name"]})
+        assert r.status_code == 200
+        names = [c["name"] for c in r.json()["items"]]
+        assert prev_status["name"] in names, "شركة بلا اشتراك غابت عن الدليل العام"
+
+        # ٢ · أكثر من عرض واحد شهرياً — حدّ STARTER القديم كان ١
+        for pid in pids:
+            r = client.post(f"/projects/{pid}/bid", headers=bearer(company_token),
+                            json={"price": 5000.0})
+            assert r.status_code == 200, \
+                f"عرض رُفض على شركة بلا اشتراك (project {pid}): {r.text}"
+
+        # ٣ · تُراسَل وتُراسِل
+        r = client.post("/conversations", headers=bearer(user_token),
+                        json={"company_id": cid, "message": "SMOKE رسالة أولى"})
+        assert r.status_code == 200, f"صاحب مشروع تعذّر عليه بدء محادثة: {r.text}"
+        d = r.json()
+        conv_id = d.get("id") or d.get("conversation_id")
+        assert conv_id, f"لا رقم محادثة في الاستجابة: {r.text}"
+
+        r = client.post(f"/conversations/{conv_id}/messages", headers=bearer(company_token),
+                        json={"message": "SMOKE ردّ الشركة"})
+        assert r.status_code == 200, f"شركة بلا اشتراك تعذّر عليها الردّ: {r.text}"
+    finally:
+        with main.SessionLocal() as db:
+            for pid in pids:
+                db.execute(text("DELETE FROM project_bids WHERE project_id=:p"), {"p": pid})
+            if conv_id:
+                db.execute(text("DELETE FROM chat_messages WHERE conversation_id=:c"), {"c": conv_id})
+                db.execute(text("DELETE FROM conversations WHERE id=:c"), {"c": conv_id})
+            for pid in pids:
+                db.execute(text("DELETE FROM projects WHERE id=:p"), {"p": pid})
+            db.execute(text("UPDATE companies SET status=:s WHERE id=:c"),
+                      {"s": prev_status["status"], "c": cid})
+            for sub in active_subs:
+                db.execute(text("UPDATE company_subscriptions SET status='active' WHERE id=:i"),
+                          {"i": sub["id"]})
+            db.commit()
+
+
+def test_92_public_homepage_shows_no_price_or_plan(client):
+    """
+    الصفحة العامة لا تعرض أي سعر أو باقة — قرار منتج (لا تسعير قبل
+    مشاريع حقيقية). يفحص index.html نصّياً: القسم مخفيّ فعلياً
+    (hidden)، والعلم PRICING_LIVE=false، والتحميل مشروط به لا يجري
+    بلا شرط.
+    """
+    root = Path(__file__).resolve().parent.parent
+    src = (root / "public" / "index.html").read_text(encoding="utf-8")
+
+    m = re.search(r'<section class="sec" id="secPlans"([^>]*)>', src)
+    assert m, "قسم الباقات غائب من index.html — لا يجوز حذفه، فقط إخفاؤه"
+    assert "hidden" in m.group(1), "قسم الباقات ظاهر — لا يحمل hidden"
+
+    assert re.search(r'const PRICING_LIVE\s*=\s*false\s*;', src), \
+        "PRICING_LIVE يجب أن يكون false — لا تسعير علنيّ اليوم"
+
+    boot_m = re.search(r'\(async function boot\(\)\s*\{.*?\}\)\(\);', src, re.S)
+    assert boot_m, "دالّة boot غائبة"
+    assert "if (PRICING_LIVE)" in boot_m.group(0), \
+        "تحميل الباقات في boot() غير مشروط بـPRICING_LIVE"
+
+
+def test_93_manual_subscription_assignment_writes_audit_log(client, admin_token):
+    """الإسناد اليدوي يكتب في security_audit_log بسببه ومنفّذه."""
+    with main.SessionLocal() as db:
+        cid = db.execute(text(
+            "SELECT company_id FROM profiles p JOIN users u ON u.id=p.user_id "
+            "WHERE p.role='company' AND lower(u.email)='company@seed.test' "
+            "ORDER BY p.created_at LIMIT 1"
+        )).scalar()
+        prev_active = db.execute(text(
+            "SELECT id FROM company_subscriptions WHERE company_id=:c AND status='active'"
+        ), {"c": cid}).mappings().fetchall()
+
+    try:
+        r = client.put(f"/admin/company/{cid}/subscription", headers=bearer(admin_token),
+                       json={"plan_code": "starter", "months": 1,
+                             "notes": "SMOKE سبب إسناد قابل للتتبّع"})
+        assert r.status_code == 200, r.text
+
+        with main.SessionLocal() as db:
+            row = db.execute(text("""
+                SELECT actor_type, actor_id, meta FROM security_audit_log
+                WHERE action = :a ORDER BY created_at DESC LIMIT 1
+            """), {"a": f"subscription_assigned:{cid}"}).mappings().fetchone()
+        assert row, "لا صفّ في security_audit_log لإسناد الباقة"
+        assert row["actor_type"] == "admin"
+        assert row["actor_id"] == main.ADMIN_USERNAME
+        assert "SMOKE سبب إسناد قابل للتتبّع" in (row["meta"] or ""), \
+            "السبب المكتوب غير مسجَّل في meta"
+
+        # السبب إلزامي فعلياً
+        r2 = client.put(f"/admin/company/{cid}/subscription", headers=bearer(admin_token),
+                        json={"plan_code": "starter", "months": 1})
+        assert r2.status_code == 422, "غياب السبب يجب أن يُرفض لا أن يُقبَل"
+    finally:
+        with main.SessionLocal() as db:
+            ids_to_expire = db.execute(text(
+                "SELECT id FROM company_subscriptions WHERE company_id=:c AND status='active'"
+            ), {"c": cid}).mappings().fetchall()
+            keep_ids = {r["id"] for r in prev_active}
+            for row in ids_to_expire:
+                if row["id"] not in keep_ids:
+                    db.execute(text("UPDATE company_subscriptions SET status='expired' WHERE id=:i"),
+                              {"i": row["id"]})
+            for r in prev_active:
+                db.execute(text("UPDATE company_subscriptions SET status='active' WHERE id=:i"),
+                          {"i": r["id"]})
+            db.commit()
+
+
+def test_94_non_admin_rejected_on_subscription_assignment(client, company_token, user_token):
+    """غير المدير يُرفض على مسار الإسناد اليدوي."""
+    with main.SessionLocal() as db:
+        cid = db.execute(text(
+            "SELECT company_id FROM profiles p JOIN users u ON u.id=p.user_id "
+            "WHERE p.role='company' AND lower(u.email)='company@seed.test' "
+            "ORDER BY p.created_at LIMIT 1"
+        )).scalar()
+
+    for tok in (company_token, user_token):
+        r = client.put(f"/admin/company/{cid}/subscription", headers=bearer(tok),
+                       json={"plan_code": "starter", "months": 1, "notes": "x"})
+        assert r.status_code == 403
+
+    client.cookies.clear()
+    try:
+        r = client.put(f"/admin/company/{cid}/subscription", headers={"Authorization": ""},
+                       json={"plan_code": "starter", "months": 1, "notes": "x"})
+        assert r.status_code == 401
+    finally:
+        client.cookies.clear()

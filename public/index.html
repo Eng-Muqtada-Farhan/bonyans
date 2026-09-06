@@ -256,7 +256,11 @@ body { margin:0; background:var(--bn-bg); color:var(--bn-ink);
     <div class="pgrid" id="projectsMini"></div>
   </section>
 
-  <section class="sec">
+  <!-- قسم الأسعار مخفيّ عمداً — قرار منتج: لا تسعير قبل وجود مشاريع
+       حقيقية على المنصّة (مقاول يرى تسعيرة قبل أن يرى قيمة ينصرف).
+       الكود يبقى بلا حذف؛ يعود حين يُحسَم نموذج التسعير. راجع
+       PRICING_LIVE أعلى وسم <script> في هذه الصفحة. -->
+  <section class="sec" id="secPlans" hidden>
     <div class="sec-head"><h2 class="sec-t">باقات الاشتراك</h2></div>
     <div class="plans" id="plansGrid"></div>
   </section>
@@ -295,6 +299,13 @@ body { margin:0; background:var(--bn-bg); color:var(--bn-ink);
 <script>
 (function () {
 'use strict';
+
+/* قرار منتج (جولة الاشتراكات — الأقل لا الأكثر): لا تسعير قبل وجود
+   مشاريع حقيقية. false يخفي قسم الباقات كاملاً (لا يُحذف، لا يُطلَب
+   من الخادم حتى). يُعاد True حين يُحسَم نموذج التسعير — علم مطابق
+   في main.py (PRICING_LIVE) يتحكّم بحدود الباقات على الخادم، منفصل
+   لأن لا رابط شبكي بين الاثنين هنا. */
+const PRICING_LIVE = false;
 
 const API = '';
 let LOAD_ERROR = false;
@@ -510,7 +521,7 @@ Object.assign(window, { syncSearch });
 hideCompanyRegCtas();
 
 (async function boot() {
-  await loadPlans();   /* أولاً — معيار «مميزة» يعتمد على is_featured فيها */
+  if (PRICING_LIVE) { $('secPlans').hidden = false; await loadPlans(); }
   await FILT.init();   /* الوحدة: تقرأ العنوان، تجلب الوجوه، ثم النتيجة */
   loadProjects();
   loadStats();
