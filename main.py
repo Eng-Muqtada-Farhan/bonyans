@@ -4653,6 +4653,54 @@ def system_status(request: Request):
         }
 
 
+def _compute_public_fingerprint() -> str:
+    """
+    بصمة محتوى public/ كلّه — من المحتوى الفعلي لا mtime (وقت
+    التعديل يتغيّر بلا تغيير حقيقي: نسخ الملفّات، checkout جديد).
+    تُستعمَل بدل CACHE_NAME المكتوب يدوياً في service-worker.js —
+    ذاك نُسي تحديثه ثلاث مرّات في جلسة واحدة، وكل نسيان أخفى نشرة
+    كاملة عن متصفّحات عائدة صامتاً (stale-while-revalidate يخدم من
+    الكاش القديم بلا أي إشارة أن شيئاً تغيّر). بصمة مشتقّة من
+    المحتوى تجعل كل نشرة — أي تغيير حقيقي في أي ملفّ — تُنتج قيمة
+    جديدة تلقائياً، بلا انضباط بشري يُنسى.
+    """
+    root = os.path.join(os.path.dirname(os.path.abspath(__file__)), "public")
+    h = hashlib.sha256()
+    for dirpath, dirnames, filenames in os.walk(root):
+        dirnames.sort()
+        for name in sorted(filenames):
+            full = os.path.join(dirpath, name)
+            rel = os.path.relpath(full, root).replace(os.sep, "/")
+            h.update(rel.encode("utf-8"))
+            with open(full, "rb") as f:
+                h.update(f.read())
+    return h.hexdigest()[:12]
+
+
+_PUBLIC_FINGERPRINT = _compute_public_fingerprint()
+
+
+@app.get("/service-worker.js")
+def serve_service_worker():
+    """
+    يسبق تركيب StaticFiles أدناه عمداً — FastAPI يطابق المسارات
+    المُعرَّفة صراحةً قبل mount الجذر، فهذا المسار يُقرَأ لا الملفّ
+    الساكن مباشرة. بلا حارس سطح: سكربت لا مستند، وحارس الأسطح أصلاً
+    لا يعترض إلا بادئات /app /admin /me.
+
+    __CACHE_VERSION__ في الملفّ على القرص علامة نائبة — تُستبدَل هنا
+    ببصمة public/ المحسوبة مرّة واحدة عند الإقلاع (_PUBLIC_FINGERPRINT
+    أعلاه). Cache-Control: no-cache حتى لا يُخزِّن المتصفّح نسخة قديمة
+    من عامل الخدمة نفسه فوق التخزين الذي يديره هو أصلاً.
+    """
+    path = os.path.join(os.path.dirname(os.path.abspath(__file__)), "public", "service-worker.js")
+    with open(path, "r", encoding="utf-8") as f:
+        content = f.read()
+    content = content.replace("__CACHE_VERSION__", _PUBLIC_FINGERPRINT)
+    return Response(content, media_type="application/javascript",
+                    headers={"Cache-Control": "no-cache"})
+
+
 # ── Static files (MUST be last) ──────────────────────────────────────────────
 from fastapi.staticfiles import StaticFiles
 app.mount('/', StaticFiles(directory='public', html=True), name='static')

@@ -27,6 +27,7 @@ def bearer(tok):
 # ١–٣ · الدخول بالأدوار الثلاثة
 # ══════════════════════════════════════════════════════════════
 
+@pytest.mark.needs_db
 def test_01_admin_login(client, admin_token):
     """المدير يدخل ويأخذ رمزاً وكعكة جلسة بعمر ٢٤ ساعة."""
     _wipe_rate_limits()
@@ -40,6 +41,7 @@ def test_01_admin_login(client, admin_token):
     assert f"Max-Age={int(main.ADMIN_TTL.total_seconds())}" in cookie
 
 
+@pytest.mark.needs_db
 def test_02_company_login(client, company_token):
     """حساب الشركة يدخل ويأخذ رمزاً موحّد الشكل بدور company."""
     payload = _jose_jwt.decode(company_token, main.JWT_SECRET, algorithms=[main.ALGORITHM])
@@ -49,6 +51,7 @@ def test_02_company_login(client, company_token):
     assert "company_id" not in payload
 
 
+@pytest.mark.needs_db
 def test_03_user_login(client, user_token):
     """صاحب المشروع يدخل ويأخذ الرمز نفسه بدور user."""
     payload = _jose_jwt.decode(user_token, main.JWT_SECRET, algorithms=[main.ALGORITHM])
@@ -56,6 +59,7 @@ def test_03_user_login(client, user_token):
     assert payload["uid"]
 
 
+@pytest.mark.needs_db
 def test_04_wrong_password_is_401(client):
     """كلمة مرور خاطئة ترجع ٤٠١ لا ٢٠٠ ولا ٥٠٠."""
     _wipe_rate_limits()
@@ -112,6 +116,7 @@ def _visit(client, surface, token):
 
 
 @pytest.mark.parametrize("surface,need", list(SURFACES.items()))
+@pytest.mark.needs_db
 def test_07_09_own_surface_allowed(client, surface, need,
                                    admin_token, company_token, user_token):
     """كل دور يدخل سطحه — ٢٠٠ لا تحويل."""
@@ -136,6 +141,7 @@ def test_10_12_no_session_redirects_to_login(client, surface):
 @pytest.mark.parametrize("surface,need", [("/app/index.html", "company"),
                                           ("/me/index.html", "user"),
                                           ("/admin/index.html", "admin")])
+@pytest.mark.needs_db
 def test_13_15_wrong_role_goes_to_own_home(client, surface, need,
                                            admin_token, company_token, user_token):
     """دور دخل سطحاً ليس له يُعاد إلى سطحه هو، لا إلى الرئيسية."""
@@ -147,6 +153,7 @@ def test_13_15_wrong_role_goes_to_own_home(client, surface, need,
         assert r.headers["location"] == main._ROLE_HOME[role]
 
 
+@pytest.mark.needs_db
 def test_16_guard_does_not_break_admin_api(client, admin_token):
     """
     الحارس يحرس الصفحات لا الواجهات البرمجية.
@@ -161,6 +168,7 @@ def test_16_guard_does_not_break_admin_api(client, admin_token):
 # ١٧–١٨ · القوائم: الفلاتر والترقيم
 # ══════════════════════════════════════════════════════════════
 
+@pytest.mark.needs_db
 def test_17_companies_filters_and_pagination(client):
     """/companies يرقّم ويفلتر، والفلتران يتقاطعان، وtotal يتبع الشرط."""
     r = client.get("/companies", params={"page": 1, "per_page": 3})
@@ -186,6 +194,7 @@ def test_17_companies_filters_and_pagination(client):
     assert not ({c["id"] for c in p1} & {c["id"] for c in p2})
 
 
+@pytest.mark.needs_db
 def test_18_projects_filters_and_defaults(client):
     """/projects يعرض المنشورة افتراضاً، ويفلتر بالمدينة والتخصص."""
     d = client.get("/projects", params={"per_page": 100}).json()
@@ -206,6 +215,7 @@ def test_18_projects_filters_and_defaults(client):
                    for x in one["items"])
 
 
+@pytest.mark.needs_db
 def test_18b_guest_never_sees_project_contact(client, company_token):
     """
     زائر لا يجد حقول التواصل إطلاقاً — لا فارغةً بل غائبة.
@@ -233,6 +243,7 @@ def test_18b_guest_never_sees_project_contact(client, company_token):
         assert f not in company, f"شركة لم يُقبل عرضها ترى {f}"
 
 
+@pytest.mark.needs_db
 def test_18c_owner_and_admin_see_project_contact(client, user_token, admin_token):
     """صاحب المشروع والمدير يريان بيانات التواصل."""
     mine = client.get("/my/projects", headers=bearer(user_token)).json()
@@ -249,6 +260,7 @@ def test_18c_owner_and_admin_see_project_contact(client, user_token, admin_token
 # ١٩ · دورة حياة الشركة: إنشاء · اعتماد · رفض
 # ══════════════════════════════════════════════════════════════
 
+@pytest.mark.needs_db
 def test_19_company_lifecycle(client, admin_token, user_token):
     """إنشاء يتطلّب إدارة، ويبدأ pending، ثم approved ثم rejected."""
     body = {"name": SMOKE_PREFIX + "شركة دخان", "city": "بغداد",
@@ -292,6 +304,7 @@ def test_19_company_lifecycle(client, admin_token, user_token):
 # ٢٠ · حدّ المعدّل — خمس محاولات ثم ٤٢٩
 # ══════════════════════════════════════════════════════════════
 
+@pytest.mark.needs_db
 def test_20_rate_limit_blocks_sixth_login(client):
     """
     خمس محاولات مسموحة ثم ٤٢٩ — ولا يُخلط الحجب بعطل قاعدة البيانات
@@ -326,7 +339,8 @@ def test_21_legacy_token_shape_rejected(client):
         assert client.get("/company/me", headers=bearer(tok)).status_code == 401
 
 
-def test_22_profiles_cover_every_user(client):
+@pytest.mark.needs_db
+def test_22_profiles_cover_every_user(client, db):
     """كل مستخدم نشط له ملفّ دور — لا حساب بلا دور بعد الترحيل."""
     with main.SessionLocal() as db:
         orphans = db.execute(text("""
@@ -337,7 +351,8 @@ def test_22_profiles_cover_every_user(client):
     assert orphans == 0
 
 
-def test_23_profile_shape_constraint(client):
+@pytest.mark.needs_db
+def test_23_profile_shape_constraint(client, db):
     """قيد الشكل يمنع ملفّاً متناقضاً: شركة بلا company_id، أو عميل بشركة."""
     import sqlalchemy.exc
     with main.SessionLocal() as db:
@@ -353,6 +368,7 @@ def test_23_profile_shape_constraint(client):
                 db.rollback()
 
 
+@pytest.mark.needs_db
 def test_24_require_role_separates_401_from_403(client, user_token):
     """
     بلا رمز ٤٠١، وبرمز صالح لدور آخر ٤٠٣.
@@ -363,6 +379,7 @@ def test_24_require_role_separates_401_from_403(client, user_token):
     assert client.get("/company/me", headers=bearer(user_token)).status_code == 403
 
 
+@pytest.mark.needs_db
 def test_25_company_login_reads_profiles(client, company_token):
     """
     دخول الشركة صار من users + profiles لا من company_users.
@@ -380,7 +397,8 @@ def test_25_company_login_reads_profiles(client, company_token):
     assert cid == ident.cid
 
 
-def test_26_deactivated_user_token_stops_working(client):
+@pytest.mark.needs_db
+def test_26_deactivated_user_token_stops_working(client, db):
     """
     تعطيل الحساب يُبطل رمزه فوراً — الصلاحية تُقرأ من قاعدة
     البيانات عند كل طلب لا من داخل الرمز.
@@ -442,6 +460,7 @@ def _wipe_mail_limits():
         db.commit()
 
 
+@pytest.mark.needs_db
 def test_27_forgot_password_reply_never_varies(client):
     """الردّ نفسه سواء وُجد البريد أم لا — اختلافه يكشف المسجَّلين."""
     _wipe_mail_limits()
@@ -453,7 +472,8 @@ def test_27_forgot_password_reply_never_varies(client):
     _wipe_mail_limits()
 
 
-def test_28_forgot_password_rate_limited_same_reply(client):
+@pytest.mark.needs_db
+def test_28_forgot_password_rate_limited_same_reply(client, db):
     """الحدّ يُطبَّق، والردّ لا يتغيّر حتى عند الحجب."""
     _wipe_mail_limits()
     replies = [client.post("/auth/forgot-password", json={"email": SEED_EMAIL})
@@ -467,7 +487,8 @@ def test_28_forgot_password_rate_limited_same_reply(client):
     _wipe_mail_limits()
 
 
-def test_29_reset_token_single_use_and_hashed(client):
+@pytest.mark.needs_db
+def test_29_reset_token_single_use_and_hashed(client, db):
     """الرمز يُستعمل مرة واحدة ولا يُخزَّن نصّاً."""
     _wipe_mail_limits()
     raw, uid = _mk_reset(SEED_EMAIL)
@@ -487,6 +508,7 @@ def test_29_reset_token_single_use_and_hashed(client):
     _wipe_mail_limits()
 
 
+@pytest.mark.needs_db
 def test_30_expired_reset_token_rejected(client):
     """رمز منتهٍ يُرفض."""
     _wipe_mail_limits()
@@ -496,6 +518,7 @@ def test_30_expired_reset_token_rejected(client):
     _wipe_mail_limits()
 
 
+@pytest.mark.needs_db
 def test_31_reset_rejects_short_password(client):
     """كلمة قصيرة تُرفض ولا تستهلك الرمز."""
     _wipe_mail_limits()
@@ -507,6 +530,7 @@ def test_31_reset_rejects_short_password(client):
     _wipe_mail_limits()
 
 
+@pytest.mark.needs_db
 def test_32_change_password_requires_current(client, user_token):
     """رمز جلسة مسروق وحده لا يكفي لتغيير كلمة المرور."""
     bad = client.post("/auth/change-password", headers=bearer(user_token),
@@ -518,6 +542,7 @@ def test_32_change_password_requires_current(client, user_token):
     assert ok.status_code == 200, ok.text
 
 
+@pytest.mark.needs_db
 def test_33_change_email_needs_password_and_defers(client, user_token):
     """يتطلّب كلمة المرور، ولا يغيّر البريد قبل التأكيد."""
     _wipe_mail_limits()
@@ -545,7 +570,8 @@ def test_33_change_email_needs_password_and_defers(client, user_token):
     _wipe_mail_limits()
 
 
-def test_34_verify_and_change_tokens_do_not_cross(client):
+@pytest.mark.needs_db
+def test_34_verify_and_change_tokens_do_not_cross(client, db):
     """الغرض شرط قبول لا وسم: رمز تفعيل لا يؤكّد تغيير بريد."""
     raw = _sec.token_urlsafe(32)
     with main.SessionLocal() as db:
@@ -612,7 +638,8 @@ def _login(client, email, password="TempPass!2026"):
 
 # ── الموافقة القانونية ──────────────────────────────────────────
 
-def test_35_register_requires_terms(client):
+@pytest.mark.needs_db
+def test_35_register_requires_terms(client, db):
     """لا تسجيل بلا موافقة — الحارس على الخادم لا على المربّع."""
     email = "terms-test@nowhere.test"
     with main.SessionLocal() as db:
@@ -627,7 +654,8 @@ def test_35_register_requires_terms(client):
     assert n == 0, "أُنشئ حساب بلا موافقة"
 
 
-def test_36_register_records_consent(client):
+@pytest.mark.needs_db
+def test_36_register_records_consent(client, db):
     """الموافقة تُخزَّن بوقتها وبنسخة الوثيقة."""
     email = "terms-ok@nowhere.test"
     with main.SessionLocal() as db:
@@ -660,7 +688,8 @@ def test_37_legal_pages_public(client):
 
 # ── حذف الحساب ──────────────────────────────────────────────────
 
-def test_38_delete_requires_password(client):
+@pytest.mark.needs_db
+def test_38_delete_requires_password(client, db):
     """كلمة مرور خاطئة لا تحذف شيئاً."""
     uid = _mk_user("del-pw@nowhere.test")
     try:
@@ -676,7 +705,8 @@ def test_38_delete_requires_password(client):
         _drop_user(uid)
 
 
-def test_39_delete_requires_typed_confirmation(client):
+@pytest.mark.needs_db
+def test_39_delete_requires_typed_confirmation(client, db):
     """العبارة المكتوبة شرط — نقرة وحدها لا تمحو حساباً."""
     uid = _mk_user("del-confirm@nowhere.test")
     try:
@@ -693,7 +723,8 @@ def test_39_delete_requires_typed_confirmation(client):
         _drop_user(uid)
 
 
-def test_40_delete_anonymizes_and_locks_out(client):
+@pytest.mark.needs_db
+def test_40_delete_anonymizes_and_locks_out(client, db):
     """
     الحذف يُفقد الحساب هويته ونفاذه فوراً، ويسجّل موعد المحو.
     """
@@ -728,7 +759,8 @@ def test_40_delete_anonymizes_and_locks_out(client):
         _drop_user(uid)
 
 
-def test_41_delete_keeps_reviews_anonymized(client):
+@pytest.mark.needs_db
+def test_41_delete_keeps_reviews_anonymized(client, db):
     """
     التقييمات تُجهَّل ولا تُحذف — حذفها يشوّه سمعة قُدِّرت بها
     شركة (LEGAL-DRAFT §٦).
@@ -761,7 +793,8 @@ def test_41_delete_keeps_reviews_anonymized(client):
         _drop_user(uid)
 
 
-def test_42_delete_anonymizes_projects_not_bids(client):
+@pytest.mark.needs_db
+def test_42_delete_anonymizes_projects_not_bids(client, db):
     """
     مشروع صاحب الحساب يُجهَّل ولا يُحذف: عروض الشركات عليه جزء
     من سجلّها هي، ومحوه يمحو تاريخاً ليس ملكاً للمنسحب وحده.
@@ -806,7 +839,8 @@ def test_42_delete_anonymizes_projects_not_bids(client):
         _drop_user(uid)
 
 
-def test_43_purge_only_after_grace(client):
+@pytest.mark.needs_db
+def test_43_purge_only_after_grace(client, db):
     """المحو النهائي لا يقع قبل انقضاء الثلاثين يوماً."""
     uid = _mk_user("del-grace@nowhere.test")
     try:
@@ -833,6 +867,7 @@ def test_43_purge_only_after_grace(client):
 
 # ── الإبلاغ والحجب ──────────────────────────────────────────────
 
+@pytest.mark.needs_db
 def test_44_report_requires_auth_and_valid_input(client, user_token):
     """بلاغ بلا حساب مرفوض، وبنوع أو سبب مجهول مرفوض."""
     assert client.post("/report", json={
@@ -843,6 +878,7 @@ def test_44_report_requires_auth_and_valid_input(client, user_token):
         "target_type": "company", "target_id": 1, "reason": "because"}).status_code == 400
 
 
+@pytest.mark.needs_db
 def test_45_report_is_recorded_once_and_visible_to_admin(client, user_token, admin_token):
     """البلاغ يُسجَّل، ويتكرّر بلا ضجيج، ويظهر للإدارة بعمره."""
     with main.SessionLocal() as db:
@@ -882,6 +918,7 @@ def test_45_report_is_recorded_once_and_visible_to_admin(client, user_token, adm
     assert st == "actioned"
 
 
+@pytest.mark.needs_db
 def test_46_block_prevents_messaging_both_ways(client, user_token):
     """الحجب يمنع المراسلة، ورفعه يعيدها."""
     with main.SessionLocal() as db:
@@ -921,6 +958,7 @@ def test_46_block_prevents_messaging_both_ways(client, user_token):
 # الجولة أ — ثغرات حيّة وعزل الأسطح
 # ══════════════════════════════════════════════════════════════
 
+@pytest.mark.needs_db
 def test_47_website_map_link_reject_javascript_scheme(client, admin_token, company_token):
     """
     website وmap_link يُرفضان إن لم يبدآ بـhttp:// أو https:// —
@@ -965,6 +1003,7 @@ def test_47_website_map_link_reject_javascript_scheme(client, admin_token, compa
               json={"website": before.get("website") or ""})
 
 
+@pytest.mark.needs_db
 def test_48_free_text_fields_have_max_length(client, admin_token):
     """
     حقل نصّي حرّ بلا حدّ أقصى يعني صفّاً بحجم ميغابايت — كل نموذج
@@ -981,6 +1020,7 @@ def test_48_free_text_fields_have_max_length(client, admin_token):
     assert r2.status_code == 422, "هاتف أطول من الحدّ الأقصى قُبل"
 
 
+@pytest.mark.needs_db
 def test_49_page_upper_bound_prevents_offset_overflow(client):
     """
     page بلا حدّ أعلى كان يُنتج OFFSET يتجاوز bigint فيُسقط الطلب
@@ -995,6 +1035,7 @@ def test_49_page_upper_bound_prevents_offset_overflow(client):
     assert r2.json()["items"] == []
 
 
+@pytest.mark.needs_db
 def test_50_wa_stats_requires_matching_company_or_admin(client, admin_token, company_token):
     """
     wa-stats كانت تتحقّق فقط من وجود ترويسة Authorization — أي طلب
@@ -1028,6 +1069,7 @@ def test_50_wa_stats_requires_matching_company_or_admin(client, admin_token, com
     assert admin_view.status_code == 200, "المدير رُفض عن إحصاءات شركة"
 
 
+@pytest.mark.needs_db
 def test_51_500_responses_do_not_leak_exception_text(client, company_token, monkeypatch):
     """
     main.py:434 و1181 و2846 كانت تُعيد str(e) الخام في جسم استجابة
@@ -1074,6 +1116,7 @@ def test_52_health_endpoint_does_not_leak_exception_text(client, monkeypatch):
     assert secret not in r.text
 
 
+@pytest.mark.needs_db
 def test_53_report_rejects_nonexistent_target(client, user_token):
     """POST /report كان يقبل ويخزّن target_id وهمياً بلا تحقّق."""
     fake_id = 999999999
@@ -1087,6 +1130,7 @@ def test_53_report_rejects_nonexistent_target(client, user_token):
     assert n == 0, "خُزِّن بلاغ عن هدف وهمي رغم الرفض"
 
 
+@pytest.mark.needs_db
 def test_54_purge_old_audit_logs_respects_retention(client, admin_token):
     """صفوف security_audit_log الأقدم من ١٢ شهراً تُحذف، والأحدث تبقى."""
     with main.SessionLocal() as db:
@@ -1118,7 +1162,8 @@ def test_54_purge_old_audit_logs_respects_retention(client, admin_token):
             db.commit()
 
 
-def test_55_run_purge_job_logs_and_locks(client):
+@pytest.mark.needs_db
+def test_55_run_purge_job_logs_and_locks(client, db):
     """
     run_purge_job يسجّل في job_runs، ولا يُنفَّذ مرتين إن كان قفله
     الاستشاري مأخوذاً من عملية أخرى — يُثبت بإمساك القفل يدوياً في
@@ -1159,7 +1204,8 @@ def test_55_run_purge_job_logs_and_locks(client):
     assert names_ok == {"purge_deleted_accounts", "purge_old_audit_logs"}, rows
 
 
-def test_56_owner_and_client_fk_are_set_null(client):
+@pytest.mark.needs_db
+def test_56_owner_and_client_fk_are_set_null(client, db):
     """
     توثيق الانحراف (ترحيل c9d0e1f2a3b4): كلا القيدين ON DELETE
     SET NULL الآن، لا CASCADE ولا NO ACTION.
@@ -1175,6 +1221,7 @@ def test_56_owner_and_client_fk_are_set_null(client):
     assert by_name.get("conversations_client_user_id_fkey") == "n", by_name
 
 
+@pytest.mark.needs_db
 def test_57_purge_after_grace_preserves_other_party_messages(client, admin_token):
     """
     أهمّ اختبار في الجولة. صاحب مشروع يُحذف حسابه نهائياً بعد
@@ -1341,6 +1388,7 @@ def test_60_sitemap_and_robots_use_current_domain(client):
     assert "bonyans.com" in robots
 
 
+@pytest.mark.needs_db
 def test_61_rejected_company_session_is_invalidated_immediately(client, admin_token):
     """
     زرّ «رفض» الإداري كان لا يقطع وصول شركة جلستها قائمة بالفعل —
@@ -1390,6 +1438,7 @@ def test_61_rejected_company_session_is_invalidated_immediately(client, admin_to
             db.commit()
 
 
+@pytest.mark.needs_db
 def test_62_messages_are_paginated_newest_first(client, user_token):
     """
     /conversations/{id}/messages كانت تعيد تاريخ المحادثة كاملاً
@@ -1446,6 +1495,7 @@ def test_62_messages_are_paginated_newest_first(client, user_token):
             db.commit()
 
 
+@pytest.mark.needs_db
 def test_63_report_target_existence_still_enforced(client, user_token):
     """
     فحص مساعد بعد إعادة صياغة submit_report في هذه الجولة — يبقى
@@ -1457,6 +1507,7 @@ def test_63_report_target_existence_still_enforced(client, user_token):
     assert r.status_code == 404
 
 
+@pytest.mark.needs_db
 def test_64_admin_users_truncation_is_reported_not_silent(client, admin_token):
     """
     /admin/users كانت تُرجع مصفوفة مبتورة بصمت عند ٢٠٠. الشكل
@@ -1529,6 +1580,7 @@ def test_66_maskable_icon_content_stays_inside_safe_zone(client):
 # الجولة د — النشر
 # ══════════════════════════════════════════════════════════════
 
+@pytest.mark.needs_db
 def test_67_prelaunch_lock_blocks_everything_except_health(client, monkeypatch):
     """
     قفل ما قبل الإطلاق (main.py: prelaunch_lock) — الموقع يجب ألّا
@@ -1568,6 +1620,7 @@ def test_68_prelaunch_lock_fails_closed_without_credentials_configured(client, m
     assert r.status_code == 503, "بلا بيانات اعتماد يجب أن يُمنع الوصول لا أن يُسمح به"
 
 
+@pytest.mark.needs_db
 def test_69_internal_purge_trigger_requires_token(client, monkeypatch):
     """
     /internal/run-purge-job — مُشغِّل احتياطي خارجي (مُجدوِل خارج
@@ -1692,7 +1745,8 @@ def test_73_register_form_offers_all_18_governorates_on_empty_db(client):
         "index.html ما زال يحمل بقايا نافذة التسجيل المنبثقة"
 
 
-def test_74_company_registration_creates_verify_row(client):
+@pytest.mark.needs_db
+def test_74_company_registration_creates_verify_row(client, db):
     """
     الوعد: تسجيل شركة يُصدر تفعيلاً بلهجة 'company' — لا يكتفي بصفّ
     /auth/register (الذي يُصدر بلهجة 'user' منذ قبل هذه الجولة أصلاً،
@@ -1749,7 +1803,8 @@ def test_74_company_registration_creates_verify_row(client):
         db.commit()
 
 
-def test_75_unverified_email_blocks_project_and_bid_not_login(client):
+@pytest.mark.needs_db
+def test_75_unverified_email_blocks_project_and_bid_not_login(client, db):
     """
     غير المُفعَّل يُرفض عند طرح مشروع وعند تقديم عرض (403) — لا عند
     الدخول نفسه. يسجّل مستخدماً جديداً (غير مُفعَّل افتراضاً)، يحاول
@@ -1801,6 +1856,7 @@ def test_75_unverified_email_blocks_project_and_bid_not_login(client):
         db.commit()
 
 
+@pytest.mark.needs_db
 def test_76_verify_code_locks_after_5_wrong_attempts(client, user_token):
     """
     ٥ محاولات خاطئة تُبطل الرمز (لا الرابط) — عبر جدول rate_limits
@@ -1861,7 +1917,8 @@ def test_76_verify_code_locks_after_5_wrong_attempts(client, user_token):
 # جولة الملاحظات ٢ — register.html وتفعيل بالرمز مع دخول تلقائي
 # ══════════════════════════════════════════════════════════════
 
-def test_77_registration_creates_verify_row_for_both_roles(client):
+@pytest.mark.needs_db
+def test_77_registration_creates_verify_row_for_both_roles(client, db):
     """
     "التسجيل بالنوعين ينشئ صفّ تفعيل في email_tokens" — test_74
     يثبت إعادة الإصدار بلهجة 'company' عند company/create، وهذا
@@ -1892,7 +1949,8 @@ def test_77_registration_creates_verify_row_for_both_roles(client):
         db.commit()
 
 
-def test_78_correct_code_returns_session_cookie_with_right_role(client):
+@pytest.mark.needs_db
+def test_78_correct_code_returns_session_cookie_with_right_role(client, db):
     """
     "الرمز الصحيح يعيد كعكة جلسة صالحة، والدور فيها صحيح" — يسجّل
     شركة كاملة (auth/register ثم company/create)، يُصدر رمزاً
@@ -1963,6 +2021,7 @@ def test_78_correct_code_returns_session_cookie_with_right_role(client):
             db.commit()
 
 
+@pytest.mark.needs_db
 def test_79_email_link_verifies_but_creates_no_session(client, user_token):
     """
     🔴 أهمّ اختبار في الجولة — الحدّ الأمني الذي يفصل رابط البريد
@@ -2005,6 +2064,7 @@ def test_79_email_link_verifies_but_creates_no_session(client, user_token):
             db.commit()
 
 
+@pytest.mark.needs_db
 def test_81_malformed_admin_password_hash_fails_closed(client, monkeypatch):
     """
     عطب حيّ ثانٍ لوحظ أثناء تشخيص دخول المدير: ADMIN_PASSWORD_HASH
@@ -2027,6 +2087,7 @@ def test_81_malformed_admin_password_hash_fails_closed(client, monkeypatch):
 # توحيد المصادقة — الكعكة تُقبَل حين تغيب الترويسة + Reply-To
 # ══════════════════════════════════════════════════════════════
 
+@pytest.mark.needs_db
 def test_82_api_call_authenticates_from_cookie_alone(client, admin_token):
     """
     عطب دخول المدير الحقيقي: صفحة دخول قد تكتب الكعكة (يضعها الخادم
@@ -2147,6 +2208,7 @@ def test_85_no_get_route_writes_to_database(client):
     )
 
 
+@pytest.mark.needs_db
 def test_86_read_receipt_moved_off_get_to_dedicated_post(client, company_token, user_token):
     """
     كانت GET /conversations/{id}/messages تُعلّم الرسائل مقروءة —
@@ -2218,6 +2280,7 @@ def _seed_smoke_projects(db, owner_uid, n=3, status="published"):
     return ids
 
 
+@pytest.mark.needs_db
 def test_87_admin_projects_paginates_on_server(client, admin_token):
     """
     كانت /admin/projects بلا LIMIT — كل الصفوف في استجابة واحدة.
@@ -2244,6 +2307,7 @@ def test_87_admin_projects_paginates_on_server(client, admin_token):
             db.commit()
 
 
+@pytest.mark.needs_db
 def test_88_admin_hidden_project_cannot_be_reverted_outside_unhide(client, admin_token, company_token):
     """
     🔴 أهمّ اختبار في الجولة. admin_hidden منفصلة عمداً عن closed:
@@ -2314,6 +2378,7 @@ def test_88_admin_hidden_project_cannot_be_reverted_outside_unhide(client, admin
             db.commit()
 
 
+@pytest.mark.needs_db
 def test_89_project_admin_actions_write_audit_log_with_reason(client, admin_token):
     """لا إجراء بلا سبب مكتوب يُسجَّل في security_audit_log."""
     with main.SessionLocal() as db:
@@ -2346,6 +2411,7 @@ def test_89_project_admin_actions_write_audit_log_with_reason(client, admin_toke
             db.commit()
 
 
+@pytest.mark.needs_db
 def test_90_non_admin_rejected_on_project_admin_action_routes(client, company_token, user_token):
     """غير المدير يُرفض على كل مسارات إجراءات المشاريع الإدارية."""
     with main.SessionLocal() as db:
@@ -2382,6 +2448,7 @@ def test_90_non_admin_rejected_on_project_admin_action_routes(client, company_to
 # جولة الاشتراكات — بلا تسعير علنيّ، وبلا قيد على شركة بلا اشتراك
 # ══════════════════════════════════════════════════════════════
 
+@pytest.mark.needs_db
 def test_91_company_without_subscription_works_fully(client, admin_token, company_token, user_token):
     """
     🔴 أهمّ اختبار في الجولة. شركة بلا صفّ في company_subscriptions
@@ -2480,6 +2547,7 @@ def test_92_public_homepage_shows_no_price_or_plan(client):
         "تحميل الباقات في boot() غير مشروط بـPRICING_LIVE"
 
 
+@pytest.mark.needs_db
 def test_93_manual_subscription_assignment_writes_audit_log(client, admin_token):
     """الإسناد اليدوي يكتب في security_audit_log بسببه ومنفّذه."""
     with main.SessionLocal() as db:
@@ -2529,6 +2597,7 @@ def test_93_manual_subscription_assignment_writes_audit_log(client, admin_token)
             db.commit()
 
 
+@pytest.mark.needs_db
 def test_94_non_admin_rejected_on_subscription_assignment(client, company_token, user_token):
     """غير المدير يُرفض على مسار الإسناد اليدوي."""
     with main.SessionLocal() as db:
@@ -2550,3 +2619,95 @@ def test_94_non_admin_rejected_on_subscription_assignment(client, company_token,
         assert r.status_code == 401
     finally:
         client.cookies.clear()
+
+
+# ══════════════════════════════════════════════════════════════
+# جولة التثبيت — PWA فقط، لا Capacitor
+# ══════════════════════════════════════════════════════════════
+
+def test_95_manifest_has_all_required_install_fields(client):
+    """
+    manifest.json يحمل كل الحقول الإلزامية للتثبيت الفعلي: name،
+    short_name، start_url، display=standalone، scope، theme_color،
+    background_color، وأيقونتَي ١٩٢/٥١٢ بـpurpose=maskable على
+    الأقل واحدة منهما — وملفّات الأيقونات موجودة فعلاً على القرص
+    لا في manifest.json وحده.
+    """
+    import json as _json
+
+    root = Path(__file__).resolve().parent.parent
+    manifest_path = root / "public" / "manifest.json"
+    assert manifest_path.exists(), "manifest.json غائب"
+    m = _json.loads(manifest_path.read_text(encoding="utf-8"))
+
+    for field in ("name", "short_name", "start_url", "display", "scope",
+                  "theme_color", "background_color", "icons"):
+        assert field in m and m[field], f"manifest.json ينقصه {field}"
+    assert m["display"] == "standalone", "display يجب أن يكون standalone للتثبيت"
+
+    sizes_present = {ic.get("sizes") for ic in m["icons"]}
+    assert "192x192" in sizes_present and "512x512" in sizes_present, \
+        "تحتاج أيقونتَي ١٩٢ و٥١٢ على الأقل"
+    maskable = [ic for ic in m["icons"] if ic.get("purpose") == "maskable"]
+    assert maskable, "لا أيقونة واحدة بـ purpose=maskable — التثبيت على أندرويد يحتاجها"
+
+    for ic in m["icons"]:
+        icon_path = root / "public" / ic["src"]
+        assert icon_path.exists(), f"أيقونة مذكورة في manifest.json لكن غائبة من القرص: {ic['src']}"
+
+
+def test_96_install_button_wired_through_beforeinstallprompt(client):
+    """
+    زرّ التثبيت في nav-public.js: يلتقط beforeinstallprompt ويؤجّله
+    (preventDefault)، ولا يظهر إلا بعد التقاطه فعلاً (لا تخميناً أن
+    المتصفّح يدعم التثبيت)، ويختفي في وضع standalone كلياً. فحص
+    نصّي لمنطق الإظهار/الإخفاء — السلوك الحيّ في المتصفّح في
+    test_service_worker.py.
+    """
+    root = Path(__file__).resolve().parent.parent
+    src = (root / "public" / "nav-public.js").read_text(encoding="utf-8")
+
+    assert "beforeinstallprompt" in src
+    assert re.search(r"e\.preventDefault\(\)", src), \
+        "لا يؤجّل beforeinstallprompt — سيظهر شريط Chrome التلقائي بدل زرّنا"
+    assert "display-mode: standalone" in src or "display-mode:standalone" in src, \
+        "لا يفحص وضع standalone — قد يظهر الزرّ لمن ثبّت التطبيق أصلاً"
+    assert "isIOS" in src, "لا يميّز iOS — سفاري لا يُطلق beforeinstallprompt إطلاقاً"
+
+
+def test_99_service_worker_cache_name_derived_not_manual(client):
+    """
+    CACHE_NAME في service-worker.js عُرِف يدوي نُسي تحديثه ثلاث مرّات
+    في جلسة واحدة — كل نسيان أخفى نشرة كاملة عن متصفّحات عائدة
+    صامتاً. الآن يُشتقّ من بصمة محتوى public/ كلّه لا يُكتب يدوياً.
+
+    ثلاثة أشياء منفصلة: (أ) GET /service-worker.js الفعلي لا يحمل
+    العلامة النائبة __CACHE_VERSION__ — لو ظهرت لعنى أن المسار
+    الصريح في main.py لم يسبق StaticFiles فعلاً، والتقط الملف
+    الساكن الخام بدلاً منه. (ب) CACHE_NAME في الاستجابة قيمة حقيقية
+    غير فارغة. (ج) دالّة الحساب نفسها حسّاسة لأي تغيير حقيقي تحت
+    public/ — لا محتوى ثابت مخبَّأ لا يتحرّك.
+    """
+    r = client.get("/service-worker.js")
+    assert r.status_code == 200, r.text
+    body = r.text
+
+    assert "__CACHE_VERSION__" not in body, \
+        "العلامة النائبة وصلت خاماً — المسار الصريح لم يسبق StaticFiles فعلياً"
+
+    m = re.search(r"const CACHE_NAME\s*=\s*'([^']+)'", body)
+    assert m, "CACHE_NAME غائب عن استجابة GET /service-worker.js"
+    assert m.group(1).strip(), "CACHE_NAME قيمة فارغة"
+    assert m.group(1) != "__CACHE_VERSION__"
+
+    # دالّة الحساب حسّاسة لأي تغيير تحت public/ — بلا إعادة إقلاع خادم
+    before = main._compute_public_fingerprint()
+    root = Path(__file__).resolve().parent.parent / "public"
+    tmp = root / ".fingerprint_smoke_test.tmp"
+    try:
+        tmp.write_text("smoke", encoding="utf-8")
+        after = main._compute_public_fingerprint()
+        assert after != before, \
+            "البصمة لم تتغيّر بعد إضافة ملفّ تحت public/ — الدالّة لا تعتمد المحتوى الفعلي"
+    finally:
+        tmp.unlink(missing_ok=True)

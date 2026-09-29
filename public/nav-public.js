@@ -31,7 +31,8 @@
     user:     '<circle cx="12" cy="8" r="3.5"/><path d="M4.5 20a7.5 7.5 0 0 1 15 0"/>',
     sun:      '<circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M2 12h2M20 12h2M4.9 4.9l1.4 1.4M17.7 17.7l1.4 1.4M19.1 4.9l-1.4 1.4M6.3 17.7l-1.4 1.4"/>',
     moon:     '<path d="M20 13.5A8.5 8.5 0 1 1 10.5 4a6.7 6.7 0 0 0 9.5 9.5z"/>',
-    logout:   '<path d="M9 21H5.5A1.5 1.5 0 0 1 4 19.5v-15A1.5 1.5 0 0 1 5.5 3H9"/><path d="M16 16l4-4-4-4M20 12H9"/>'
+    logout:   '<path d="M9 21H5.5A1.5 1.5 0 0 1 4 19.5v-15A1.5 1.5 0 0 1 5.5 3H9"/><path d="M16 16l4-4-4-4M20 12H9"/>',
+    install:  '<path d="M12 3v12M7 10l5 5 5-5"/><path d="M4 19.5h16"/>'
   };
   function svg(d, s) {
     return '<svg viewBox="0 0 24 24" width="' + (s || 17) + '" height="' + (s || 17) +
@@ -55,6 +56,36 @@
       return { role: 'client', name: localStorage.getItem('project_user_name') || 'حسابي' };
     }
     return { role: 'guest', name: '' };
+  }
+
+  /* ── التثبيت (PWA) ─────────────────────────────────────────────
+     iOS لا يُطلق beforeinstallprompt إطلاقاً (سفاري لا يدعم التثبيت
+     البرمجي) — الزرّ هناك يقود إلى تعليمات install.html بدل تنفيذ
+     شيء لا يعمل. غير iOS: يظهر الزرّ فقط بعد التقاط الحدث فعلاً،
+     لا قبله بتخمين أن المتصفّح يدعم التثبيت. مثبَّت أصلاً (standalone)
+     ← الزرّ لا يظهر أبداً في الحالتين. */
+  var isStandalone = matchMedia('(display-mode: standalone)').matches ||
+    window.navigator.standalone === true;
+  var isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent) && !window.MSStream;
+  var deferredPrompt = null;
+
+  function paintInstallBtn() {
+    document.querySelectorAll('[data-bnv-install]').forEach(function (b) {
+      b.hidden = isStandalone || !(isIOS || deferredPrompt);
+    });
+  }
+
+  if (!isStandalone) {
+    window.addEventListener('beforeinstallprompt', function (e) {
+      e.preventDefault();
+      deferredPrompt = e;
+      paintInstallBtn();
+    });
+    window.addEventListener('appinstalled', function () {
+      deferredPrompt = null;
+      isStandalone = true;
+      paintInstallBtn();
+    });
   }
 
   /* ── الأنماط ───────────────────────────────────────────────── */
@@ -136,6 +167,8 @@
         '<a class="bnv-logo" href="/index.html">بُ<b>نيان</b></a>' +
         '<div class="bnv-links">' + links + '</div>' +
         '<div class="bnv-right">' +
+          '<button class="bnv-icon" type="button" data-bnv-install hidden aria-label="تثبيت التطبيق">' +
+            svg(I.install, 17) + '</button>' +
           '<button class="bnv-icon" type="button" data-bnv-theme aria-label="تبديل السمة"></button>' +
           right +
         '</div>' +
@@ -176,6 +209,15 @@
   }
 
   function wire(root) {
+    var inst = root.querySelector('[data-bnv-install]');
+    if (inst) inst.addEventListener('click', function () {
+      if (isIOS) { location.href = '/install.html'; return; }
+      if (!deferredPrompt) return;
+      var p = deferredPrompt;
+      deferredPrompt = null;
+      paintInstallBtn();
+      p.prompt();
+    });
     var t = root.querySelector('[data-bnv-theme]');
     if (t) t.addEventListener('click', function () {
       var next = document.documentElement.getAttribute('data-theme') === 'dark' ? 'light' : 'dark';
@@ -212,6 +254,7 @@
     // شريط علوي ثابت — احجز ارتفاعه (DESIGN.md §٦)
     if (!document.body.style.paddingTop) document.body.style.paddingTop = '60px';
     paintTheme();
+    paintInstallBtn();
     wire(host);
   }
 

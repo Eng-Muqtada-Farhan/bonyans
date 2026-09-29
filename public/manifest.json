@@ -3,6 +3,7 @@
   "short_name": "بُنيان",
   "description": "منصة المقاولات الذكية في العراق — دليل شركات البناء والمقاولات",
   "start_url": "/index.html",
+  "scope": "/",
   "display": "standalone",
   "background_color": "#07090f",
   "theme_color": "#c8a96e",

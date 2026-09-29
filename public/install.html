@@ -1,0 +1,159 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>تثبيت التطبيق — بُنيان</title>
+<meta name="description" content="ثبّت بُنيان على جهازك في عشر ثوانٍ — بلا متجر تطبيقات.">
+<link rel="manifest" href="manifest.json">
+<meta name="theme-color" content="#F4F2ED" media="(prefers-color-scheme: light)">
+<meta name="theme-color" content="#15120E" media="(prefers-color-scheme: dark)">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<link rel="apple-touch-icon" href="icons/icon-192.png">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" data-bn-font
+      href="https://fonts.googleapis.com/css2?family=Tajawal:wght@300;400;500;700&display=swap">
+<link rel="stylesheet" href="tokens.css">
+<script>
+  (function(){ var t=localStorage.getItem('bn-theme')||'light';
+    document.documentElement.setAttribute('data-theme',t); })();
+</script>
+<style>
+/* تعمل بلا جافاسكربت بالكامل — الأقسام الثلاثة ظاهرة دوماً في
+   HTML الساكن (§ لا اعتماد على كشف المنصّة وحده). JS يضيف شارة
+   "هذا جهازك" فقط تحسيناً، لا شرطاً لقراءة أي قسم. */
+body { margin:0; background:var(--bn-bg); color:var(--bn-ink);
+  font:var(--bn-t-body); font-family:var(--bn-font); -webkit-font-smoothing:antialiased; }
+.wrap { max-width:640px; margin-inline:auto; padding:var(--bn-s8) var(--bn-s5) var(--bn-s14); }
+.head { text-align:center; margin-block-end:var(--bn-s8); }
+.head .logo { font:700 22px/1 var(--bn-font); margin-block-end:var(--bn-s5); }
+.head .logo b { color:var(--bn-ac); }
+.head h1 { font:var(--bn-t-h1); margin:0 0 var(--bn-s3); }
+.head p { font:var(--bn-t-sm); color:var(--bn-ink-2); line-height:1.8; margin:0; max-width:44ch; margin-inline:auto; }
+
+.plat { padding:var(--bn-s6); border-radius:var(--bn-r-xl); margin-block-end:var(--bn-s5); }
+.plat-h { display:flex; align-items:center; gap:var(--bn-s3); margin-block-end:var(--bn-s5); }
+.plat-ic { width:40px; height:40px; border-radius:var(--bn-r); flex:none;
+  display:grid; place-items:center; background:var(--bn-ac-bg); color:var(--bn-ac); }
+.plat-ic svg { width:21px; height:21px; stroke:currentColor; fill:none; stroke-width:1.6; }
+.plat-t { font:var(--bn-t-h3); margin:0; }
+.plat-badge { display:none; margin-inline-start:auto; font:var(--bn-t-cap); color:var(--bn-ac);
+  background:var(--bn-ac-bg); border:1px solid var(--bn-ac-line); border-radius:var(--bn-r-pill);
+  padding:4px 11px; white-space:nowrap; }
+.plat.is-detected .plat-badge { display:inline-block; }
+.plat.is-detected { border:1px solid var(--bn-ac-line); }
+
+.steps { list-style:none; margin:0; padding:0; counter-reset:step; }
+.steps li { display:flex; gap:var(--bn-s4); align-items:flex-start; padding-block:var(--bn-s3);
+  border-block-start:1px solid var(--bn-line-soft); }
+.steps li:first-child { border-block-start:0; }
+.steps li::before { counter-increment:step; content:counter(step);
+  flex:none; width:28px; height:28px; border-radius:50%; background:var(--bn-glass-tint);
+  border:1px solid var(--bn-line); display:grid; place-items:center;
+  font:600 12.5px/1 var(--bn-mono); color:var(--bn-ink-2); }
+.steps p { margin:0; font:var(--bn-t-sm); color:var(--bn-ink-2); line-height:1.85; padding-block-start:3px; }
+.steps .ic { display:inline-flex; vertical-align:middle; margin-inline:3px;
+  width:17px; height:17px; stroke:var(--bn-ac); fill:none; stroke-width:1.7; }
+
+.note { font:var(--bn-t-cap); color:var(--bn-ink-3); text-align:center; margin-block-start:var(--bn-s6);
+  line-height:1.8; }
+.note a { color:var(--bn-ac); }
+</style>
+</head>
+<body class="bn-body">
+
+<div class="bn-backdrop" aria-hidden="true"></div>
+
+<main class="wrap">
+  <div class="head">
+    <div class="logo">بُ<b>نيان</b></div>
+    <h1>ثبّت بُنيان على جهازك</h1>
+    <p>بلا متجر تطبيقات، وبلا تحميل — عشر ثوانٍ وأيقونة بُنيان على شاشتك
+       الرئيسية، تفتح مباشرةً كأي تطبيق آخر.</p>
+  </div>
+
+  <section class="plat bn-glass" id="platAndroid">
+    <div class="plat-h">
+      <span class="plat-ic" aria-hidden="true">
+        <svg viewBox="0 0 24 24" stroke-linecap="round" stroke-linejoin="round">
+          <rect x="5" y="2" width="14" height="20" rx="2.5"/><path d="M10 18h4"/>
+        </svg>
+      </span>
+      <h2 class="plat-t">أندرويد · Chrome</h2>
+      <span class="plat-badge">هذا جهازك</span>
+    </div>
+    <ol class="steps">
+      <li><p>افتح بُنيان على متصفّح Chrome، ثم اضغط زرّ
+        <b>"تثبيت"</b> إن ظهر أعلى الصفحة.</p></li>
+      <li><p>لم يظهر الزرّ؟ افتح قائمة المتصفّح
+        <svg class="ic" viewBox="0 0 24 24"><circle cx="12" cy="5" r="1"/><circle cx="12" cy="12" r="1"/><circle cx="12" cy="19" r="1"/></svg>
+        (النقاط الثلاث أعلى يمين الشاشة).</p></li>
+      <li><p>اختر <b>"تثبيت التطبيق"</b> أو <b>"إضافة إلى الشاشة الرئيسية"</b>،
+        ثم أكِّد.</p></li>
+    </ol>
+  </section>
+
+  <section class="plat bn-glass" id="platIOS">
+    <div class="plat-h">
+      <span class="plat-ic" aria-hidden="true">
+        <svg viewBox="0 0 24 24" stroke-linecap="round" stroke-linejoin="round">
+          <rect x="7" y="2" width="10" height="20" rx="2.5"/><path d="M10.5 18.5h3"/>
+        </svg>
+      </span>
+      <h2 class="plat-t">آيفون · Safari</h2>
+      <span class="plat-badge">هذا جهازك</span>
+    </div>
+    <ol class="steps">
+      <li><p>افتح بُنيان على متصفّح Safari تحديداً — هذا المسار
+        الوحيد المتاح على آيفون، ولا يعمل من متصفّح آخر.</p></li>
+      <li><p>اضغط زرّ المشاركة
+        <svg class="ic" viewBox="0 0 24 24"><path d="M12 3v12M8 7l4-4 4 4"/><path d="M5 12v7a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2v-7"/></svg>
+        أسفل الشاشة (أو أعلاها في بعض الإصدارات).</p></li>
+      <li><p>مرّر لأسفل واختر <b>"إضافة إلى الشاشة الرئيسية"</b>
+        (Add to Home Screen)، ثم اضغط <b>"إضافة"</b>.</p></li>
+    </ol>
+  </section>
+
+  <section class="plat bn-glass" id="platDesktop">
+    <div class="plat-h">
+      <span class="plat-ic" aria-hidden="true">
+        <svg viewBox="0 0 24 24" stroke-linecap="round" stroke-linejoin="round">
+          <rect x="3" y="4" width="18" height="12" rx="1.5"/><path d="M8 20h8M12 16v4"/>
+        </svg>
+      </span>
+      <h2 class="plat-t">حاسوب · Chrome أو Edge</h2>
+      <span class="plat-badge">هذا جهازك</span>
+    </div>
+    <ol class="steps">
+      <li><p>افتح بُنيان، ثم ابحث عن أيقونة التثبيت
+        <svg class="ic" viewBox="0 0 24 24"><path d="M12 3v12M7 10l5 5 5-5"/><path d="M4 19.5h16"/></svg>
+        داخل شريط العنوان (يمين حقل الرابط).</p></li>
+      <li><p>اضغطها، ثم اختر <b>"تثبيت"</b> في النافذة التي تظهر.</p></li>
+      <li><p>لا أيقونة ظاهرة؟ افتح قائمة المتصفّح (⋮) واختر
+        <b>"تثبيت بُنيان..."</b>.</p></li>
+    </ol>
+  </section>
+
+  <p class="note">مشكلة في التثبيت؟ راسلنا على <a href="mailto:support@bonyans.com">support@bonyans.com</a></p>
+</main>
+
+<script>
+(function () {
+  'use strict';
+  /* تحسين تقدّمي بحت — لا قسم يعتمد على هذا ليكون مقروءاً. */
+  try {
+    var ua = navigator.userAgent || '';
+    var isIOS = /iPad|iPhone|iPod/.test(ua) && !window.MSStream;
+    var isMobile = /Android|iPhone|iPad|iPod/.test(ua);
+    var id = isIOS ? 'platIOS' : (isMobile ? 'platAndroid' : 'platDesktop');
+    var el = document.getElementById(id);
+    if (el) {
+      el.classList.add('is-detected');
+      el.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    }
+  } catch (e) {}
+})();
+</script>
+</body>
+</html>

@@ -40,6 +40,13 @@ def live_server():
     """
     خادم uvicorn حقيقي على منفذ محلّي — عامل الخدمة يحتاج HTTP
     فعلياً، لا استدعاء داخل العملية كـTestClient.
+
+    فحص الجاهزية يطلب /manifest.json (ملفّ ثابت) لا /health —
+    /health يفحص الاتصال بقاعدة البيانات فعلياً (main.py:
+    health_check) ويردّ 503 إن تعذّر، فيُخفق فحص الجاهزية أبداً حين
+    تكون القاعدة معطوبة حتى لو كان الخادم نفسه يعمل تماماً ولا
+    يحتاجها أي اختبار هنا (test_66/67/97/98 صفحات ثابتة بحتة).
+    منفذ TCP يستجيب لملفّ ثابت كافٍ لإثبات أن uvicorn جاهز.
     """
     port = _free_port()
     proc = subprocess.Popen(
@@ -52,7 +59,7 @@ def live_server():
         ok = False
         for _ in range(100):
             try:
-                urllib.request.urlopen(base + "/health", timeout=0.5)
+                urllib.request.urlopen(base + "/manifest.json", timeout=0.5)
                 ok = True
                 break
             except Exception:
@@ -67,7 +74,7 @@ def live_server():
 
 
 @pytest.fixture(scope="module")
-def company_cookie_token():
+def company_cookie_token(_db_guard):
     with main.SessionLocal() as db:
         cid = db.execute(text(
             "SELECT company_id FROM profiles WHERE role='company' ORDER BY created_at LIMIT 1"
@@ -80,6 +87,7 @@ def company_cookie_token():
     return main.create_token(main.ROLE_COMPANY, uid)
 
 
+@pytest.mark.needs_db
 @pytest.mark.skipif(not _HAS_PLAYWRIGHT, reason="Playwright غير مثبَّت")
 def test_47_offline_inside_app_does_not_serve_public_site(live_server, company_cookie_token):
     """
@@ -120,6 +128,7 @@ def test_47_offline_inside_app_does_not_serve_public_site(live_server, company_c
 # الجولة ج — ما يحتاج متصفّحاً حقيقياً
 # ══════════════════════════════════════════════════════════════
 
+@pytest.mark.needs_db
 @pytest.mark.skipif(not _HAS_PLAYWRIGHT, reason="Playwright غير مثبَّت")
 def test_65_offline_at_bare_surface_path_no_trailing_slash(live_server, company_cookie_token):
     """
@@ -220,6 +229,7 @@ def test_67_service_worker_update_shows_explicit_banner(live_server):
 # عطب دخول المدير — الجلسة تُنشأ ثم تُرفض عند التنقّل إلى /admin
 # ══════════════════════════════════════════════════════════════
 
+@pytest.mark.needs_db
 @pytest.mark.skipif(not _HAS_PLAYWRIGHT, reason="Playwright غير مثبَّت")
 def test_80_admin_login_survives_navigation_to_dashboard(live_server):
     """
@@ -269,3 +279,80 @@ def test_80_admin_login_survives_navigation_to_dashboard(live_server):
                 "هبط على منتقي أدوار login.html العام بدل لوحة الإدارة"
         finally:
             browser.close()
+
+
+# ══════════════════════════════════════════════════════════════
+# جولة التثبيت — PWA فقط
+# ══════════════════════════════════════════════════════════════
+
+@pytest.mark.skipif(not _HAS_PLAYWRIGHT, reason="Playwright غير مثبَّت")
+def test_97_install_button_hidden_in_standalone_mode(live_server):
+    """
+    زرّ التثبيت لا يظهر حين يكون التطبيق مثبَّتاً فعلاً (وضع
+    standalone) — يُحاكى بتعديل matchMedia قبل تحميل أي سكربت في
+    الصفحة، فيرى nav-public.js نفسه "مثبَّتاً" كما لو فتح المستخدم
+    التطبيق من أيقونته لا من متصفّح عادي.
+    """
+    with sync_playwright() as p:
+        browser = p.chromium.launch()
+        page = browser.new_page()
+        try:
+            page.add_init_script("""
+                const realMatchMedia = window.matchMedia;
+                window.matchMedia = function (q) {
+                    if (q.indexOf('display-mode: standalone') !== -1) {
+                        return { matches: true, media: q, addListener(){}, removeListener(){} };
+                    }
+                    return realMatchMedia.call(window, q);
+                };
+            """)
+            page.goto(f"{live_server}/index.html")
+            page.wait_for_selector(".bnv", timeout=10000)
+            btn = page.locator("[data-bnv-install]")
+            # hidden يجب أن يبقى — لا beforeinstallprompt يصل أصلاً في
+            # اختبار آلي، لكن المهمّ هنا أن standalone وحدها كافية لإخفائه
+            assert btn.get_attribute("hidden") is not None, \
+                "زرّ التثبيت ظاهر رغم وضع standalone المحاكى"
+        finally:
+            browser.close()
+
+
+@pytest.mark.skipif(not _HAS_PLAYWRIGHT, reason="Playwright غير مثبَّت")
+def test_98_install_page_detects_platform_from_user_agent(live_server):
+    """
+    install.html تُبرِز تعليمات iOS حين يكون وكيل المستخدم سفاري
+    آيفون، وتعليمات أندرويد خلافه — كلا القسمين موجودان في HTML
+    الساكن دوماً (يعملان بلا جافاسكربت)؛ الفحص هنا على الشارة
+    "هذا جهازك" التي يضيفها JS تحسيناً لا شرطاً.
+    """
+    with sync_playwright() as p:
+        browser = p.chromium.launch()
+
+        # ١ · آيفون سفاري
+        ios_ua = ("Mozilla/5.0 (iPhone; CPU iPhone OS 17_0 like Mac OS X) "
+                  "AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.0 Mobile/15E148 Safari/604.1")
+        ctx = browser.new_context(user_agent=ios_ua)
+        page = ctx.new_page()
+        page.goto(f"{live_server}/install.html")
+        page.wait_for_timeout(300)
+        assert "is-detected" in (page.locator("#platIOS").get_attribute("class") or ""), \
+            "لم يُبرِز قسم iOS مع وكيل مستخدم سفاري/آيفون"
+        assert "is-detected" not in (page.locator("#platAndroid").get_attribute("class") or "")
+        # القسمان مقروءان في HTML الساكن بلا شرط جافاسكربت
+        assert "إضافة إلى الشاشة الرئيسية" in page.content()
+        assert "تثبيت التطبيق" in page.content()
+        ctx.close()
+
+        # ٢ · أندرويد Chrome
+        android_ua = ("Mozilla/5.0 (Linux; Android 13; Pixel 7) AppleWebKit/537.36 "
+                      "(KHTML, like Gecko) Chrome/120.0.0.0 Mobile Safari/537.36")
+        ctx2 = browser.new_context(user_agent=android_ua)
+        page2 = ctx2.new_page()
+        page2.goto(f"{live_server}/install.html")
+        page2.wait_for_timeout(300)
+        assert "is-detected" in (page2.locator("#platAndroid").get_attribute("class") or ""), \
+            "لم يُبرِز قسم أندرويد مع وكيل مستخدم غير iOS"
+        assert "is-detected" not in (page2.locator("#platIOS").get_attribute("class") or "")
+        ctx2.close()
+
+        browser.close()
