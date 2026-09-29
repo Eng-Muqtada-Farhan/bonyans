@@ -1,0 +1,10 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1024 1024" width="1024" height="1024" role="img" aria-label="بُنيان">
+  <title>بُنيان</title>
+  <rect width="1024" height="1024" fill="#000000"/>
+  <g fill="#FFFFFF" transform="translate(212 237)">
+    <rect x="0"   y="0"   width="363" height="188"/>
+    <rect x="387" y="0"   width="213" height="338"/>
+    <rect x="0"   y="213" width="213" height="338"/>
+    <rect x="238" y="362" width="362" height="189"/>
+  </g>
+</svg>
