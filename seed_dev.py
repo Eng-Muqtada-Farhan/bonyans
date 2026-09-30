@@ -28,7 +28,7 @@ import sys
 from datetime import datetime, timedelta, timezone
 
 import bcrypt
-from dotenv import load_dotenv
+from dotenv import dotenv_values, load_dotenv
 from sqlalchemy import create_engine, text
 
 load_dotenv()
@@ -57,12 +57,49 @@ STATUSES = (["approved"] * 8) + (["pending"] * 2) + (["rejected"] * 2)
 AR_NUM = ["١", "٢", "٣", "٤", "٥", "٦", "٧", "٨", "٩", "١٠", "١١", "١٢"]
 
 
+def _host(url: str) -> str:
+    """
+    مضيف الرابط بلا لاحقة -pooler — فرع Neon نفسه يحمل مضيفين مختلفين
+    حرفياً (مجمَّع وغير مجمَّع)، فالمقارنة الحرفية بينهما تُخطئ رغم أنهما
+    القاعدة الفعلية نفسها. التطبيع هنا يمنع هذا الثغر بالضبط.
+    """
+    try:
+        h = url.split("@", 1)[1].split("/", 1)[0]
+    except (IndexError, AttributeError):
+        h = url or ""
+    return h.replace("-pooler", "")
+
+
 def get_engine():
     if os.getenv("ENVIRONMENT", "development") == "production":
         sys.exit("⛔ رُفض: هذا السكربت للتطوير المحلي فقط، و ENVIRONMENT=production.")
     url = os.getenv("DATABASE_URL_UNPOOLED") or os.getenv("DATABASE_URL", "")
     if not url:
         sys.exit("⛔ لا يوجد رابط قاعدة بيانات في .env")
+
+    # حارس إلزامي قبل أي اتصال — هذا سكربت يكتب بيانات فعلية، ولا
+    # يجوز أن يلمس الإنتاج تحت أي ظرف. يقرأ DATABASE_URL/
+    # DATABASE_URL_UNPOOLED كما هما مكتوبان في ملفّ .env مباشرة (عبر
+    # dotenv_values، بلا تأثّر بأي تجاوز بيئي مرّره المستدعي) — هذان
+    # مضيفا الإنتاج الحقيقيّان بصرف النظر عمّا تشير إليه متغيّرات
+    # البيئة وقت التشغيل. تطابق مضيف الهدف مع أيٍّ منهما يعني أن
+    # التشغيل يوشك أن يكتب على الإنتاج فعلياً — يُرفَض فوراً.
+    env_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), ".env")
+    prod_raw = dotenv_values(env_path)
+    prod_hosts = {
+        _host(prod_raw.get("DATABASE_URL", "")),
+        _host(prod_raw.get("DATABASE_URL_UNPOOLED", "")),
+    }
+    prod_hosts.discard("")
+    target_host = _host(url)
+    if target_host and target_host in prod_hosts:
+        sys.exit(
+            "⛔ رُفض: مضيف الهدف (" + target_host[:12] + "…) يطابق مضيف "
+            "الإنتاج (DATABASE_URL/DATABASE_URL_UNPOOLED في .env). هذا "
+            "سكربت يكتب بيانات — لن يعمل على قاعدة حقيقية أبداً. مرّر "
+            "DATABASE_URL أو DATABASE_URL_UNPOOLED صراحةً بقيمة فرع "
+            "اختبار مختلف عند الاستدعاء."
+        )
     return create_engine(url)
 
 
@@ -324,6 +361,116 @@ def seed(engine) -> None:
 """)
 
 
+CLIENT_LOGIN_EMAIL = f"client{SEED_DOMAIN}"
+
+
+def ensure_company_login_account(engine) -> None:
+    """
+    يضمن أن حساب دخول الشركة (company@seed.test) يعمل فعلاً عبر
+    /company/login الحالي — ذاك يقرأ users + profiles(role='company')
+    + companies مباشرة (main.py:1276)، لا جدول company_users القديم
+    الذي كان هذا الملفّ يكتب إليه وحده (main.py لا يقرأه إطلاقاً —
+    التعليق "old company_users" في main.py:1941 يؤكّد ذلك). البذر
+    الأساسي أعلاه (seed()) كان يكتب فقط إلى company_users، فيبقى
+    حساب الدخول عاطلاً 401 على أي فرع Neon فارغ يُبذَر من الصفر.
+
+    مثالي للتكرار: يُشغَّل في كل استدعاء (لا يعتمد على أن seed()
+    نفّذت هذه المرّة أم تخطّت لأن الشركات موجودة أصلاً) — يتحقّق قبل
+    أي إدراج، ويُصحّح الربط تلقائياً إن أشار إلى شركة غير معتمدة (قد
+    يحدث من بيانات بذر سابقة غير متوافقة مع المخطّط الحالي) بدل أن
+    يُترك عطباً صامتاً يُكتشَف لاحقاً بفشل غامض في اختبارات الشركة.
+    """
+    now = datetime.now(timezone.utc)
+    with engine.begin() as db:
+        approved_cid = db.execute(text(
+            "SELECT id FROM companies WHERE name LIKE :nm AND status='approved' "
+            "ORDER BY id LIMIT 1"
+        ), {"nm": f"{SEED_NAME}%"}).scalar()
+        if not approved_cid:
+            print("↷ لا شركة معتمدة مزروعة بعد — تخطّي ضمان حساب دخول الشركة "
+                  "(شغّل البذر الأساسي أوّلاً).")
+            return
+
+        uid = db.execute(text("SELECT id FROM users WHERE email=:e"),
+                          {"e": LOGIN_EMAIL}).scalar()
+        if not uid:
+            pw_hash = bcrypt.hashpw(LOGIN_PASSWORD.encode(), bcrypt.gensalt()).decode()
+            uid = db.execute(text("""
+                INSERT INTO users
+                    (email, phone, display_name, provider, password_hash,
+                     is_email_verified, is_phone_verified, is_active, created_at, updated_at)
+                VALUES (:email, :ph, :name, 'local', :pwh, TRUE, FALSE, TRUE, :now, :now)
+                RETURNING id
+            """), {
+                "email": LOGIN_EMAIL, "ph": "07000000099",
+                "name": "حساب اختبار — دخول شركة", "pwh": pw_hash, "now": now,
+            }).scalar()
+            print(f"  أُنشئ مستخدم دخول الشركة (id={uid})")
+        else:
+            print(f"  مستخدم دخول الشركة موجود بالفعل (id={uid}) — لم يُكرَّر")
+
+        prof = db.execute(text(
+            "SELECT id, company_id FROM profiles WHERE user_id=:u AND role='company' LIMIT 1"
+        ), {"u": uid}).mappings().fetchone()
+
+        if not prof:
+            db.execute(text("""
+                INSERT INTO profiles (user_id, role, company_id, created_at)
+                VALUES (:u, 'company', :c, :now)
+            """), {"u": uid, "c": approved_cid, "now": now})
+            print(f"  أُنشئ ملف company لدخول الشركة → company_id={approved_cid}")
+            return
+
+        if prof["company_id"] == approved_cid:
+            print("  ربط دخول الشركة سليم بالفعل — لم يُكرَّر شيء")
+            return
+
+        linked_status = db.execute(text("SELECT status FROM companies WHERE id=:c"),
+                                    {"c": prof["company_id"]}).scalar()
+        if linked_status == "approved":
+            print("  ربط دخول الشركة يشير إلى شركة أخرى approved بالفعل — لا تعديل")
+            return
+
+        db.execute(text("UPDATE profiles SET company_id=:c WHERE id=:pid"),
+                   {"c": approved_cid, "pid": prof["id"]})
+        print(f"  صُحِّح ربط دخول الشركة: كان يشير إلى شركة status={linked_status!r} "
+              f"→ company_id={approved_cid} (approved)")
+
+
+def ensure_client_login_account(engine) -> None:
+    """
+    يضمن أن ملف صاحب المشروع (client@seed.test) يحمل صفّ profiles
+    فعلياً — identity_from_claims (main.py:1092-1105) يرفض أي طلب
+    مصادَق عليه (401 «invalid token») ما لم يجد صفّ profiles مطابقاً
+    لمعرّف المستخدم، بصرف النظر عن صحّة الرمز نفسه. seed() أعلاه كان
+    يُنشئ صفّ users للعميل فقط، لا profiles — فيبقى /auth/login ناجحاً
+    شكلياً (200) بينما كل طلب لاحق بالرمز نفسه يُرفَض 401 صامتاً.
+    الدور 'client' حرفياً كما يكتبه التسجيل الحقيقي (main.py:1917) —
+    لا 'user' رغم أن الثابت البرمجي لهذا الدور اسمه ROLE_USER.
+    """
+    now = datetime.now(timezone.utc)
+    with engine.begin() as db:
+        uid = db.execute(text("SELECT id FROM users WHERE email=:e"),
+                          {"e": CLIENT_LOGIN_EMAIL}).scalar()
+        if not uid:
+            print("↷ لا مستخدم عميل مزروع بعد — تخطّي ضمان ملفّه "
+                  "(شغّل البذر الأساسي أوّلاً).")
+            return
+
+        has_profile = db.execute(text(
+            "SELECT 1 FROM profiles WHERE user_id=:u AND role='client' LIMIT 1"
+        ), {"u": uid}).scalar()
+        if has_profile:
+            print(f"  ملفّ صاحب المشروع موجود بالفعل (user_id={uid}) — لم يُكرَّر")
+            return
+
+        db.execute(text("""
+            INSERT INTO profiles (user_id, role, created_at)
+            VALUES (:u, 'client', :now)
+        """), {"u": uid, "now": now})
+        print(f"  أُنشئ ملفّ صاحب المشروع (role='client') → user_id={uid}")
+
+
 def main() -> int:
     ap = argparse.ArgumentParser(description="بذر بيانات تجريبية للتطوير المحلي")
     ap.add_argument("--clear",  action="store_true", help="حذف كل بيانات البذر")
@@ -333,19 +480,26 @@ def main() -> int:
     engine = get_engine()
     if args.status:
         status(engine)
-    elif args.clear:
+        return 0
+    if args.clear:
         clear(engine)
+        return 0
+
+    with engine.connect() as db:
+        existing = db.execute(
+            text("SELECT COUNT(*) FROM companies WHERE name LIKE :nm"),
+            {"nm": f"{SEED_NAME}%"},
+        ).scalar()
+    if existing:
+        print(f"↷ يوجد {existing} شركة مزروعة مسبقاً — تخطّي البذر الأساسي "
+              f"(python seed_dev.py --clear لإعادة البذر من الصفر).")
     else:
-        with engine.connect() as db:
-            existing = db.execute(
-                text("SELECT COUNT(*) FROM companies WHERE name LIKE :nm"),
-                {"nm": f"{SEED_NAME}%"},
-            ).scalar()
-        if existing:
-            print(f"⚠️  يوجد {existing} شركة مزروعة مسبقاً. نظّفها أولاً:")
-            print("    python seed_dev.py --clear")
-            return 1
         seed(engine)
+
+    # يُشغَّلان دوماً، بذراً جديداً كان أم إعادة تشغيل على بيانات قائمة —
+    # مثاليان للتكرار بذاتهما (انظر توثيقهما أعلاه).
+    ensure_company_login_account(engine)
+    ensure_client_login_account(engine)
     return 0
 
 

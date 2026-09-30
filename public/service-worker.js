@@ -28,7 +28,7 @@ const CACHE_ASSETS = [
   '/register.html',
   '/tokens.css',
   '/bn-filters.js',
-  '/nav-public.js',
+  '/nav.js',
   '/guard.js',
   '/app/app-core.js',
   '/admin/admin-core.js',

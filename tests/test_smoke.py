@@ -1567,8 +1567,18 @@ def test_66_maskable_icon_content_stays_inside_safe_zone(client):
     pytest.importorskip("PIL")
     from PIL import Image
 
-    path = Path(__file__).resolve().parent.parent / "public" / "icons" / "icon-maskable-512.png"
-    bg_expected = (13, 17, 23)  # #0d1117 — خلفية icon.svg
+    root = Path(__file__).resolve().parent.parent
+    path = root / "public" / "icons" / "icon-maskable-512.png"
+
+    # الخلفية الحقيقية هي BG في make_icons.py — لا لون ثابت مفترَض هنا.
+    # كانت هذه القيمة (13, 17, 23) خلفية icon.svg، ملفّ قديم منفصل لا
+    # علاقة له بالمولِّد الحالي (جولة الأيقونات: هندسة داخلية مُتحقَّق
+    # منها من الشعار الرسمي، BG أسود صراحةً) — فشلت مقارنةً بمرجع خاطئ
+    # لا لأن الأيقونة معطوبة. جذر المشروع مُضاف أصلاً إلى sys.path في
+    # conftest.py فـ import make_icons يعمل بلا أي تعديل هنا.
+    import make_icons
+    bg_expected = make_icons.BG
+
     with Image.open(path) as im:
         w, h = im.size
         for corner in [(2, 2), (w - 3, 2), (2, h - 3), (w - 3, h - 3)]:
@@ -2658,14 +2668,15 @@ def test_95_manifest_has_all_required_install_fields(client):
 
 def test_96_install_button_wired_through_beforeinstallprompt(client):
     """
-    زرّ التثبيت في nav-public.js: يلتقط beforeinstallprompt ويؤجّله
+    زرّ التثبيت في public/nav.js (كان nav-public.js قبل توحيد ملفّات
+    التنقّل الثلاثة): يلتقط beforeinstallprompt ويؤجّله
     (preventDefault)، ولا يظهر إلا بعد التقاطه فعلاً (لا تخميناً أن
     المتصفّح يدعم التثبيت)، ويختفي في وضع standalone كلياً. فحص
     نصّي لمنطق الإظهار/الإخفاء — السلوك الحيّ في المتصفّح في
     test_service_worker.py.
     """
     root = Path(__file__).resolve().parent.parent
-    src = (root / "public" / "nav-public.js").read_text(encoding="utf-8")
+    src = (root / "public" / "nav.js").read_text(encoding="utf-8")
 
     assert "beforeinstallprompt" in src
     assert re.search(r"e\.preventDefault\(\)", src), \
@@ -2711,3 +2722,84 @@ def test_99_service_worker_cache_name_derived_not_manual(client):
             "البصمة لم تتغيّر بعد إضافة ملفّ تحت public/ — الدالّة لا تعتمد المحتوى الفعلي"
     finally:
         tmp.unlink(missing_ok=True)
+
+
+# ══════════════════════════════════════════════════════════════
+# جولة التنقّل الموحَّد — public/nav.js يستبدل الملفّات الثلاثة
+# ══════════════════════════════════════════════════════════════
+
+def _nav_js_source():
+    root = Path(__file__).resolve().parent.parent
+    return (root / "public" / "nav.js").read_text(encoding="utf-8")
+
+
+def test_100_company_surface_has_no_public_or_directory_link(client):
+    """
+    قاعدة العزل ١ — سطح الشركة لا رابط فيه إلى الصفحة العامة (/) ولا
+    إلى دليل الشركات (/companies.html)، لا في القائمة الجانبية
+    (COMPANY_BLOCKS) ولا في الشريط السفلي (COMPANY_TABS). فحص نصّي
+    على الكتلتين تحديداً — لا الملفّ كلّه، لأن الموقع العام وسطح
+    المستخدم يحملان هذين الرابطين شرعاً في مكان آخر من نفس الملفّ.
+    """
+    src = _nav_js_source()
+
+    m = re.search(r"var COMPANY_BLOCKS = (\[.*?\n  \]);", src, re.S)
+    assert m, "COMPANY_BLOCKS غائبة عن nav.js"
+    blocks_src = m.group(1)
+
+    m2 = re.search(r"var COMPANY_TABS = (\[.*?\n  \]);", src, re.S)
+    assert m2, "COMPANY_TABS غائبة عن nav.js"
+    tabs_src = m2.group(1)
+
+    company_src = blocks_src + "\n" + tabs_src
+    assert "/companies.html" not in company_src, \
+        "رابط عام (دليل الشركات) تسرّب إلى سطح الشركة"
+    assert '"/"' not in company_src and "'/'" not in company_src and 'href="/"' not in company_src, \
+        "رابط إلى الصفحة العامة تسرّب إلى سطح الشركة"
+    assert '"/index.html"' not in company_src and "'/index.html'" not in company_src, \
+        "رابط مطلق إلى الرئيسية العامة تسرّب إلى سطح الشركة"
+
+
+def test_101_user_navigation_links_to_companies_directory(client):
+    """
+    العزل مرفوع عن سطح المستخدم وحده (صاحب مشروع مشترٍ لا بائع) —
+    الشريط السفلي USER_TABS يجب أن يحمل رابطاً إلى دليل الشركات.
+    يفشل على القوائم القديمة الثلاث (nav-me.js لم يكن يحمل هذا الرابط
+    إطلاقاً — قاعدة العزل ١ كانت تُطبَّق عليه خطأً كما لو كان سطح شركة).
+    """
+    src = _nav_js_source()
+    m = re.search(r"var USER_TABS = (\[.*?\n  \]);", src, re.S)
+    assert m, "USER_TABS غائبة عن nav.js"
+    assert "/companies.html" in m.group(1), \
+        "تنقّل المستخدم لا يحمل رابطاً إلى دليل الشركات"
+
+
+def test_102_every_company_destination_reachable_on_mobile(client):
+    """
+    «لا صفحة تفقد طريقها» — التسع وجهات القديمة لسطح الشركة (كانت
+    كلّها في نav-app.js) يجب أن تبقى كلّها إمّا في الشريط الأساسي
+    (COMPANY_TABS) أو داخل «المزيد» (COMPANY_BLOCKS، اللوحة المنسدلة
+    نفسها). فشل هذا الاختبار يعني أن وجهة يتيمة لا مسار جوّالاً إليها.
+    """
+    src = _nav_js_source()
+
+    m = re.search(r"var COMPANY_BLOCKS = (\[.*?\n  \]);", src, re.S)
+    blocks_src = m.group(1)
+    m2 = re.search(r"var COMPANY_TABS = (\[.*?\n  \]);", src, re.S)
+    tabs_src = m2.group(1)
+
+    required = {
+        "index.html", "profile.html", "gallery.html", "market.html",
+        "bids.html", "messages.html", "reviews.html", "plan.html", "settings.html",
+    }
+
+    block_hrefs = set(re.findall(r"href:\s*'([^']+)'", blocks_src))
+    tab_hrefs = {
+        h.rsplit("/", 1)[-1]
+        for h in re.findall(r"href:\s*'([^']+)'", tabs_src)
+    }
+
+    reachable = block_hrefs | tab_hrefs
+    missing = required - reachable
+    assert not missing, f"وجهات لا مسار جوّالاً إليها (لا في الشريط ولا في المزيد): {missing}"
+
