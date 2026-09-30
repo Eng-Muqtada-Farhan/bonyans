@@ -12,6 +12,8 @@
 <meta name="theme-color" content="#F4F2ED" media="(prefers-color-scheme: light)">
 <meta name="theme-color" content="#15120E" media="(prefers-color-scheme: dark)">
 <meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="default">
+<meta name="apple-mobile-web-app-title" content="بُنيان">
 <link rel="apple-touch-icon" href="icons/apple-touch-icon.png">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -370,6 +372,16 @@ $('closeBtn').onclick = closePost;
 $('closeBtn').innerHTML = svg('<path d="M18 6L6 18M6 6l12 12"/>', 18);
 $('ov').addEventListener('click', (e) => { if (e.target === $('ov')) closePost(); });
 document.addEventListener('keydown', (e) => { if (e.key === 'Escape') closePost(); });
+
+/* ?post=1 — رابط مباشر من زرّ «انشر مشروعاً» في me/index.html
+   (الحالة الفارغة والزرّ الدائم كليهما) يفتح اللوحة مباشرة بلا نقرة
+   إضافية. openPost() نفسها تتولّى التحويل لصفحة الدخول إن لم يكن
+   المستخدم صاحب مشروع — لا فحص دور مكرَّر هنا. يُزال من الرابط فوراً
+   حتى لا يُعيد فتح اللوحة عند التحديث أو الرجوع. */
+if (new URLSearchParams(location.search).get('post') === '1') {
+  openPost();
+  history.replaceState(null, '', location.pathname);
+}
 
 /* محافظات العراق الثابتة من bn-filters.js — لا نسخة ثانية هنا */
 (async function fillOptions() {

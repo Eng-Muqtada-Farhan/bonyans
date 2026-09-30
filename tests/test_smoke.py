@@ -2871,3 +2871,74 @@ def test_105_flag_false_shows_contact_to_everyone(client, admin_token, monkeypat
     finally:
         client.cookies.clear()
 
+
+# ══════════════════════════════════════════════════════════════
+# جولة (ج) — عطلان من اختبار يدوي على الهاتف
+# ══════════════════════════════════════════════════════════════
+
+def test_106_my_projects_page_links_to_publish_project(client):
+    """
+    me/index.html («مشاريعي») كان بلا أي طريق لنشر مشروع — الحالة
+    الفارغة تقول «لم تنشر مشروعاً بعد» بلا رابط (اكتُشف باختبار يدوي
+    على الهاتف). يجب أن يحمل رابطاً إلى ?post=1 في صفحة السوق
+    (تفتح لوحة النشر مباشرة) — مرّتين: زرّاً دائماً في رأس الصفحة،
+    وزرّاً آخر داخل الحالة الفارغة نفسها.
+    """
+    root = Path(__file__).resolve().parent.parent
+    src = (root / "public" / "me" / "index.html").read_text(encoding="utf-8")
+    occurrences = src.count("../projects.html?post=1")
+    assert occurrences >= 2, \
+        f"يُتوقَّع رابطان على الأقل إلى نشر مشروع (الزرّ الدائم + الحالة الفارغة) — وُجد {occurrences}"
+
+
+def test_107_all_public_pages_have_apple_pwa_meta(client):
+    """
+    آيفون يفتح الموقع المثبَّت داخل سفاري بشريط عنوان بلا هذه
+    الوسوم الثلاثة معاً. كل صفحات public/*.html (لا /app ولا /me —
+    خارج نطاق هذه الجولة) يجب أن تحملها.
+    """
+    root = Path(__file__).resolve().parent.parent / "public"
+    required = (
+        'name="apple-mobile-web-app-capable" content="yes"',
+        'name="apple-mobile-web-app-status-bar-style" content="default"',
+        'name="apple-mobile-web-app-title" content="بُنيان"',
+    )
+    missing = {}
+    for f in sorted(root.glob("*.html")):
+        src = f.read_text(encoding="utf-8")
+        gaps = [tag for tag in required if tag not in src]
+        if gaps:
+            missing[f.name] = gaps
+    assert not missing, f"صفحات ينقصها وسوم آيفون: {missing}"
+
+
+_NO_ACTION_MARKER = "لا فعل ممكن هنا"
+
+
+def test_108_every_empty_state_in_user_surface_has_an_action(client):
+    """
+    قاعدة عامة: أي ME.emptyState(...) في public/me/*.html يجب أن يحمل
+    actionHTML غير فارغ (المعامل الثالث) — إلا ما كان مُعلَّماً صراحةً
+    بتعليق يحوي «لا فعل ممكن هنا» فوق الاستدعاء (حالات انتظار حقيقية
+    لا فعل خارجي لها: العروض لم تصل بعد، أو تحديد عنصر من قائمة
+    مجاورة ظاهرة أصلاً). حالة فارغة توصّف فعلاً غائب الرابط أجوف.
+    """
+    root = Path(__file__).resolve().parent.parent / "public" / "me"
+    call_re = re.compile(
+        r"ME\.emptyState\(\s*'(?:[^'\\]|\\.)*'\s*,\s*'(?:[^'\\]|\\.)*'\s*,\s*'((?:[^'\\]|\\.)*)'",
+        re.S,
+    )
+    violations = []
+    for f in sorted(root.glob("*.html")):
+        src = f.read_text(encoding="utf-8")
+        for m in call_re.finditer(src):
+            action = m.group(1)
+            if action.strip():
+                continue
+            preceding = src[max(0, m.start() - 200):m.start()]
+            if _NO_ACTION_MARKER in preceding:
+                continue
+            line_no = src.count("\n", 0, m.start()) + 1
+            violations.append(f"{f.name}:{line_no}")
+    assert not violations, f"حالات فارغة بلا فعل ولا علامة استثناء: {violations}"
+

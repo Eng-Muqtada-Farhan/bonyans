@@ -95,6 +95,8 @@ async function open(pid) {
   try {
     const bids = await ME.api('/projects/' + pid + '/bids');
     if (!bids.length) {
+      /* لا فعل ممكن هنا — القرار بيد الشركات لا صاحب المشروع،
+       * لا وجهة خارجية تُضاف. */
       $('body').innerHTML = ME.emptyState('لم تصل عروض على هذا المشروع بعد',
         'حين تقدّم الشركات عروضها ستظهر هنا مرتّبةً من الأقل سعراً.', '', I.bid);
       return;
@@ -157,7 +159,7 @@ async function load(keep) {
       $('body').className = '';
       $('body').innerHTML = ME.emptyState('لا مشاريع لك بعد',
         'العروض تصل على مشاريعك المنشورة.',
-        '<a class="bn-btn" href="index.html">مشاريعي</a>', I.bid);
+        '<a class="bn-btn" href="../projects.html?post=1">انشر مشروعاً</a>', I.bid);
       return;
     }
     const asked = keep || Number(new URLSearchParams(location.search).get('project'));

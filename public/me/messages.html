@@ -249,10 +249,13 @@ async function load() {
     if (!CONVS.length) {
       $('body').className = '';
       $('body').innerHTML = ME.emptyState('لا محادثات بعد',
-        'تبدأ المحادثة حين تراسل شركةً من صفحتها.', '', I.chat);
+        'تبدأ المحادثة حين تراسل شركةً من صفحتها.',
+        '<a class="bn-btn" href="../companies.html">تصفّح الشركات</a>', I.chat);
       return;
     }
     renderShell();
+    /* لا فعل ممكن هنا — القائمة المجاورة نفسها هي الفعل المطلوب،
+       لا وجهة خارجية تُضاف. */
     $('thread').innerHTML = ME.emptyState('اختر محادثة',
       'اختر محادثة من القائمة لقراءتها والردّ عليها.', '', I.chat);
   } catch (e) {
