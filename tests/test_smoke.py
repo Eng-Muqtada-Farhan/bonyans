@@ -2803,3 +2803,71 @@ def test_102_every_company_destination_reachable_on_mobile(client):
     missing = required - reachable
     assert not missing, f"وجهات لا مسار جوّالاً إليها (لا في الشريط ولا في المزيد): {missing}"
 
+
+# ══════════════════════════════════════════════════════════════
+# جولة (ب) — بيانات التواصل خلف الدخول
+# ══════════════════════════════════════════════════════════════
+
+def _approved_company_with_phone(client, admin_token):
+    """ينشئ شركة، يعتمدها، ويعيد (id, phone) — مساعد مشترك للاختبارات الثلاثة."""
+    phone = "07000000095"
+    body = {"name": SMOKE_PREFIX + "شركة تواصل", "city": "بغداد",
+            "phone": phone, "spec": "مقاولات عامة", "desc": "اختبار"}
+    r = client.post("/companies", json=body, headers=bearer(admin_token))
+    assert r.status_code == 200, r.text
+    cid = r.json()["id"]
+    r2 = client.put(f"/companies/{cid}/status", json={"status": "approved"},
+                    headers=bearer(admin_token))
+    assert r2.status_code == 200, r2.text
+    return cid, phone
+
+
+@pytest.mark.needs_db
+def test_103_visitor_company_profile_omits_phone(client, admin_token):
+    """
+    REQUIRE_LOGIN_FOR_CONTACT=True (الافتراضي) — استجابة /company/{id}
+    لزائر بلا أي رمز يجب ألّا تحمل الهاتف إطلاقاً، لا في القيمة ولا
+    مخفيّاً بالعرض فقط. contact_locked=True يخبر الواجهة بعرض زرّ
+    التسجيل بدل أزرار واتساب/اتصال.
+    """
+    cid, phone = _approved_company_with_phone(client, admin_token)
+    # admin_token يفتح جلسة كعكة على client المشترك (session-scoped) —
+    # بلا مسحها هنا فالطلب "الزائر" التالي يصل مصادَقاً فعلياً عبرها.
+    client.cookies.clear()
+    try:
+        r = client.get(f"/company/{cid}")
+        assert r.status_code == 200, r.text
+        d = r.json()["company"]
+        assert d["phone"] is None, "الهاتف وصل زائراً بلا جلسة رغم REQUIRE_LOGIN_FOR_CONTACT"
+        assert d["contact_locked"] is True
+        assert phone not in r.text, "رقم الهاتف تسرّب في نصّ الاستجابة الخام رغم القفل"
+    finally:
+        client.cookies.clear()
+
+
+@pytest.mark.needs_db
+def test_104_logged_in_user_sees_company_contact(client, admin_token, user_token):
+    """أي دور مُصادَق (هنا صاحب مشروع) يرى الهاتف كاملاً — لا حجب لمن له جلسة."""
+    cid, phone = _approved_company_with_phone(client, admin_token)
+    r = client.get(f"/company/{cid}", headers=bearer(user_token))
+    assert r.status_code == 200, r.text
+    d = r.json()["company"]
+    assert d["phone"] == phone, "مستخدم مسجَّل لم يرَ هاتف الشركة"
+    assert d["contact_locked"] is False
+
+
+@pytest.mark.needs_db
+def test_105_flag_false_shows_contact_to_everyone(client, admin_token, monkeypatch):
+    """REQUIRE_LOGIN_FOR_CONTACT=False يجب أن يُظهر الهاتف للزائر أيضاً — كلا الوضعين يعمل."""
+    monkeypatch.setattr(main, "REQUIRE_LOGIN_FOR_CONTACT", False)
+    cid, phone = _approved_company_with_phone(client, admin_token)
+    client.cookies.clear()
+    try:
+        r = client.get(f"/company/{cid}")
+        assert r.status_code == 200, r.text
+        d = r.json()["company"]
+        assert d["phone"] == phone, "المفتاح False لم يُظهر الهاتف لزائر بلا جلسة"
+        assert d["contact_locked"] is False
+    finally:
+        client.cookies.clear()
+

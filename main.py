@@ -261,6 +261,15 @@ async def surface_guard(request: Request, call_next):
 # لتبقى فحوص Railway الصحية تعمل حتى خلف القفل.
 _PRELAUNCH_LOCK = os.getenv("PRELAUNCH_LOCK", "") == "1"
 
+# ══════════════════════════════════════════════════════════════════════════════
+# بيانات التواصل خلف الدخول — جولة (ب)
+# ══════════════════════════════════════════════════════════════════════════════
+# صحيح: يُخفي get_company_public الهاتف من استجابة الـAPI نفسها لمن
+# لا جلسة له — لا حجب بـCSS في الصفحة (ذاك يبقى في مصدر الصفحة،
+# يقرأه أي زائر فتح أدوات المطوّر). False يُظهر الهاتف للجميع —
+# كلا الوضعين يجب أن يعمل (test_103/104/105).
+REQUIRE_LOGIN_FOR_CONTACT = True
+
 
 @app.middleware("http")
 async def prelaunch_lock(request: Request, call_next):
@@ -1120,6 +1129,22 @@ def resolve_identity(request: Request) -> Identity:
     return ident
 
 
+def optional_identity(request: Request) -> Optional[Identity]:
+    """
+    مثل resolve_identity لكن تُعيد None بدل رفع 401 حين لا يوجد رمز
+    إطلاقاً — _decode_token نفسها ترفع فوراً في هذه الحالة (لا رمز =
+    استثناء، لا قيمة خالية)، وهذا يناسب مساراً يتطلّب المصادقة دوماً
+    لكنه لا يناسب صفحة عامة تحتاج تمييز «زائر» عن «مسجَّل» بلا رفض
+    الزائر أصلاً. تُستعمَل في get_company_public وحدها حالياً
+    (REQUIRE_LOGIN_FOR_CONTACT).
+    """
+    try:
+        payload = _decode_token(request)
+    except HTTPException:
+        return None
+    return identity_from_claims(payload)
+
+
 def require_role(request: Request, *roles: str) -> Identity:
     """
     الحارس الوحيد. يرفع 401 لمن لا رمز صالح له، و403 لمن رمزه
@@ -1771,7 +1796,13 @@ def company_activity(request: Request):
 @app.get("/company/{company_id}")
 def get_company_public(company_id: int, request: Request):
     """
-    Public company profile — no auth required.
+    Public company profile — no auth required to view the profile
+    itself. بيانات التواصل (الهاتف، ومنه الواتساب المشتقّ في
+    الواجهة) تُحذَف من الاستجابة نفسها — لا CSS يخفيها لاحقاً — لمن
+    لا هوية له حين REQUIRE_LOGIN_FOR_CONTACT مفعَّلة. أي دور مُصادَق
+    (مشترٍ أو شركة أو مدير) يراها كاملة؛ الهوية هنا اختيارية
+    (identity_from_claims تعيد None بصمت بدل رفع 401) لأن الصفحة
+    ذاتها تبقى عامة تماماً.
     Records a view and returns company + projects + gallery.
     """
     with SessionLocal() as db:
@@ -1808,8 +1839,15 @@ def get_company_public(company_id: int, request: Request):
         """), {"cid": company_id, "ip_hash": ip_hash, "ua": ua})
         db.commit()
 
+    company_dict = row_to_company_dict(dict(company))
+    if REQUIRE_LOGIN_FOR_CONTACT and optional_identity(request) is None:
+        company_dict["phone"] = None
+        company_dict["contact_locked"] = True
+    else:
+        company_dict["contact_locked"] = False
+
     return {
-        "company":  row_to_company_dict(dict(company)),
+        "company":  company_dict,
         "projects": [row_to_project(dict(r)) for r in projects],
         "gallery":  [row_to_gallery(dict(r)) for r in gallery],
     }
