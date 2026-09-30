@@ -31,6 +31,7 @@ srv_out.txt
 server_err.log
 server_p8*.log
 srv.log
+test_out.txt
 
 # ── المحررات ──
 .idea/
